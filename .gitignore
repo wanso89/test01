@@ -1,0 +1,12 @@
+.venv/
+node_modules/
+__pycache__/
+*.log
+*.pyc
+.DS_Store
+.env
+frontend/dist/
+frontend/.next/
+frontend/.cache/
+backend/app/static/uploads/
+backend/app/static/document_images/
