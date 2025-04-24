@@ -1,35 +1,29 @@
 import { useState } from 'react'
-
-function ChatInput({ onSendMessage, isLoading }) {
-  const [message, setMessage] = useState('')
-  
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    if (!message.trim() || isLoading) return
-    
-    onSendMessage(message)
-    setMessage('')
-  }
-  
+function ChatInput({ onSend }) {
+  const [msg, setMsg] = useState('')
   return (
-    <form onSubmit={handleSubmit} className="flex space-x-2">
+    <form
+      className="flex p-4 border-t bg-white dark:bg-gray-800"
+      onSubmit={e => {
+        e.preventDefault()
+        if (msg.trim()) {
+          onSend(msg)
+          setMsg('')
+        }
+      }}>
       <input
-        type="text"
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
+        className="flex-1 p-2 rounded border focus:outline-none"
         placeholder="메시지를 입력하세요..."
-        className="flex-1 p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        disabled={isLoading}
+        value={msg}
+        onChange={e => setMsg(e.target.value)}
       />
       <button
         type="submit"
-        disabled={!message.trim() || isLoading}
-        className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:bg-blue-300"
+        className="ml-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
       >
         전송
       </button>
     </form>
   )
 }
-
 export default ChatInput
