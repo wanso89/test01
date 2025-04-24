@@ -1,28 +1,20 @@
-import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-// import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-
-
 
 function ChatMessage({ message }) {
   const isUser = message.role === 'user';
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-3/4 rounded-lg p-3 ${
+      <div className={`max-w-3/4 rounded-lg p-3 shadow transition-colors ${
         isUser
           ? 'bg-blue-600 text-white'
           : message.error
             ? 'bg-red-50 border border-red-200 text-red-700'
-            : 'bg-white border text-gray-800'
+            : 'bg-white border text-gray-800 dark:bg-gray-800 dark:text-gray-100'
       }`}>
-        {message.category && isUser && (
-          <div className="text-xs opacity-75 mb-1">{message.category}</div>
-        )}
-        {/* 마크다운을 div로 감싸고, className은 div에만 줌 */}
         <div className="markdown-content prose max-w-none dark:prose-invert">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
@@ -53,7 +45,7 @@ function ChatMessage({ message }) {
             <div className="text-xs font-medium text-gray-500 mb-1">참고 문서:</div>
             <div className="space-y-1">
               {message.sources.map((source, idx) => (
-                <div key={idx} className="text-xs text-gray-600 flex items-start">
+                <div key={idx} className="text-xs text-gray-600 flex items-start hover:bg-blue-50 dark:hover:bg-gray-700 rounded p-1 transition-colors cursor-pointer">
                   <span className="mr-1">•</span>
                   <div>
                     {source.path} {source.page && `(p.${source.page})`}
@@ -68,5 +60,4 @@ function ChatMessage({ message }) {
     </div>
   );
 }
-
 export default ChatMessage;

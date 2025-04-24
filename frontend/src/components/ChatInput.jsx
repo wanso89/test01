@@ -12,7 +12,7 @@ function ChatInput({ onSend }) {
         }
       }}>
       <input
-        className="flex-1 p-2 rounded border focus:outline-none"
+        className="flex-1 p-2 rounded border focus:outline-none dark:bg-gray-700 dark:text-white"
         placeholder="메시지를 입력하세요..."
         value={msg}
         onChange={e => setMsg(e.target.value)}
