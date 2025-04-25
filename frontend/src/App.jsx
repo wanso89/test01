@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import ChatContainer from './components/ChatContainer';
 import { FiChevronLeft, FiChevronRight, FiSettings, FiRefreshCcw, FiTrash2, FiUser, FiBell, FiLock, FiUnlock } from 'react-icons/fi';
@@ -16,7 +16,44 @@ function App() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [userName, setUserName] = useState('사용자');
   const [scrollLocked, setScrollLocked] = useState(false);
+  const [activeConversationId, setActiveConversationId] = useState(null);
   const isResizing = useRef(false);
+
+  // 새로고침 후 activeConversationId 초기화
+  useEffect(() => {
+    const savedConversations = localStorage.getItem('conversations');
+    if (savedConversations) {
+      try {
+        const convs = JSON.parse(savedConversations);
+        if (convs.length > 0) {
+          const lastConvId = convs[convs.length - 1].id;
+          setActiveConversationId(lastConvId);
+        } else {
+          // 대화가 없으면 새 대화 생성
+          createNewConversation();
+        }
+      } catch (e) {
+        console.error("Error parsing conversations from localStorage:", e);
+        localStorage.removeItem('conversations');
+        createNewConversation(); // 오류 발생 시 새 대화 생성
+      }
+    } else {
+      // 저장된 대화가 없으면 새 대화 생성
+      createNewConversation();
+    }
+  }, []);
+
+  const createNewConversation = () => {
+    const now = new Date();
+    const newConv = {
+      id: Date.now(),
+      title: `대화 1`,
+      timestamp: now.toLocaleString(),
+      messages: [{ role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요?' }]
+    };
+    localStorage.setItem('conversations', JSON.stringify([newConv]));
+    setActiveConversationId(newConv.id);
+  };
 
   // 반응형: 화면 크기 변경 시 사이드바 상태 업데이트
   useEffect(() => {
@@ -109,6 +146,11 @@ function App() {
     setShowSettingsDropdown(false);
   };
 
+  // 대화 세션 선택 핸들러
+  const handleSelectConversation = (id) => {
+    setActiveConversationId(id);
+  };
+
   return (
     <div className="flex h-screen bg-gradient-to-br from-[#f0f4f8] to-[#e3e9f0] dark:from-gray-900 dark:to-gray-800 transition-colors">
       {/* 사이드바 */}
@@ -128,7 +170,7 @@ function App() {
           zIndex: 20,
         }}
       >
-        <Sidebar collapsed={!sidebarOpen} />
+        <Sidebar collapsed={!sidebarOpen} onSelectConversation={handleSelectConversation} />
         {/* 닫기 버튼 */}
         {sidebarOpen && (
           <button
@@ -252,7 +294,7 @@ function App() {
             </button>
           </div>
         </header>
-        <ChatContainer scrollLocked={scrollLocked} />
+        <ChatContainer scrollLocked={scrollLocked} activeConversationId={activeConversationId} />
       </main>
     </div>
   );

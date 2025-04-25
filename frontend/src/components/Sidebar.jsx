@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FiPlus, FiTrash2 } from 'react-icons/fi';
 
-function Sidebar({ collapsed }) {
+function Sidebar({ collapsed, onSelectConversation }) {
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
 
@@ -9,38 +9,76 @@ function Sidebar({ collapsed }) {
     // localStorage에서 대화 기록 불러오기
     const savedConversations = localStorage.getItem('conversations');
     if (savedConversations) {
-      setConversations(JSON.parse(savedConversations));
+      try {
+        const parsedConvs = JSON.parse(savedConversations);
+        setConversations(parsedConvs);
+        // 새로고침 후 마지막 활성 대화 세션 설정
+        if (parsedConvs.length > 0) {
+          const lastConvId = parsedConvs[parsedConvs.length - 1].id;
+          setActiveConversation(lastConvId);
+          if (onSelectConversation) {
+            onSelectConversation(lastConvId);
+          }
+        }
+      } catch (e) {
+        console.error("Error parsing conversations from localStorage:", e);
+        localStorage.removeItem('conversations'); // 손상된 데이터 삭제
+        setConversations([]);
+      }
     }
-  }, []);
+  }, [onSelectConversation]);
 
   useEffect(() => {
     // 대화 기록 저장
-    localStorage.setItem('conversations', JSON.stringify(conversations));
+    if (conversations.length > 0) {
+      localStorage.setItem('conversations', JSON.stringify(conversations));
+    }
   }, [conversations]);
 
+  // handleNewConversation 함수 수정
   const handleNewConversation = () => {
     const now = new Date();
     const newConv = {
       id: Date.now(),
       title: `대화 ${conversations.length + 1}`,
       timestamp: now.toLocaleString(),
-      messages: []
+      messages: [{ role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요?' }]
     };
-    setConversations(prev => [...prev, newConv]);
+    
+    // 기존 대화 목록에 새 대화 추가
+    const updatedConversations = [...conversations, newConv];
+    setConversations(updatedConversations);
+    
+    // 새 대화를 활성화
     setActiveConversation(newConv.id);
+    if (onSelectConversation) {
+      onSelectConversation(newConv.id);
+    }
+    
+    // localStorage에 저장
+    localStorage.setItem('conversations', JSON.stringify(updatedConversations));
   };
 
+
   const handleDeleteConversation = (id) => {
-    setConversations(prev => prev.filter(conv => conv.id !== id));
+    const updatedConversations = conversations.filter(conv => conv.id !== id);
+    setConversations(updatedConversations);
+    localStorage.setItem('conversations', JSON.stringify(updatedConversations));
+    
     if (activeConversation === id) {
-      setActiveConversation(null);
+      const newActiveId = updatedConversations.length > 0 ? updatedConversations[updatedConversations.length - 1].id : null;
+      setActiveConversation(newActiveId);
+      if (onSelectConversation) {
+        onSelectConversation(newActiveId);
+      }
     }
   };
 
   const handleSelectConversation = (id) => {
     setActiveConversation(id);
-    // 실제로는 해당 대화의 메시지를 로드하는 로직 추가
-    console.log(`Selected conversation: ${id}`);
+    if (onSelectConversation) {
+      onSelectConversation(id);
+    }
   };
 
   return (
