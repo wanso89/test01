@@ -17,43 +17,132 @@ function App() {
   const [userName, setUserName] = useState('사용자');
   const [scrollLocked, setScrollLocked] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState(null);
+  const [conversations, setConversations] = useState([]);
   const isResizing = useRef(false);
 
   // 새로고침 후 activeConversationId 초기화
   useEffect(() => {
     const savedConversations = localStorage.getItem('conversations');
+    const savedActiveId = localStorage.getItem('activeConversationId');
+    let initialConvs = [];
     if (savedConversations) {
       try {
-        const convs = JSON.parse(savedConversations);
-        if (convs.length > 0) {
-          const lastConvId = convs[convs.length - 1].id;
-          setActiveConversationId(lastConvId);
-        } else {
-          // 대화가 없으면 새 대화 생성
-          createNewConversation();
-        }
+        initialConvs = JSON.parse(savedConversations);
       } catch (e) {
         console.error("Error parsing conversations from localStorage:", e);
         localStorage.removeItem('conversations');
-        createNewConversation(); // 오류 발생 시 새 대화 생성
       }
+    }
+    // 👇 conversations가 0개면 새 대화 생성
+    if (initialConvs.length === 0) {
+      const now = new Date();
+      const newConv = {
+        id: Date.now(),
+        title: `대화 1`,
+        timestamp: now.toLocaleString(),
+        messages: [{ role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요?' }]
+      };
+      initialConvs = [newConv];
+      setConversations(initialConvs);
+      setActiveConversationId(newConv.id);
+      localStorage.setItem('conversations', JSON.stringify(initialConvs));
+      localStorage.setItem('activeConversationId', JSON.stringify(newConv.id));
     } else {
-      // 저장된 대화가 없으면 새 대화 생성
-      createNewConversation();
+      setConversations(initialConvs);
+      let initialActiveId = null;
+      if (savedActiveId) {
+        try {
+          initialActiveId = JSON.parse(savedActiveId);
+          if (!initialConvs.some(conv => conv.id === initialActiveId)) {
+            initialActiveId = initialConvs[initialConvs.length - 1].id;
+          }
+        } catch (e) {
+          initialActiveId = initialConvs[initialConvs.length - 1].id;
+        }
+      } else {
+        initialActiveId = initialConvs[initialConvs.length - 1].id;
+      }
+      setActiveConversationId(initialActiveId);
     }
   }, []);
+
+  // activeConversationId 변경 시 localStorage에 저장
+  useEffect(() => {
+    if (activeConversationId) {
+      localStorage.setItem('activeConversationId', JSON.stringify(activeConversationId));
+    }
+  }, [activeConversationId]);
+
+  // conversations 변경 시 localStorage 동기화
+  useEffect(() => {
+    if (conversations.length > 0) {
+      localStorage.setItem('conversations', JSON.stringify(conversations));
+    }
+  }, [conversations]);
 
   const createNewConversation = () => {
     const now = new Date();
     const newConv = {
       id: Date.now(),
-      title: `대화 1`,
+      title: `대화 ${conversations.length + 1}`,
       timestamp: now.toLocaleString(),
       messages: [{ role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요?' }]
     };
-    localStorage.setItem('conversations', JSON.stringify([newConv]));
+    const updatedConvs = conversations.length > 0 ? [...conversations, newConv] : [newConv];
+    setConversations(updatedConvs);
     setActiveConversationId(newConv.id);
   };
+
+  // 새 대화 생성
+  const handleNewConversation = () => {
+    createNewConversation();
+  };
+
+  // 대화 삭제
+  const handleDeleteConversation = (id) => {
+    setConversations(prev => {
+      const updated = prev.filter(conv => conv.id !== id);
+      let newActive = activeConversationId;
+      if (id === activeConversationId) {
+        newActive = updated.length > 0 ? updated[updated.length - 1].id : null;
+        setActiveConversationId(newActive);
+      }
+      // 👇 conversations가 0개가 되면 새 대화 자동 생성
+      if (updated.length === 0) {
+        const now = new Date();
+        const newConv = {
+          id: Date.now(),
+          title: '대화 1',
+          timestamp: now.toLocaleString(),
+          messages: [{ role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요?' }]
+        };
+        setActiveConversationId(newConv.id);
+        return [newConv];
+      }
+      return updated;
+    });
+  };
+
+  // 대화 선택
+  const handleSelectConversation = (id) => {
+    setActiveConversationId(id);
+  };
+
+  // 메시지 업데이트
+  const handleUpdateMessages = (updatedMessages) => {
+    setConversations(prev =>
+      prev.map(conv =>
+        conv.id === activeConversationId
+          ? { ...conv, messages: updatedMessages }
+          : conv
+      )
+    );
+  };
+
+  // 현재 활성 대화의 메시지
+  const currentMessages =
+    conversations.find(conv => conv.id === activeConversationId)?.messages ||
+    [{ role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요?' }];
 
   // 반응형: 화면 크기 변경 시 사이드바 상태 업데이트
   useEffect(() => {
@@ -146,11 +235,6 @@ function App() {
     setShowSettingsDropdown(false);
   };
 
-  // 대화 세션 선택 핸들러
-  const handleSelectConversation = (id) => {
-    setActiveConversationId(id);
-  };
-
   return (
     <div className="flex h-screen bg-gradient-to-br from-[#f0f4f8] to-[#e3e9f0] dark:from-gray-900 dark:to-gray-800 transition-colors">
       {/* 사이드바 */}
@@ -170,7 +254,14 @@ function App() {
           zIndex: 20,
         }}
       >
-        <Sidebar collapsed={!sidebarOpen} onSelectConversation={handleSelectConversation} />
+        <Sidebar
+          collapsed={!sidebarOpen}
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          onNewConversation={handleNewConversation}
+          onDeleteConversation={handleDeleteConversation}
+          onSelectConversation={handleSelectConversation}
+        />
         {/* 닫기 버튼 */}
         {sidebarOpen && (
           <button
@@ -294,7 +385,13 @@ function App() {
             </button>
           </div>
         </header>
-        <ChatContainer scrollLocked={scrollLocked} activeConversationId={activeConversationId} />
+        <ChatContainer
+          key={activeConversationId}
+          scrollLocked={scrollLocked}
+          activeConversationId={activeConversationId}
+          messages={currentMessages}
+          onUpdateMessages={handleUpdateMessages}
+        />
       </main>
     </div>
   );
