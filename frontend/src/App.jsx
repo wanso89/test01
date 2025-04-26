@@ -93,9 +93,35 @@ function App() {
     setActiveConversationId(newConv.id);
   };
 
+  const handleRenameConversation = (id, newTitle) => {
+    setConversations(prev =>
+      prev.map(conv =>
+        conv.id === id ? { ...conv, title: newTitle } : conv
+      )
+    );
+  };
+
   // 새 대화 생성
   const handleNewConversation = () => {
-    createNewConversation();
+    const now = new Date();
+    const newConv = {
+      id: Date.now(),
+      title: `대화 ${conversations.length + 1}`,
+      timestamp: now.toLocaleString(),
+      messages: [{ role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요?' }],
+      pinned: false // ⭐️ 추가
+    };
+    setConversations(prev => [...prev, newConv]);
+    setActiveConversationId(newConv.id);
+  };
+
+  //즐겨 찾기
+  const handleTogglePinConversation = (id) => {
+    setConversations(prev =>
+      prev.map(conv =>
+        conv.id === id ? { ...conv, pinned: !conv.pinned } : conv
+      )
+    );
   };
 
   // 대화 삭제
@@ -261,6 +287,8 @@ function App() {
           onNewConversation={handleNewConversation}
           onDeleteConversation={handleDeleteConversation}
           onSelectConversation={handleSelectConversation}
+          onRenameConversation={handleRenameConversation}
+          onTogglePinConversation={handleTogglePinConversation}
         />
         {/* 닫기 버튼 */}
         {sidebarOpen && (

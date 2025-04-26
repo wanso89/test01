@@ -6,13 +6,15 @@ import remarkMath from 'remark-math';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useState } from 'react';
-import { FiEye, FiZoomIn, FiCopy, FiCheck } from 'react-icons/fi';
+import { FiEye, FiZoomIn, FiCopy, FiCheck, FiThumbsUp, FiThumbsDown, FiStar } from 'react-icons/fi';
 
 function ChatMessage({ message }) {
   const isUser = message.role === 'user';
   const [previewSource, setPreviewSource] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [feedback, setFeedback] = useState(null); // 'up', 'down', null
+  const [star, setStar] = useState(0); // 별점(1~5)
 
   const handleClosePreview = () => {
     setPreviewSource(null);
@@ -20,9 +22,54 @@ function ChatMessage({ message }) {
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(message.content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    // Clipboard API 지원 여부 체크
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(message.content)
+        .then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        })
+        .catch((err) => {
+          // fallback 시도
+          fallbackCopyTextToClipboard(message.content);
+        });
+    } else {
+      // fallback 시도
+      fallbackCopyTextToClipboard(message.content);
+    }
+  };
+  
+  // fallback: textarea + execCommand 방식
+  function fallbackCopyTextToClipboard(text) {
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "absolute";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      const successful = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      setCopied(successful);
+      setTimeout(() => setCopied(false), 2000);
+      if (!successful) {
+        alert("복사에 실패했습니다. 텍스트를 직접 선택해 복사해주세요.");
+      }
+    } catch (err) {
+      alert("복사에 실패했습니다. 텍스트를 직접 선택해 복사해주세요.");
+    }
+  }
+  
+
+  const handleFeedback = (type) => {
+    // 이미 선택된 피드백이면 원복
+    setFeedback(current => current === type ? null : type);
+  };
+
+  const handleStar = (n) => {
+    // 이미 선택된 별점이면 원복
+    setStar(current => current === n ? 0 : n);
   };
 
   return (
@@ -109,12 +156,45 @@ function ChatMessage({ message }) {
         </div>
         {/* 메시지 복사 버튼 */}
         <button
-          onClick={handleCopy}
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400"
-          title={copied ? "복사됨!" : "메시지 복사"}
-        >
+          onClick={handleCopy}        
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400"       
+          title={copied ? "복사됨!" : "메시지 복사"}       
+        >       
           {copied ? <FiCheck size={16} /> : <FiCopy size={16} />}
         </button>
+        {/* 피드백/별점 버튼 (AI 응답에만 표시) */}
+        {message.role === 'assistant' && (
+          <div className="flex gap-2 mt-2 items-center opacity-0 group-hover:opacity-100 transition">
+            <button
+              className={`ml-2 ${feedback === 'up' ? 'text-green-500' : 'text-gray-400'} hover:text-green-600`}
+              onClick={() => handleFeedback('up')}
+              title="좋아요"
+            >
+              <FiThumbsUp size={16} />
+            </button>
+            <button
+              className={`ml-1 ${feedback === 'down' ? 'text-red-500' : 'text-gray-400'} hover:text-red-600`}
+              onClick={() => handleFeedback('down')}
+              title="별로예요"
+            >
+              <FiThumbsDown size={16} />
+            </button>
+            {/* 별점 */}
+            <span className="ml-2 flex">
+              {[1, 2, 3, 4, 5].map(n => (
+                <button
+                  key={n}
+                  className={`p-0.5 ${star >= n ? 'text-yellow-400' : 'text-gray-300'} hover:text-yellow-500`}
+                  onClick={() => handleStar(n)}
+                  title={`${n}점`}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  <FiStar fill={star >= n ? '#facc15' : 'none'} size={16} />
+                </button>
+              ))}
+            </span>
+          </div>
+        )}
         {/* 참고문서 카드 */}
         {message.sources && message.sources.length > 0 && (
           <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
