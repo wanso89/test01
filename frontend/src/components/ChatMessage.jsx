@@ -3,6 +3,7 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from 'rehype-katex';
 import remarkMath from 'remark-math';
+import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useState } from 'react';
@@ -15,6 +16,7 @@ function ChatMessage({ message }) {
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState(null); // 'up', 'down', null
   const [star, setStar] = useState(0); // 별점(1~5)
+  const [feedbackSent, setFeedbackSent] = useState(false); // 피드백 전송 여부
 
   const handleClosePreview = () => {
     setPreviewSource(null);
@@ -22,53 +24,45 @@ function ChatMessage({ message }) {
   };
 
   const handleCopy = () => {
-    // Clipboard API 지원 여부 체크
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(message.content)
-        .then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-        })
-        .catch((err) => {
-          // fallback 시도
-          fallbackCopyTextToClipboard(message.content);
-        });
-    } else {
-      // fallback 시도
-      fallbackCopyTextToClipboard(message.content);
-    }
-  };
-  
-  // fallback: textarea + execCommand 방식
-  function fallbackCopyTextToClipboard(text) {
     try {
-      const textarea = document.createElement("textarea");
-      textarea.value = text;
-      textarea.setAttribute("readonly", "");
-      textarea.style.position = "absolute";
-      textarea.style.left = "-9999px";
-      document.body.appendChild(textarea);
-      textarea.select();
-      const successful = document.execCommand("copy");
-      document.body.removeChild(textarea);
-      setCopied(successful);
+      navigator.clipboard.writeText(message.content);
+      setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-      if (!successful) {
-        alert("복사에 실패했습니다. 텍스트를 직접 선택해 복사해주세요.");
-      }
     } catch (err) {
+      console.error("Clipboard API not supported or failed:", err);
       alert("복사에 실패했습니다. 텍스트를 직접 선택해 복사해주세요.");
     }
-  }
-  
+  };
 
-  const handleFeedback = (type) => {
-    // 이미 선택된 피드백이면 원복
+  const handleFeedback = async (type) => {
     setFeedback(current => current === type ? null : type);
+    if (!feedbackSent) {
+      try {
+        const response = await fetch('http://172.10.2.70:8000/api/feedback', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messageId: Date.now().toString(), // 임시 ID, 실제로는 고유 ID 필요
+            feedbackType: type, // 'up' or 'down'
+            rating: star,
+            content: message.content
+          })
+        });
+        if (!response.ok) {
+          throw new Error(`피드백 전송 실패: ${response.status} ${response.statusText}`);
+        }
+        setFeedbackSent(true);
+        alert("피드백이 전송되었습니다. 감사합니다!");
+      } catch (err) {
+        console.error("피드백 전송 중 오류 발생:", err);
+        alert("피드백 전송에 실패했습니다. 다시 시도해주세요.");
+      }
+    }
   };
 
   const handleStar = (n) => {
-    // 이미 선택된 별점이면 원복
     setStar(current => current === n ? 0 : n);
   };
 
@@ -94,7 +88,7 @@ function ChatMessage({ message }) {
         <div className="markdown-content prose max-w-none dark:prose-invert">
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkMath]}
-            rehypePlugins={[rehypeHighlight, rehypeKatex]}
+            rehypePlugins={[rehypeHighlight, rehypeKatex, rehypeRaw]}
             components={{
               code({ node, inline, className, children, ...props }) {
                 const match = /language-(\w+)/.exec(className || "");
@@ -156,10 +150,10 @@ function ChatMessage({ message }) {
         </div>
         {/* 메시지 복사 버튼 */}
         <button
-          onClick={handleCopy}        
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400"       
-          title={copied ? "복사됨!" : "메시지 복사"}       
-        >       
+          onClick={handleCopy}
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400"
+          title={copied ? "복사됨!" : "메시지 복사"}
+        >
           {copied ? <FiCheck size={16} /> : <FiCopy size={16} />}
         </button>
         {/* 피드백/별점 버튼 (AI 응답에만 표시) */}

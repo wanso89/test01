@@ -1,20 +1,22 @@
+import os
+import asyncio
+import uuid
+import time
+import hashlib
+import json
+import traceback
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
-import os
-import asyncio
-import uuid
-import time
-import hashlib
 from datetime import datetime
 from elasticsearch import Elasticsearch
 from app.utils.indexing_utils import process_and_index_file, ES_INDEX_NAME
-import traceback
 
-# 모델 임포트 (streamlit_chatbot.py에서 가져옴)
+
+# 모델 임포트 
 import torch
 from torch.cuda.amp import autocast
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
@@ -534,6 +536,35 @@ embedding_function = get_embedding_function()
 llm_model, tokenizer = get_llm_model_and_tokenizer()
 reranker_model = get_reranker_model()
 
+class FeedbackRequest(BaseModel):
+    messageId: str
+    feedbackType: str
+    rating: int
+    content: str
+
+# 피드백 저장 디렉토리 설정
+FEEDBACK_DIR = "app/feedback"
+os.makedirs(FEEDBACK_DIR, exist_ok=True)
+FEEDBACK_FILE = os.path.join(FEEDBACK_DIR, "feedback.json")
+
+# 피드백 저장 함수
+def save_feedback(feedback_data: Dict[str, Any]):
+    try:
+        if os.path.exists(FEEDBACK_FILE):
+            with open(FEEDBACK_FILE, 'r') as f:
+                feedbacks = json.load(f)
+        else:
+            feedbacks = []
+        feedbacks.append(feedback_data)
+        with open(FEEDBACK_FILE, 'w') as f:
+            json.dump(feedbacks, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"피드백 저장 중 오류 발생: {e}")
+        return False
+
+
+
 # 서버 시작 시 인덱스 확인
 @app.on_event("startup")
 async def startup_event():
@@ -576,43 +607,24 @@ async def upload_file(
 
 # 질문-응답 엔드포인트
 @app.post("/api/chat")
-async def chat(request: QuestionRequest):
-    print("API 호출됨 - 요청 수신 시작작", flush=True)
+async def chat(request: QuestionRequest = Body(...)):
     try:
-        print("요청 내용:", request, flush=True)
-        question = request.question
-        category = request.category
-        history = request.history
-        print(f"question: {question}, category: {category}", flush=True)
-
-        conversation_history = [{"role": msg["role"], "content": msg["content"]} for msg in history]
-
-        # 캐시 대신 항상 직접 검색
-        result = await asyncio.wait_for(
-            search_and_combine(
-                es_client,
-                embedding_function,
-                reranker_model,
-                llm_model,
-                tokenizer,
-                query=question,
-                category=category,
-                conversation_history=conversation_history
-            ),
-            timeout=60.0  # 전체 요청에 60초 타임아웃 설정
+        result = await search_and_combine(
+            es_client, embedding_function, reranker_model, llm_model, tokenizer,
+            query=request.question,
+            category=request.category,
+            conversation_history=request.history
         )
-        print("search_and_combine 결과:", result, flush=True)
+        
         return {
-            "answer": result["answer"],
+            "bot_response": result["answer"],
             "sources": result["sources"]
         }
-    except asyncio.TimeoutError:
-        print("요청 처리 시간이 초과되었습니다.", flush=True)
-        raise HTTPException(status_code=504, detail="요청 처리 시간이 초과되었습니다.")
+    
     except Exception as e:
-        print("API 오류:", e, flush=True)
-        import traceback; traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"질문 처리 중 오류 발생: {str(e)}")
+        print(f"챗봇 응답 생성 중 오류 발생: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"챗봇 응답 생성 중 오류 발생: {str(e)}")
 
 
 # 카테고리 목록 조회 엔드포인트
@@ -653,3 +665,24 @@ async def http_exception_handler(request, exc):
         status_code=exc.status_code,
         content={"detail": exc.detail}
     )
+
+# 피드백 저장 엔드포인트
+@app.post("/api/feedback")
+async def save_feedback_endpoint(request: FeedbackRequest = Body(...)):
+    try:
+        feedback_data = {
+            "messageId": request.messageId,
+            "feedbackType": request.feedbackType,
+            "rating": request.rating,
+            "content": request.content,
+            "timestamp": datetime.now().isoformat()
+        }
+        success = save_feedback(feedback_data)
+        if success:
+            return {"status": "success", "message": "피드백이 저장되었습니다."}
+        else:
+            raise HTTPException(status_code=500, detail="피드백 저장에 실패했습니다.")
+    except Exception as e:
+        print(f"피드백 저장 중 오류 발생: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"피드백 저장 중 오류 발생: {str(e)}")

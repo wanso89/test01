@@ -27,7 +27,7 @@ function ChatContainer({
     }
   }, [localMessages, scrollLocked]);
 
-  // 메시지 전송 핸들러 (백엔드 연동 준비)
+  // 메시지 전송 핸들러 (FastAPI 백엔드 연동)
   const handleSend = async (msg) => {
     if (!activeConversationId) return;
     
@@ -41,15 +41,37 @@ function ChatContainer({
     setError(null);
 
     try {
-      // 임시 더미 응답 (백엔드 연동 전)
-      const aiResponse = { role: 'assistant', content: `응답: "${msg}"에 대한 답변입니다.`, sources: [] };
-      await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 지연 시뮬레이션
+      // FastAPI 백엔드와 통신
+      const response = await fetch('http://172.10.2.70:8000/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          question: msg,
+          category: '메뉴얼', // 카테고리 설정 (필요 시 동적 변경)
+          history: updatedMessagesWithUser.map(m => ({
+            role: m.role,
+            content: m.content
+          }))
+        })
+      });
 
+      if (!response.ok) {
+        throw new Error(`FastAPI 호출 실패: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const aiResponse = { 
+        role: 'assistant', 
+        content: data.bot_response || '응답을 받아왔습니다.',
+        sources: data.sources || []
+      };
       const updatedMessagesWithAI = [...updatedMessagesWithUser, aiResponse];
       setLocalMessages(updatedMessagesWithAI);
       onUpdateMessages(updatedMessagesWithAI);
     } catch (err) {
-      setError('응답을 가져오는 중 오류가 발생했습니다. 다시 시도해주세요.');
+      setError(`응답을 가져오는 중 오류가 발생했습니다: ${err.message}. FastAPI 서버가 실행 중인지 확인해주세요.`);
       console.error(err);
     } finally {
       setIsLoading(false);
