@@ -702,6 +702,60 @@ async def load_user_settings_endpoint(request: UserSettingsLoadRequest = Body(..
         return {"status": "error", "message": f"사용자 설정 불러오기 중 오류 발생: {str(e)}", "settings": {}}  # 500 대신 에러 메시지 반환
 
 
+class SourcePreviewRequest(BaseModel):
+    path: str  # 문서 경로 (예: tmpmn1xccd8.pdf)
+    page: int  # 페이지 번호
+
+# 참고 문서 미리보기 엔드포인트
+@app.post("/api/source-preview")
+async def source_preview_endpoint(request: SourcePreviewRequest = Body(...)):
+    try:
+        # Elasticsearch에서 해당 문서 내용 검색
+        search_body = {
+            "query": {
+                "bool": {
+                    "must": [
+                        {"term": {"source": request.path}},
+                        {"term": {"page": request.page}}
+                    ]
+                }
+            },
+            "size": 1,
+            "_source": ["text", "source", "page"]
+        }
+        response = es_client.search(index=ES_INDEX_NAME, body=search_body)
+        hits = response['hits']['hits']
+        if hits:
+            hit = hits[0]
+            content = hit['_source'].get('text', '내용을 찾을 수 없습니다.')
+            return {
+                "status": "success",
+                "content": content,
+                "source": hit['_source'].get('source', 'N/A'),
+                "page": hit['_source'].get('page', 0)
+            }
+        else:
+            return {
+                "status": "not_found",
+                "message": "해당 문서를 찾을 수 없습니다.",
+                "content": "",
+                "source": request.path,
+                "page": request.page
+            }
+    except Exception as e:
+        print(f"참고 문서 미리보기 중 오류 발생: {e}")
+        traceback.print_exc()
+        return {
+            "status": "error",
+            "message": f"참고 문서 미리보기 중 오류 발생: {str(e)}",
+            "content": "",
+            "source": request.path,
+            "page": request.page
+        }
+
+
+
+
 # 서버 시작 시 인덱스 확인
 @app.on_event("startup")
 async def startup_event():

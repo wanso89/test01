@@ -1,0 +1,30 @@
+{
+  "userId": "user1",
+  "conversationId": "1745676999298",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "취업규칙에서 특별청원휴가 종류에 대해 자세히 답변을 해주는데 표로 나타내줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "<br>",
+      "sources": [
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 38,
+          "similarity": 2.490925,
+          "rerank_score": 0.5066857933998108,
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-26T23:18:11.275653"
+}

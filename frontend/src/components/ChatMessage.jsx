@@ -7,19 +7,22 @@ import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useState } from 'react';
-import { FiEye, FiZoomIn, FiCopy, FiCheck, FiThumbsUp, FiThumbsDown, FiStar } from 'react-icons/fi';
+import { FiEye, FiZoomIn, FiCopy, FiCheck, FiThumbsUp, FiThumbsDown, FiStar, FiLoader } from 'react-icons/fi';
 
 function ChatMessage({ message }) {
   const isUser = message.role === 'user';
   const [previewSource, setPreviewSource] = useState(null);
+  const [previewContent, setPreviewContent] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState(null); // 'up', 'down', null
   const [star, setStar] = useState(0); // 별점(1~5)
   const [feedbackSent, setFeedbackSent] = useState(false); // 피드백 전송 여부
+  const [loadingContent, setLoadingContent] = useState(false);
 
   const handleClosePreview = () => {
     setPreviewSource(null);
+    setPreviewContent("");
     setPreviewImage(null);
   };
 
@@ -65,6 +68,39 @@ function ChatMessage({ message }) {
   const handleStar = (n) => {
     setStar(current => current === n ? 0 : n);
   };
+
+  const handlePreviewSource = async (source) => {
+    setPreviewSource(source);
+    setLoadingContent(true);
+    try {
+      const response = await fetch('http://172.10.2.70:8000/api/source-preview', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          path: source.path,
+          page: source.page
+        })
+      });
+      if (!response.ok) {
+        throw new Error(`문서 내용 불러오기 실패: ${response.status} ${response.statusText}`);
+      }
+      const data = await response.json();
+      if (data.status === "success") {
+        setPreviewContent(data.content); // 변수 이름 일치
+      } else {
+        setPreviewContent(data.message || "문서 내용을 불러올 수 없습니다."); // 변수 이름 일치
+      }
+    } catch (err) {
+      console.error("문서 내용 불러오기 중 오류 발생:", err);
+      setPreviewContent("문서 내용을 불러오는 중 오류가 발생했습니다."); // 변수 이름 일치
+    } finally {
+      setLoadingContent(false);
+    }
+  };
+
+
 
   return (
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} my-3`}>
@@ -198,7 +234,7 @@ function ChatMessage({ message }) {
                 <div
                   key={idx}
                   className="text-xs bg-gray-100 dark:bg-gray-700 hover:bg-blue-100 dark:hover:bg-blue-800 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 cursor-pointer transition shadow-sm flex items-center"
-                  onClick={() => setPreviewSource(source)}
+                  onClick={() => handlePreviewSource(source)}
                   title="클릭하여 원문 미리보기"
                 >
                   {source.path} {source.page && `(p.${source.page})`}
@@ -219,8 +255,14 @@ function ChatMessage({ message }) {
               {previewSource.page && `페이지: ${previewSource.page}`}
             </div>
             <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded border border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200">
-              {/* 실제 원문 내용은 백엔드에서 가져오거나 source 객체에 포함시켜야 함 */}
-              <p>여기에 {previewSource.path}의 원문 내용이 표시됩니다. (추후 백엔드 연동 필요)</p>
+              {loadingContent ? (
+                <div className="flex justify-center items-center py-2">
+                  <FiLoader className="animate-spin text-blue-500 dark:text-blue-400" size={20} />
+                  <span className="ml-2 text-gray-600 dark:text-gray-400 text-sm">문서 내용을 불러오는 중...</span>
+                </div>
+              ) : (
+                <p>{previewContent || "문서 내용을 불러올 수 없습니다."}</p>
+              )}
             </div>
             <button
               onClick={handleClosePreview}
