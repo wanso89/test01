@@ -34,5 +34,50 @@
       "timestamp": "2025-04-26T15:22:02.560Z"
     },
     "timestamp": "2025-04-27T00:22:03.491574"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-04-26T15:28:27.191Z"
+    },
+    "timestamp": "2025-04-27T00:28:28.357763"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-04-26T15:31:03.362Z"
+    },
+    "timestamp": "2025-04-27T00:31:04.301255"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-04-26T15:43:44.923Z"
+    },
+    "timestamp": "2025-04-27T00:43:45.865813"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-04-26T15:44:21.100Z"
+    },
+    "timestamp": "2025-04-27T00:44:22.031406"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-04-26T16:19:27.529Z"
+    },
+    "timestamp": "2025-04-27T01:19:28.703833"
   }
 ]

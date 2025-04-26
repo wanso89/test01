@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { FiLoader } from 'react-icons/fi';
+import { FiLoader, FiSend } from 'react-icons/fi'; // FiSend 아이콘 추가
 
 function ChatInput({ onSend, disabled }) {
   const [msg, setMsg] = useState('');
   const textareaRef = useRef(null);
-
+  
   useEffect(() => {
     textareaRef.current?.focus();
   }, []);
@@ -29,7 +29,7 @@ function ChatInput({ onSend, disabled }) {
 
   return (
     <form
-      className="flex p-4 border-t bg-white dark:bg-gray-800"
+      className="flex p-4 border-t bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
       onSubmit={e => {
         e.preventDefault();
         if (msg.trim() && !disabled) {
@@ -40,13 +40,13 @@ function ChatInput({ onSend, disabled }) {
     >
       <textarea
         ref={textareaRef}
-        className="flex-1 p-3 rounded-full border-2 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-800 dark:text-white transition resize-none overflow-hidden"
-        placeholder="메시지를 입력하세요. Shift+Enter로 줄바꿈, Enter로 전송됩니다."
+        className="flex-1 p-3 rounded-full border-2 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-800 dark:text-white transition resize-none overflow-hidden duration-200"
+        placeholder={disabled ? "전송 중..." : "메시지를 입력하세요. Shift+Enter로 줄바꿈 및 Enter로 전송됩니다."} // 전송 중일 때 placeholder 변경
         value={msg}
         onChange={e => setMsg(e.target.value)}
         onKeyDown={handleKeyDown}
         rows={1}
-        disabled={disabled}
+        disabled={disabled} // disabled prop 반영
         style={{ minHeight: 40, maxHeight: 120, scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       />
       <button
@@ -56,9 +56,9 @@ function ChatInput({ onSend, disabled }) {
             ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed' 
             : 'bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 hover:scale-105'
         }`}
-        disabled={disabled}
+        disabled={disabled} // disabled prop 반영
       >
-        {disabled ? <FiLoader className="animate-spin" size={18} /> : '전송'}
+        {disabled ? <FiLoader className="animate-spin" size={18} /> : <FiSend size={18} />} {/* 전송 중일 때 로딩 아이콘 표시 */}
       </button>
     </form>
   );

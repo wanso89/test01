@@ -1,7 +1,7 @@
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import { useRef, useEffect, useState, useMemo } from 'react';
-import { FiLoader } from 'react-icons/fi';
+import { FiLoader, FiSend } from 'react-icons/fi';
 
 function ChatContainer({
   scrollLocked,
@@ -14,6 +14,17 @@ function ChatContainer({
   const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
+  const [input, setInput] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const inputRef = useRef(null);
+
+  // 입력창 자동 포커스
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, []);
+ 
 
   // messages 또는 activeConversationId가 변경되면 localMessages 업데이트
   useEffect(() => {
@@ -29,8 +40,9 @@ function ChatContainer({
 
   // 메시지 전송 핸들러 (FastAPI 백엔드 연동)
   const handleSend = async (msg) => {
-    if (!activeConversationId) return;
-    
+    if (!activeConversationId || isSending) return;
+
+    setIsSending(true);
     const newMessage = { role: 'user', content: msg };
     const updatedMessagesWithUser = [...localMessages, newMessage];
     setLocalMessages(updatedMessagesWithUser);
@@ -75,6 +87,7 @@ function ChatContainer({
       console.error(err);
     } finally {
       setIsLoading(false);
+      setIsSending(false);
     }
   };
 
@@ -115,7 +128,7 @@ function ChatContainer({
         <div ref={messagesEndRef} />
       </div>
       <div className="sticky bottom-0 z-10 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-        <ChatInput onSend={handleSend} disabled={isLoading} />
+        <ChatInput onSend={handleSend} disabled={isSending || isLoading} />
       </div>
     </div>
   );

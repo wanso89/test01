@@ -48,16 +48,16 @@ function Sidebar({
   );
 
   return (
-    <div className={`flex flex-col h-full ${collapsed ? 'items-center' : ''} transition-all`}>
-      <div className={`p-4 border-b w-full ${collapsed ? 'text-center' : ''}`}>
-        <h2 className={`font-bold text-lg text-gray-700 dark:text-white ${collapsed ? 'text-xs' : ''}`}>대화</h2>
+    <div className={`flex flex-col h-full ${collapsed ? 'items-center' : ''} transition-all duration-300`}>
+      <div className={`p-4 border-b w-full ${collapsed ? 'text-center' : ''} bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700`}>
+      <h2 className={`font-bold text-lg text-gray-700 dark:text-white ${collapsed ? 'text-xs' : ''}`}>대화</h2>
         {!collapsed && (
           <input
             type="text"
             value={searchTerm}
             onChange={handleSearchChange}
             placeholder="대화 검색..."
-            className="mt-2 w-full px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+            className="mt-2 w-full px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 transition duration-200"
             style={{ fontSize: '14px' }}
           />
         )}
@@ -70,7 +70,7 @@ function Sidebar({
             <div
               key={conv.id}
               className={`
-                flex justify-between items-center p-2 rounded-xl cursor-pointer transition
+                p-2 rounded-xl cursor-pointer transition
                 ${activeConversationId === conv.id
                   ? 'bg-gradient-to-r from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-800 text-blue-800 dark:text-blue-200 font-semibold'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}
@@ -78,7 +78,9 @@ function Sidebar({
               onClick={() => onSelectConversation(conv.id)}
               title={collapsed ? conv.title : ''}
             >
-              <div className="flex-1 overflow-hidden">
+              {/* 위쪽: 제목 + 아이콘(별/삭제) 한 줄 */}
+              <div className="flex items-center justify-between">
+                {/* 제목 (편집모드/일반모드) */}
                 {editingId === conv.id ? (
                   <input
                     className="text-sm font-bold w-full px-1 py-0.5 rounded border focus:outline-none"
@@ -97,37 +99,45 @@ function Sidebar({
                     onDoubleClick={() => handleTitleDoubleClick(conv)}
                     tabIndex={0}
                     title="더블클릭해서 제목 편집"
+                    style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} // 제목이 너무 길 때만 ... 처리
                   >
                     {conv.title}
                   </div>
                 )}
-                {!collapsed && <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{conv.timestamp}</div>}
+                <div className="flex items-center ml-2 gap-1">
+                  {/* 별표 */}
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      onTogglePinConversation(conv.id);
+                    }}
+                    className={`mr-1 ${conv.pinned ? 'text-yellow-400' : 'text-gray-400'} hover:text-yellow-500 transition`}
+                    title={conv.pinned ? "즐겨찾기 해제" : "즐겨찾기"}
+                    tabIndex={-1}
+                    style={{ background: 'none', border: 'none' }}
+                  >
+                    <FiStar fill={conv.pinned ? '#facc15' : 'none'} size={18} />
+                  </button>
+                  {/* 삭제 버튼 */}
+                  {!collapsed && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteConversation(conv.id);
+                      }}
+                      className="ml-1 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition"
+                      title="대화 삭제"
+                    >
+                      <FiTrash2 size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
-              {/* ⭐️ 즐겨찾기 버튼 */}
-              <button
-                onClick={e => {
-                  e.stopPropagation();
-                  onTogglePinConversation(conv.id);
-                }}
-                className={`mr-1 ${conv.pinned ? 'text-yellow-400' : 'text-gray-400'} hover:text-yellow-500 transition`}
-                title={conv.pinned ? "즐겨찾기 해제" : "즐겨찾기"}
-                tabIndex={-1}
-                style={{ background: 'none', border: 'none' }}
-              >
-                <FiStar fill={conv.pinned ? '#facc15' : 'none'} size={18} />
-              </button>
-              {/* 삭제 버튼 */}
+              {/* 아래쪽: 날짜/시간 한 줄, 줄바꿈 허용, 잘리지 않게 */}
               {!collapsed && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteConversation(conv.id);
-                  }}
-                  className="ml-2 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition"
-                  title="대화 삭제"
-                >
-                  <FiTrash2 size={14} />
-                </button>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 break-keep whitespace-normal">
+                  {conv.timestamp}
+                </div>
               )}
             </div>
           ))

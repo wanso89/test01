@@ -475,7 +475,7 @@ const fetchStats = async () => {
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-[#f0f4f8] to-[#e3e9f0] dark:from-gray-900 dark:to-gray-800 transition-colors">
+    <div className="flex h-screen bg-gradient-to-br from-[#f0f4f8] to-[#e3e9f0] dark:from-gray-900 dark:to-gray-800 transition-colors duration-300">
       {/* 사이드바 */}
       <div
         className={`

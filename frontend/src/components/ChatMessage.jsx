@@ -6,7 +6,7 @@ import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { FiEye, FiZoomIn, FiCopy, FiCheck, FiThumbsUp, FiThumbsDown, FiStar, FiLoader } from 'react-icons/fi';
 
 function ChatMessage({ message }) {
@@ -106,13 +106,13 @@ function ChatMessage({ message }) {
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} my-3`}>
       <div className={`
         relative max-w-xl px-5 py-3 rounded-2xl shadow-lg transition-all duration-200
-        ${isUser
-          ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-br-none'
-          : message.error
-            ? 'bg-red-50 border border-red-200 text-red-700 rounded-bl-none'
-            : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-bl-none'}
-        group hover:shadow-xl hover:scale-[1.02]
-      `}>
+          ${isUser
+            ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-br-none'
+            : message.error
+              ? 'bg-red-50 border border-red-200 text-red-700 rounded-bl-none'
+              : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-bl-none'}
+          group hover:shadow-xl hover:scale-[1.02]
+        `}>
         {/* 말풍선 꼬리 */}
         {!isUser && (
           <span className="absolute left-0 top-3 w-3 h-3 bg-white dark:bg-gray-800 border-b border-l border-gray-200 dark:border-gray-700 rounded-bl-2xl transform -translate-x-1/2 rotate-45"></span>
@@ -295,4 +295,4 @@ function ChatMessage({ message }) {
     </div>
   );
 }
-export default ChatMessage;
+export default memo(ChatMessage);
