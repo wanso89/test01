@@ -22,6 +22,8 @@ function App() {
   const [userId, setUserId] = useState("user1"); // 임시 사용자 ID, 실제로는 인증 기반 ID 사용
   const [theme, setTheme] = useState('light'); // 테마 상태 (light/dark)
   const [defaultCategory, setDefaultCategory] = useState('메뉴얼'); // 기본 카테고리 상태
+  const [showStatsDashboard, setShowStatsDashboard] = useState(false);
+  const [statsData, setStatsData] = useState([]);
 
   // 초기 대화 목록 로드 (로컬 스토리지 또는 백엔드)
   useEffect(() => {
@@ -253,15 +255,70 @@ const loadUserSettingsFromBackend = async (userId) => {
     );
   };
 
+  // 사용자 행동 기록 함수
+const logUserAction = async (action, details = {}) => {
+  try {
+    const response = await fetch('http://172.10.2.70:8000/api/stats/save', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: userId,
+        action: action,
+        details: details
+      })
+    });
+    if (!response.ok) {
+      throw new Error(`통계 저장 실패: ${response.status} ${response.statusText}`);
+    }
+    console.log(`통계 저장됨: ${action}`);
+  } catch (err) {
+    console.error("통계 저장 중 오류 발생:", err);
+  }
+};
+
+// 통계 조회 함수
+const fetchStats = async () => {
+  try {
+    const response = await fetch('http://172.10.2.70:8000/api/stats/query', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: "", // 전체 사용자 조회
+        startDate: "", // 모든 기간
+        endDate: "" // 모든 기간
+      })
+    });
+    if (!response.ok) {
+      throw new Error(`통계 조회 실패: ${response.status} ${response.statusText}`);
+    }
+    const data = await response.json();
+    if (data.status === "success") {
+      setStatsData(data.stats);
+      setShowStatsDashboard(true);
+      console.log("통계 조회 완료");
+    }
+  } catch (err) {
+    console.error("통계 조회 중 오류 발생:", err);
+    alert("통계 조회에 실패했습니다. 서버 연결을 확인해주세요.");
+  }
+};
+
+
   // 메시지 업데이트
   const handleUpdateMessages = (updatedMessages) => {
     setConversations(prev =>
       prev.map(conv =>
-        conv.id === activeConversationId
-          ? { ...conv, messages: updatedMessages }
-          : conv
+        conv.id === activeConversationId ? { ...conv, messages: updatedMessages } : conv
       )
     );
+    // 사용자가 질문을 보낸 경우 통계 기록
+    if (updatedMessages.length > 0 && updatedMessages[updatedMessages.length - 1].role === 'user') {
+      logUserAction('question', { category: defaultCategory, timestamp: new Date().toISOString() });
+    }
   };
 
   // 백엔드에 대화 저장
@@ -589,17 +646,24 @@ const loadUserSettingsFromBackend = async (userId) => {
                   >
                     기타
                   </div>
+                  <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                  <div
+                    onClick={fetchStats}
+                    className="block w-full text-left px-3 py-2 text-gray-800 dark:text-gray-100 hover:bg-blue-100 dark:hover:bg-blue-800 transition cursor-pointer"
+                  >
+                    통계 대시보드
+                  </div>
                 </div>
               )}
-                            </button>
-                            <button
-                              onClick={() => {
-                                document.documentElement.classList.toggle('dark');
-                              }}
-                              className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
-                              title="다크모드 토글"
-                            >
-                              🌙
+            </button>
+             <button
+               onClick={() => {
+                 document.documentElement.classList.toggle('dark');
+               }}
+               className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+               title="다크모드 토글"
+             >
+               🌙
               </button>
               </div>
               </header>
@@ -611,8 +675,44 @@ const loadUserSettingsFromBackend = async (userId) => {
                 onUpdateMessages={handleUpdateMessages}
               />
               </main>
+              {showStatsDashboard && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center min-h-screen z-50 p-4 animate-fade-in">
+                  <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-4xl w-full max-h-[80vh] overflow-y-auto shadow-2xl animate-slide-up">
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-2">통계 대시보드</h3>
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                      사용자 행동 및 챗봇 사용 통계
+                    </div>
+                    <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded border border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200">
+                      {statsData.length > 0 ? (
+                        <div>
+                          <h4 className="text-md font-semibold mb-2">최근 활동 ({statsData.length}건)</h4>
+                          <ul className="space-y-2">
+                            {statsData.slice(-10).reverse().map((stat, idx) => (
+                              <li key={idx} className="border-b border-gray-200 dark:border-gray-600 pb-2">
+                                <span className="font-medium">{stat.action}</span> - 사용자: {stat.userId}
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                  {stat.timestamp} | 세부: {JSON.stringify(stat.details)}
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">최근 10건 표시 중...</p>
+                        </div>
+                      ) : (
+                        <p>통계 데이터가 없습니다.</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setShowStatsDashboard(false)}
+                      className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+                    >
+                      닫기
+                    </button>
+                  </div>
+                </div>
+              )}
               </div>
-              );
+                );
               }
 
 export default App;

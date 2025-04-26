@@ -1,0 +1,38 @@
+[
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-04-26T14:42:55.479Z"
+    },
+    "timestamp": "2025-04-26T23:42:56.402337"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-04-26T14:56:59.124Z"
+    },
+    "timestamp": "2025-04-26T23:57:00.051185"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-04-26T15:13:05.617Z"
+    },
+    "timestamp": "2025-04-27T00:13:06.802084"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-04-26T15:22:02.560Z"
+    },
+    "timestamp": "2025-04-27T00:22:03.491574"
+  }
+]

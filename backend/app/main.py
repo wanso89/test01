@@ -755,6 +755,89 @@ async def source_preview_endpoint(request: SourcePreviewRequest = Body(...)):
 
 
 
+class StatsRequest(BaseModel):
+    userId: str  # 사용자 식별자
+    action: str  # 수행한 행동 (예: question, feedback, view_source)
+    details: Dict[str, Any] = {}  # 추가 세부 정보 (예: 카테고리, 피드백 유형)
+
+class StatsQueryRequest(BaseModel):
+    userId: str = ""  # 특정 사용자 조회 (빈 문자열이면 전체 조회)
+    startDate: str = ""  # 시작 날짜 (형식: YYYY-MM-DD)
+    endDate: str = ""  # 종료 날짜 (형식: YYYY-MM-DD)
+
+# 통계 저장 디렉토리 설정
+STATS_DIR = "app/stats"
+os.makedirs(STATS_DIR, exist_ok=True)
+STATS_FILE = os.path.join(STATS_DIR, "stats.json")
+
+# 통계 저장 함수
+def save_stat(stat_data: Dict[str, Any]):
+    try:
+        if os.path.exists(STATS_FILE):
+            with open(STATS_FILE, 'r') as f:
+                stats_list = json.load(f)
+        else:
+            stats_list = []
+        stats_list.append(stat_data)
+        with open(STATS_FILE, 'w') as f:
+            json.dump(stats_list, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"통계 저장 중 오류 발생: {e}")
+        return False
+
+# 통계 조회 함수
+def query_stats(user_id: str = "", start_date: str = "", end_date: str = ""):
+    try:
+        if os.path.exists(STATS_FILE):
+            with open(STATS_FILE, 'r') as f:
+                stats_list = json.load(f)
+        else:
+            return []
+        
+        filtered_stats = stats_list
+        if user_id:
+            filtered_stats = [s for s in filtered_stats if s["userId"] == user_id]
+        if start_date:
+            filtered_stats = [s for s in filtered_stats if s["timestamp"] >= start_date]
+        if end_date:
+            filtered_stats = [s for s in filtered_stats if s["timestamp"] <= end_date + "T23:59:59.999999"]
+        return filtered_stats
+    except Exception as e:
+        print(f"통계 조회 중 오류 발생: {e}")
+        return []
+
+# 통계 저장 엔드포인트
+@app.post("/api/stats/save")
+async def save_stats_endpoint(request: StatsRequest = Body(...)):
+    try:
+        stat_data = {
+            "userId": request.userId,
+            "action": request.action,
+            "details": request.details,
+            "timestamp": datetime.now().isoformat()
+        }
+        success = save_stat(stat_data)
+        if success:
+            return {"status": "success", "message": "통계가 저장되었습니다."}
+        else:
+            raise HTTPException(status_code=500, detail="통계 저장에 실패했습니다.")
+    except Exception as e:
+        print(f"통계 저장 중 오류 발생: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"통계 저장 중 오류 발생: {str(e)}")
+
+# 통계 조회 엔드포인트
+@app.post("/api/stats/query")
+async def query_stats_endpoint(request: StatsQueryRequest = Body(...)):
+    try:
+        stats = query_stats(request.userId, request.startDate, request.endDate)
+        return {"status": "success", "stats": stats}
+    except Exception as e:
+        print(f"통계 조회 중 오류 발생: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"통계 조회 중 오류 발생: {str(e)}")
+
 
 # 서버 시작 시 인덱스 확인
 @app.on_event("startup")

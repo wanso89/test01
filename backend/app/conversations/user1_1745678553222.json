@@ -1,0 +1,66 @@
+{
+  "userId": "user1",
+  "conversationId": "1745678553222",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제4조에 대해서 글자색을 파란색으로해서 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**<span style=\"color:blue\">본인은 본 서약을 위반하거나 보안규정을 위반하여 회사에 유∙무형의 손해를 끼칠 경우, 회사의 사규에 따른 징계 및 관련 법령에 따른 형사·민사상 책임을 감수할 것을 서약합니다.</span> **",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 2,
+          "similarity": 2.28641,
+          "rerank_score": 0.5100847482681274,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제3조에 대해서 글자색을 초록색으로 변경해서 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**<span style=\"color:green\">본인은 회사의 보안 강화를 위한 주기적인 보안 점검 및 교육에 성실히 참여하고, 관련 정책과 지침을 숙지하고 이행함을 확인합니다.</span>**",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 2,
+          "similarity": 2.290916,
+          "rerank_score": 0.5015536546707153,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제 3조에 대해서 글자색을 주황색으로 변경으로 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "***제3조 (보안 교육 및 점검 협조) ***  \n**본인은 회사의 보안 강화를 위한 주기적인 보안 점검 및 교육에 성실히 참여하고, 관련 정책과 지침을 숙지하고 이행함을 확인합니다.**",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 2,
+          "similarity": 2.2886758,
+          "rerank_score": 0.5012803077697754,
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-27T00:21:43.223912"
+}
