@@ -563,6 +563,143 @@ def save_feedback(feedback_data: Dict[str, Any]):
         print(f"피드백 저장 중 오류 발생: {e}")
         return False
 
+class ConversationRequest(BaseModel):
+    userId: str  # 사용자 식별자 (임시로 문자열 사용, 실제로는 인증 기반 ID)
+    conversationId: str  # 대화 식별자
+    messages: List[Dict[str, Any]]  # 대화 메시지 목록
+
+class ConversationLoadRequest(BaseModel):
+    userId: str
+    conversationId: str
+
+# 대화 저장 디렉토리 설정
+CONVERSATION_DIR = "app/conversations"
+os.makedirs(CONVERSATION_DIR, exist_ok=True)
+
+# 대화 저장 함수
+def save_conversation(user_id: str, conversation_id: str, messages: List[Dict[str, Any]]):
+    try:
+        file_path = os.path.join(CONVERSATION_DIR, f"{user_id}_{conversation_id}.json")
+        conversation_data = {
+            "userId": user_id,
+            "conversationId": conversation_id,
+            "messages": messages,
+            "timestamp": datetime.now().isoformat()
+        }
+        with open(file_path, 'w') as f:
+            json.dump(conversation_data, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"대화 저장 중 오류 발생: {e}")
+        return False
+
+# 대화 불러오기 함수
+def load_conversation(user_id: str, conversation_id: str):
+    try:
+        file_path = os.path.join(CONVERSATION_DIR, f"{user_id}_{conversation_id}.json")
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as f:
+                return json.load(f)
+        return None
+    except Exception as e:
+        print(f"대화 불러오기 중 오류 발생: {e}")
+        return None
+
+# 대화 저장 엔드포인트
+@app.post("/api/conversations/save")
+async def save_conversation_endpoint(request: ConversationRequest = Body(...)):
+    try:
+        success = save_conversation(request.userId, request.conversationId, request.messages)
+        if success:
+            return {"status": "success", "message": "대화가 저장되었습니다."}
+        else:
+            raise HTTPException(status_code=500, detail="대화 저장에 실패했습니다.")
+    except Exception as e:
+        print(f"대화 저장 중 오류 발생: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"대화 저장 중 오류 발생: {str(e)}")
+
+# 대화 불러오기 엔드포인트
+@app.post("/api/conversations/load")
+async def load_conversation_endpoint(request: ConversationLoadRequest = Body(...)):
+    try:
+        conversation = load_conversation(request.userId, request.conversationId)
+        if conversation:
+            return {"status": "success", "conversation": conversation}
+        else:
+            raise HTTPException(status_code=404, detail="대화를 찾을 수 없습니다.")
+    except Exception as e:
+        print(f"대화 불러오기 중 오류 발생: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"대화 불러오기 중 오류 발생: {str(e)}")
+
+
+class UserSettingsRequest(BaseModel):
+    userId: str  # 사용자 식별자 (임시로 문자열 사용, 실제로는 인증 기반 ID)
+    settings: Dict[str, Any]  # 사용자 설정 데이터
+
+class UserSettingsLoadRequest(BaseModel):
+    userId: str
+
+# 사용자 설정 저장 디렉토리 설정
+SETTINGS_DIR = "app/settings"
+os.makedirs(SETTINGS_DIR, exist_ok=True)
+
+# 사용자 설정 저장 함수
+def save_user_settings(user_id: str, settings: Dict[str, Any]):
+    try:
+        file_path = os.path.join(SETTINGS_DIR, f"{user_id}_settings.json")
+        settings_data = {
+            "userId": user_id,
+            "settings": settings,
+            "timestamp": datetime.now().isoformat()
+        }
+        with open(file_path, 'w') as f:
+            json.dump(settings_data, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"사용자 설정 저장 중 오류 발생: {e}")
+        return False
+
+# 사용자 설정 불러오기 함수
+def load_user_settings(user_id: str):
+    try:
+        file_path = os.path.join(SETTINGS_DIR, f"{user_id}_settings.json")
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as f:
+                return json.load(f)
+        return None
+    except Exception as e:
+        print(f"사용자 설정 불러오기 중 오류 발생: {e}")
+        return None
+
+# 사용자 설정 저장 엔드포인트
+@app.post("/api/settings/save")
+async def save_user_settings_endpoint(request: UserSettingsRequest = Body(...)):
+    try:
+        success = save_user_settings(request.userId, request.settings)
+        if success:
+            return {"status": "success", "message": "사용자 설정이 저장되었습니다."}
+        else:
+            raise HTTPException(status_code=500, detail="사용자 설정 저장에 실패했습니다.")
+    except Exception as e:
+        print(f"사용자 설정 저장 중 오류 발생: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"사용자 설정 저장 중 오류 발생: {str(e)}")
+
+# 사용자 설정 불러오기 엔드포인트
+@app.post("/api/settings/load")
+async def load_user_settings_endpoint(request: UserSettingsLoadRequest = Body(...)):
+    try:
+        settings_data = load_user_settings(request.userId)
+        if settings_data:
+            return {"status": "success", "settings": settings_data["settings"]}
+        else:
+            return {"status": "not_found", "message": "사용자 설정을 찾을 수 없습니다.", "settings": {}}  # 파일이 없어도 에러 대신 빈 설정 반환
+    except Exception as e:
+        print(f"사용자 설정 불러오기 중 오류 발생: {e}")
+        traceback.print_exc()
+        return {"status": "error", "message": f"사용자 설정 불러오기 중 오류 발생: {str(e)}", "settings": {}}  # 500 대신 에러 메시지 반환
 
 
 # 서버 시작 시 인덱스 확인

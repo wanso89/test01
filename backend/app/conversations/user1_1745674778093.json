@@ -1,0 +1,30 @@
+{
+  "userId": "user1",
+  "conversationId": "1745674778093",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "제4조 간단하게 말해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "제4조는 **직원이 질병 또는 사고로 인해 업무수행이 부적절하다고 판단될 경우**  또는 **회사의 업무 형편상 부득이한 경우**, 배치전환이 가능함을 의미합니다. 또한, **회사는 업무상 필요시 파견근무를 명할 수 있고,** 종업원은 이에 따르도록 합니다.",
+      "sources": [
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 22,
+          "similarity": 25.911419,
+          "rerank_score": 0.5011789202690125,
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-26T22:40:48.947208"
+}

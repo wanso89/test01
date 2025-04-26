@@ -1,0 +1,30 @@
+{
+  "userId": "user1",
+  "conversationId": "1745674878779",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제3조 내용이 뭐야?",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**제3조 (보안 교육 및 점검 협조)**  본인은 회사의 보안 강화를 위한 주기적인 보안 점검 및 교육에 성실히 참여하고, 관련 정책과 지침을 숙지하고 이행함을 확인합니다.",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 2,
+          "similarity": 34.225677,
+          "rerank_score": 0.7237009406089783,
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-26T23:03:02.447152"
+}

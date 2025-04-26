@@ -1,0 +1,30 @@
+{
+  "userId": "user1",
+  "conversationId": "1745674888490",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제 4조 내용이 뭐야?",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**제4조 (책임 및 제재)**  본인은 본 서약을 위반하거나 보안규정을 위반하여 회사에 유∙무형의 손해를 끼칠 경우, 회사의 사규에 따른 징계 및 관련 법령에 따른 형사·민사상 책임을 감수할 것을 서약합니다.",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 2,
+          "similarity": 34.581257,
+          "rerank_score": 0.8169958591461182,
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-26T23:03:05.146048"
+}

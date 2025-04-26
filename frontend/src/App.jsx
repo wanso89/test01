@@ -19,8 +19,11 @@ function App() {
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [conversations, setConversations] = useState([]);
   const isResizing = useRef(false);
+  const [userId, setUserId] = useState("user1"); // 임시 사용자 ID, 실제로는 인증 기반 ID 사용
+  const [theme, setTheme] = useState('light'); // 테마 상태 (light/dark)
+  const [defaultCategory, setDefaultCategory] = useState('메뉴얼'); // 기본 카테고리 상태
 
-  // 새로고침 후 activeConversationId 초기화
+  // 초기 대화 목록 로드 (로컬 스토리지 또는 백엔드)
   useEffect(() => {
     const savedConversations = localStorage.getItem('conversations');
     const savedActiveId = localStorage.getItem('activeConversationId');
@@ -28,19 +31,27 @@ function App() {
     if (savedConversations) {
       try {
         initialConvs = JSON.parse(savedConversations);
+        initialConvs = initialConvs.map(conv => ({
+          ...conv,
+          messages: conv.messages.map(msg => ({
+            ...msg,
+            sources: msg.sources || []
+          }))
+        }))
       } catch (e) {
         console.error("Error parsing conversations from localStorage:", e);
         localStorage.removeItem('conversations');
       }
     }
-    // 👇 conversations가 0개면 새 대화 생성
+    // conversations가 0개면 새 대화 생성
     if (initialConvs.length === 0) {
       const now = new Date();
       const newConv = {
-        id: Date.now(),
+        id: Date.now().toString(),
         title: `대화 1`,
         timestamp: now.toLocaleString(),
-        messages: [{ role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요?' }]
+        messages: [{ role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요?', sources: [] }],
+        pinned: false
       };
       initialConvs = [newConv];
       setConversations(initialConvs);
@@ -66,6 +77,96 @@ function App() {
     }
   }, []);
 
+  // 초기 설정 로드 (로컬 스토리지 또는 백엔드)
+useEffect(() => {
+  const savedTheme = localStorage.getItem('theme');
+  const savedCategory = localStorage.getItem('defaultCategory');
+  if (savedTheme) {
+    setTheme(savedTheme);
+    document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+  }
+  if (savedCategory) {
+    setDefaultCategory(savedCategory);
+  }
+  // 백엔드에서 설정 불러오기
+  loadUserSettingsFromBackend(userId);
+}, [userId]);
+
+// 테마 변경 함수
+const handleChangeTheme = (newTheme) => {
+  setTheme(newTheme);
+  localStorage.setItem('theme', newTheme);
+  document.documentElement.classList.toggle('dark', newTheme === 'dark');
+  // 백엔드에 설정 저장
+  saveUserSettingsToBackend(userId, { theme: newTheme, defaultCategory });
+};
+
+// 기본 카테고리 변경 함수
+const handleChangeDefaultCategory = (newCategory) => {
+  setDefaultCategory(newCategory);
+  localStorage.setItem('defaultCategory', newCategory);
+  // 백엔드에 설정 저장
+  saveUserSettingsToBackend(userId, { theme, defaultCategory: newCategory });
+};
+
+// 백엔드에 사용자 설정 저장
+const saveUserSettingsToBackend = async (userId, settings) => {
+  try {
+    const response = await fetch('http://172.10.2.70:8000/api/settings/save', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: userId,
+        settings: settings
+      })
+    });
+    if (!response.ok) {
+      throw new Error(`사용자 설정 저장 실패: ${response.status} ${response.statusText}`);
+    }
+    console.log("사용자 설정이 백엔드에 저장되었습니다.");
+  } catch (err) {
+    console.error("사용자 설정 저장 중 오류 발생:", err);
+  }
+};
+
+// 백엔드에서 사용자 설정 불러오기
+const loadUserSettingsFromBackend = async (userId) => {
+  try {
+    const response = await fetch('http://172.10.2.70:8000/api/settings/load', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: userId
+      })
+    });
+    if (!response.ok) {
+      throw new Error(`사용자 설정 불러오기 실패: ${response.status} ${response.statusText}`);
+    }
+    const data = await response.json();
+    if (data.status === "success" && data.settings) {
+      if (data.settings.theme) {
+        setTheme(data.settings.theme);
+        localStorage.setItem('theme', data.settings.theme);
+        document.documentElement.classList.toggle('dark', data.settings.theme === 'dark');
+      }
+      if (data.settings.defaultCategory) {
+        setDefaultCategory(data.settings.defaultCategory);
+        localStorage.setItem('defaultCategory', data.settings.defaultCategory);
+      }
+      console.log("사용자 설정이 백엔드에서 불러와졌습니다.");
+    } else if (data.status === "not_found") {
+      console.log("사용자 설정이 없습니다. 기본 설정을 사용합니다.");
+    }
+  } catch (err) {
+    console.error("사용자 설정 불러오기 중 오류 발생:", err);
+  }
+};
+
+
   // activeConversationId 변경 시 localStorage에 저장
   useEffect(() => {
     if (activeConversationId) {
@@ -73,55 +174,39 @@ function App() {
     }
   }, [activeConversationId]);
 
-  // conversations 변경 시 localStorage 동기화
+  // conversations 변경 시 localStorage 및 백엔드 동기화
   useEffect(() => {
     if (conversations.length > 0) {
       localStorage.setItem('conversations', JSON.stringify(conversations));
+      // 백엔드에도 저장 (활성 대화만 저장 예시)
+      if (activeConversationId) {
+        const activeConv = conversations.find(conv => conv.id === activeConversationId);
+        if (activeConv) {
+          saveConversationToBackend(userId, activeConversationId, activeConv.messages);
+        }
+      }
     }
-  }, [conversations]);
-
-  const createNewConversation = () => {
-    const now = new Date();
-    const newConv = {
-      id: Date.now(),
-      title: `대화 ${conversations.length + 1}`,
-      timestamp: now.toLocaleString(),
-      messages: [{ role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요?' }]
-    };
-    const updatedConvs = conversations.length > 0 ? [...conversations, newConv] : [newConv];
-    setConversations(updatedConvs);
-    setActiveConversationId(newConv.id);
-  };
-
-  const handleRenameConversation = (id, newTitle) => {
-    setConversations(prev =>
-      prev.map(conv =>
-        conv.id === id ? { ...conv, title: newTitle } : conv
-      )
-    );
-  };
+  }, [conversations, activeConversationId]);
 
   // 새 대화 생성
   const handleNewConversation = () => {
     const now = new Date();
     const newConv = {
-      id: Date.now(),
+      id: Date.now().toString(),
       title: `대화 ${conversations.length + 1}`,
       timestamp: now.toLocaleString(),
-      messages: [{ role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요?' }],
-      pinned: false // ⭐️ 추가
+      messages: [{ role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요?', sources: [] }],
+      pinned: false
     };
     setConversations(prev => [...prev, newConv]);
     setActiveConversationId(newConv.id);
   };
 
-  //즐겨 찾기
-  const handleTogglePinConversation = (id) => {
-    setConversations(prev =>
-      prev.map(conv =>
-        conv.id === id ? { ...conv, pinned: !conv.pinned } : conv
-      )
-    );
+  // 대화 선택
+  const handleSelectConversation = (id) => {
+    setActiveConversationId(id);
+    // 백엔드에서 대화 불러오기 (필요 시)
+    loadConversationFromBackend(userId, id);
   };
 
   // 대화 삭제
@@ -133,14 +218,15 @@ function App() {
         newActive = updated.length > 0 ? updated[updated.length - 1].id : null;
         setActiveConversationId(newActive);
       }
-      // 👇 conversations가 0개가 되면 새 대화 자동 생성
+      // conversations가 0개가 되면 새 대화 자동 생성
       if (updated.length === 0) {
         const now = new Date();
         const newConv = {
-          id: Date.now(),
+          id: Date.now().toString(),
           title: '대화 1',
           timestamp: now.toLocaleString(),
-          messages: [{ role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요?' }]
+          messages: [{ role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요?', sources: [] }],
+          pinned: false
         };
         setActiveConversationId(newConv.id);
         return [newConv];
@@ -149,9 +235,22 @@ function App() {
     });
   };
 
-  // 대화 선택
-  const handleSelectConversation = (id) => {
-    setActiveConversationId(id);
+  // 대화 제목 변경
+  const handleRenameConversation = (id, newTitle) => {
+    setConversations(prev =>
+      prev.map(conv =>
+        conv.id === id ? { ...conv, title: newTitle } : conv
+      )
+    );
+  };
+
+  // 대화 즐겨찾기 토글
+  const handleTogglePinConversation = (id) => {
+    setConversations(prev =>
+      prev.map(conv =>
+        conv.id === id ? { ...conv, pinned: !conv.pinned } : conv
+      )
+    );
   };
 
   // 메시지 업데이트
@@ -165,10 +264,67 @@ function App() {
     );
   };
 
+  // 백엔드에 대화 저장
+  const saveConversationToBackend = async (userId, conversationId, messages) => {
+    try {
+      const response = await fetch('http://172.10.2.70:8000/api/conversations/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId,
+          conversationId: conversationId,
+          messages: messages.map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            sources: msg.sources || []
+          }))
+        })
+      });
+      if (!response.ok) {
+        throw new Error(`대화 저장 실패: ${response.status} ${response.statusText}`);
+      }
+      console.log("대화가 백엔드에 저장되었습니다.");
+    } catch (err) {
+      console.error("대화 저장 중 오류 발생:", err);
+    }
+  };
+
+  // 백엔드에서 대화 불러오기
+  const loadConversationFromBackend = async (userId, conversationId) => {
+    try {
+      const response = await fetch('http://172.10.2.70:8000/api/conversations/load', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId,
+          conversationId: conversationId
+        })
+      });
+      if (!response.ok) {
+        throw new Error(`대화 불러오기 실패: ${response.status} ${response.statusText}`);
+      }
+      const data = await response.json();
+      if (data.status === "success" && data.conversation) {
+        setConversations(prev =>
+          prev.map(conv =>
+            conv.id === conversationId ? { ...conv, messages: data.conversation.messages } : conv
+          )
+        );
+        console.log("대화가 백엔드에서 불러와졌습니다.");
+      }
+    } catch (err) {
+      console.error("대화 불러오기 중 오류 발생:", err);
+    }
+  };
+
   // 현재 활성 대화의 메시지
   const currentMessages =
     conversations.find(conv => conv.id === activeConversationId)?.messages ||
-    [{ role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요?' }];
+    [{ role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요?', sources: [] }];
 
   // 반응형: 화면 크기 변경 시 사이드바 상태 업데이트
   useEffect(() => {
@@ -380,49 +536,83 @@ function App() {
               <FiSettings size={18} />
               {showSettingsDropdown && (
                 <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-20 animate-fade-in">
-                  <button
+                  <div
                     onClick={() => console.log('프로필 설정')}
-                    className="block w-full text-left px-3 py-2 text-gray-800 dark:text-gray-100 hover:bg-blue-100 dark:hover:bg-blue-800 transition flex items-center"
+                    className="block w-full text-left px-3 py-2 text-gray-800 dark:text-gray-100 hover:bg-blue-100 dark:hover:bg-blue-800 transition flex items-center cursor-pointer"
                   >
                     <FiUser className="mr-2" size={16} /> 프로필 ({userName})
-                  </button>
-                  <button
+                  </div>
+                  <div
                     onClick={handleToggleNotifications}
-                    className="block w-full text-left px-3 py-2 text-gray-800 dark:text-gray-100 hover:bg-blue-100 dark:hover:bg-blue-800 transition flex items-center"
+                    className="block w-full text-left px-3 py-2 text-gray-800 dark:text-gray-100 hover:bg-blue-100 dark:hover:bg-blue-800 transition flex items-center cursor-pointer"
                   >
                     <FiBell className="mr-2" size={16} /> 알림 {notificationsEnabled ? '켜짐' : '꺼짐'}
-                  </button>
-                  <button
+                  </div>
+                  <div
                     onClick={handleToggleScrollLock}
-                    className="block w-full text-left px-3 py-2 text-gray-800 dark:text-gray-100 hover:bg-blue-100 dark:hover:bg-blue-800 transition flex items-center"
+                    className="block w-full text-left px-3 py-2 text-gray-800 dark:text-gray-100 hover:bg-blue-100 dark:hover:bg-blue-800 transition flex items-center cursor-pointer"
                   >
                     {scrollLocked ? <FiLock className="mr-2" size={16} /> : <FiUnlock className="mr-2" size={16} />}
                     스크롤 {scrollLocked ? '잠금' : '해제'}
-                  </button>
+                  </div>
+                  <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                  <div className="px-3 py-1 text-sm text-gray-500 dark:text-gray-400">테마</div>
+                  <div
+                    onClick={() => handleChangeTheme('light')}
+                    className={`block w-full text-left px-3 py-2 text-gray-800 dark:text-gray-100 hover:bg-blue-100 dark:hover:bg-blue-800 transition cursor-pointer ${theme === 'light' ? 'bg-blue-100 dark:bg-blue-800' : ''}`}
+                  >
+                    라이트 모드
+                  </div>
+                  <div
+                    onClick={() => handleChangeTheme('dark')}
+                    className={`block w-full text-left px-3 py-2 text-gray-800 dark:text-gray-100 hover:bg-blue-100 dark:hover:bg-blue-800 transition cursor-pointer ${theme === 'dark' ? 'bg-blue-100 dark:bg-blue-800' : ''}`}
+                  >
+                    다크 모드
+                  </div>
+                  <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                  <div className="px-3 py-1 text-sm text-gray-500 dark:text-gray-400">기본 카테고리</div>
+                  <div
+                    onClick={() => handleChangeDefaultCategory('메뉴얼')}
+                    className={`block w-full text-left px-3 py-2 text-gray-800 dark:text-gray-100 hover:bg-blue-100 dark:hover:bg-blue-800 transition cursor-pointer ${defaultCategory === '메뉴얼' ? 'bg-blue-100 dark:bg-blue-800' : ''}`}
+                  >
+                    메뉴얼
+                  </div>
+                  <div
+                    onClick={() => handleChangeDefaultCategory('기술문서')}
+                    className={`block w-full text-left px-3 py-2 text-gray-800 dark:text-gray-100 hover:bg-blue-100 dark:hover:bg-blue-800 transition cursor-pointer ${defaultCategory === '기술문서' ? 'bg-blue-100 dark:bg-blue-800' : ''}`}
+                  >
+                    기술문서
+                  </div>
+                  <div
+                    onClick={() => handleChangeDefaultCategory('기타')}
+                    className={`block w-full text-left px-3 py-2 text-gray-800 dark:text-gray-100 hover:bg-blue-100 dark:hover:bg-blue-800 transition cursor-pointer ${defaultCategory === '기타' ? 'bg-blue-100 dark:bg-blue-800' : ''}`}
+                  >
+                    기타
+                  </div>
                 </div>
               )}
-            </button>
-            <button
-              onClick={() => {
-                document.documentElement.classList.toggle('dark');
-              }}
-              className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
-              title="다크모드 토글"
-            >
-              🌙
-            </button>
-          </div>
-        </header>
-        <ChatContainer
-          key={activeConversationId}
-          scrollLocked={scrollLocked}
-          activeConversationId={activeConversationId}
-          messages={currentMessages}
-          onUpdateMessages={handleUpdateMessages}
-        />
-      </main>
-    </div>
-  );
-}
+                            </button>
+                            <button
+                              onClick={() => {
+                                document.documentElement.classList.toggle('dark');
+                              }}
+                              className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+                              title="다크모드 토글"
+                            >
+                              🌙
+              </button>
+              </div>
+              </header>
+              <ChatContainer
+                key={activeConversationId}
+                scrollLocked={scrollLocked}
+                activeConversationId={activeConversationId}
+                messages={currentMessages}
+                onUpdateMessages={handleUpdateMessages}
+              />
+              </main>
+              </div>
+              );
+              }
 
 export default App;
