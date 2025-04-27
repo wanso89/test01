@@ -40,6 +40,13 @@ function ChatContainer({
     }
   }, [localMessages, scrollLocked]);
 
+  // 검색어가 지워질 때 스크롤을 맨 아래로 이동
+  useEffect(() => {
+    if (!searchTerm) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [searchTerm]);
+
   // 스크롤 위치 감지하여 '맨 위로' 버튼 표시 여부 결정
   const handleScroll = () => {
     const container = chatContainerRef.current;
@@ -130,7 +137,9 @@ function ChatContainer({
           animationDelay: `${i * 0.1}s`
         }}
       >
-        <ChatMessage message={msg} />
+        <ChatMessage message={msg}
+                     searchTerm={searchTerm || ''} 
+        />
       </div>
     ));
   }, [localMessages, filteredMessages, searchTerm]);

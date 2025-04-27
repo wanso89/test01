@@ -9,7 +9,7 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useState, memo } from 'react';
 import { FiEye, FiZoomIn, FiCopy, FiCheck, FiThumbsUp, FiThumbsDown, FiStar, FiLoader } from 'react-icons/fi';
 
-function ChatMessage({ message }) {
+function ChatMessage({ message, searchTerm = '' }) {
   const isUser = message.role === 'user';
   const [previewSource, setPreviewSource] = useState(null);
   const [previewContent, setPreviewContent] = useState(null);
@@ -100,6 +100,34 @@ function ChatMessage({ message }) {
     }
   };
 
+  const contentAsString = typeof message.content === 'string' 
+    ? message.content 
+    : Array.isArray(message.content) 
+      ? message.content.join('\n') 
+      : String(message.content);
+
+  // 검색 키워드 하이라이트를 위한 커스터마이징 컴포넌트
+  const highlightSearchTerm = ({ children }) => {
+    if (!searchTerm || typeof children !== 'string') {
+      return <span>{children}</span>;
+    }
+    const regex = new RegExp(`(${searchTerm})`, 'gi');
+    const parts = children.split(regex);
+    return (
+      <span>
+        {parts.map((part, index) =>
+          part.toLowerCase() === searchTerm.toLowerCase() ? (
+            <span key={index} className="bg-yellow-200 dark:bg-yellow-700 text-black dark:text-white">
+              {part}
+            </span>
+          ) : (
+            part
+          )
+        )}
+      </span>
+    );
+  };
+
 
 
   return (
@@ -178,10 +206,12 @@ function ChatMessage({ message }) {
                     {children}
                   </td>
                 );
-              }
+              },
+              p: highlightSearchTerm,
+              span: highlightSearchTerm
             }}
           >
-            {message.content}
+            {contentAsString}
           </ReactMarkdown>
         </div>
         {/* 메시지 복사 버튼 */}
