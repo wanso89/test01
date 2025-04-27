@@ -168,7 +168,25 @@
           "rank": 1
         }
       ]
+    },
+    {
+      "role": "user",
+      "content": "안녕",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "tmpgjc8z1h4.pdf",
+          "page": 39,
+          "similarity": 2.151826,
+          "rerank_score": 0.5009726881980896,
+          "rank": 1
+        }
+      ]
     }
   ],
-  "timestamp": "2025-04-27T23:18:50.690634"
+  "timestamp": "2025-04-27T23:46:58.136412"
 }

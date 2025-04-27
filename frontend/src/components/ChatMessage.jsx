@@ -7,9 +7,9 @@ import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useState, memo } from 'react';
-import { FiEye, FiZoomIn, FiCopy, FiCheck, FiThumbsUp, FiThumbsDown, FiStar, FiLoader } from 'react-icons/fi';
+import { FiEye, FiZoomIn, FiCopy, FiCheck, FiThumbsUp, FiThumbsDown, FiStar, FiLoader, FiSmile } from 'react-icons/fi';
 
-function ChatMessage({ message, searchTerm = '' }) {
+function ChatMessage({ message, searchTerm = ''}) {
   const isUser = message.role === 'user';
   const [previewSource, setPreviewSource] = useState(null);
   const [previewContent, setPreviewContent] = useState(null);
@@ -20,6 +20,7 @@ function ChatMessage({ message, searchTerm = '' }) {
   const [feedbackSent, setFeedbackSent] = useState(false); // 피드백 전송 여부
   const [loadingContent, setLoadingContent] = useState(false);
 
+
   const handleClosePreview = () => {
     setPreviewSource(null);
     setPreviewContent("");
@@ -28,11 +29,45 @@ function ChatMessage({ message, searchTerm = '' }) {
 
   const handleCopy = () => {
     try {
-      navigator.clipboard.writeText(message.content);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(message.content).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        }, () => {
+          console.error("Clipboard API failed");
+          fallbackCopyTextToClipboard(message.content);
+        });
+      } else {
+        console.error("Clipboard API not supported");
+        fallbackCopyTextToClipboard(message.content);
+      }
     } catch (err) {
       console.error("Clipboard API not supported or failed:", err);
+      fallbackCopyTextToClipboard(message.content);
+    }
+  };
+
+  // Clipboard API가 지원되지 않을 때 사용할 대체 복사 방법
+  const fallbackCopyTextToClipboard = (text) => {
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.top = '0';
+      textArea.style.left = '0';
+      textArea.style.position = 'fixed';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      if (successful) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } else {
+        alert("복사에 실패했습니다. 텍스트를 직접 선택해 복사해주세요.");
+      }
+    } catch (err) {
+      console.error("Fallback copy failed:", err);
       alert("복사에 실패했습니다. 텍스트를 직접 선택해 복사해주세요.");
     }
   };
@@ -99,6 +134,10 @@ function ChatMessage({ message, searchTerm = '' }) {
       setLoadingContent(false);
     }
   };
+
+ 
+
+  
 
   const contentAsString = typeof message.content === 'string' 
     ? message.content 
@@ -222,6 +261,8 @@ function ChatMessage({ message, searchTerm = '' }) {
         >
           {copied ? <FiCheck size={16} /> : <FiCopy size={16} />}
         </button>
+     
+
         {/* 피드백/별점 버튼 (AI 응답에만 표시) */}
         {message.role === 'assistant' && (
           <div className="flex gap-2 mt-2 items-center opacity-0 group-hover:opacity-100 transition">
@@ -275,6 +316,8 @@ function ChatMessage({ message, searchTerm = '' }) {
           </div>
         )}
       </div>
+
+      
 
       {/* 원문 미리보기 모달 */}
       {previewSource && (

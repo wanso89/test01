@@ -91,7 +91,7 @@ function ChatContainer({
     if (!activeConversationId || isSending) return;
 
     setIsSending(true);
-    const newMessage = { role: 'user', content: msg };
+    const newMessage = { role: 'user', content: msg, reactions: {}, id: Date.now().toString() + Math.random().toString(36).substr(2,9) };
     const updatedMessagesWithUser = [...localMessages, newMessage];
     setLocalMessages(updatedMessagesWithUser);
     onUpdateMessages(updatedMessagesWithUser);
@@ -125,7 +125,9 @@ function ChatContainer({
       const aiResponse = { 
         role: 'assistant', 
         content: data.bot_response || '응답을 받아왔습니다.',
-        sources: data.sources || []
+        sources: data.sources || [],
+        reactions: {},
+        id: Date.now().toString() + Math.random().toString(36).substr(2,9)
       };
       const updatedMessagesWithAI = [...updatedMessagesWithUser, aiResponse];
       setLocalMessages(updatedMessagesWithAI);
@@ -139,11 +141,11 @@ function ChatContainer({
     }
   };
 
-  // 메시지 렌더링 성능 최적화
+    // 메시지 렌더링 성능 최적화
   const memoizedMessages = useMemo(() => {
     return (searchTerm ? filteredMessages : localMessages).map((msg, i) => (
       <div
-        key={i}
+        key={msg.id || i}
         className="animate-fade-in-up opacity-0"
         style={{
           animation: 'fade-in-up 0.3s ease-out forwards',
@@ -151,7 +153,7 @@ function ChatContainer({
         }}
       >
         <ChatMessage message={msg}
-                     searchTerm={searchTerm || ''} 
+                     searchTerm={searchTerm || ''}
         />
       </div>
     ));
