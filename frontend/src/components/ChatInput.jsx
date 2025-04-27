@@ -3,6 +3,8 @@ import { FiLoader, FiSend } from 'react-icons/fi';
 
 function ChatInput({ onSend, disabled }) {
   const [msg, setMsg] = useState('');
+  const [history, setHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
   const textareaRef = useRef(null);
   
   useEffect(() => {
@@ -18,37 +20,48 @@ function ChatInput({ onSend, disabled }) {
   }, [msg]);
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      if (!e.shiftKey) {
-        // 엔터만 눌렀을 때: 메시지 전송
-        e.preventDefault();
-        if (msg.trim() && !disabled) {
-          onSend(msg);
-          setMsg('');
-        }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (msg.trim() && !disabled) {
+        onSend(msg);
+        setHistory(prev => [msg, ...prev]); // 입력 히스토리에 추가
+        setMsg('');
+        setHistoryIndex(-1); // 히스토리 인덱스 초기화
       }
-      // Shift+Enter: 줄바꿈 (기본 동작 유지, 별도 처리 불필요)
-    }
-  };
-
-  const handleSendClick = () => {
-    if (msg.trim() && !disabled) {
-      onSend(msg);
-      setMsg('');
+    } else if (e.key === 'ArrowUp' && history.length > 0) {
+      e.preventDefault();
+      if (historyIndex < history.length - 1) {
+        setHistoryIndex(prev => prev + 1);
+        setMsg(history[historyIndex + 1]);
+      }
+    } else if (e.key === 'ArrowDown' && history.length > 0) {
+      e.preventDefault();
+      if (historyIndex > 0) {
+        setHistoryIndex(prev => prev - 1);
+        setMsg(history[historyIndex - 1]);
+      } else if (historyIndex === 0) {
+        setHistoryIndex(-1);
+        setMsg('');
+      }
     }
   };
 
   return (
     <form
-      className="flex p-4 border-t bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+      className="flex p-4 border-t bg-white dark:bg-gray-800"
       onSubmit={e => {
         e.preventDefault();
-        handleSendClick();
+        if (msg.trim() && !disabled) {
+          onSend(msg);
+          setHistory(prev => [msg, ...prev]); // 입력 히스토리에 추가
+          setMsg('');
+          setHistoryIndex(-1); // 히스토리 인덱스 초기화
+        }
       }}
     >
       <textarea
         ref={textareaRef}
-        className="flex-1 p-3 rounded-full border-2 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-800 dark:text-white transition resize-none overflow-hidden duration-200"
+        className="flex-1 p-3 rounded-full border-2 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-800 dark:text-white transition resize-none overflow-hidden"
         placeholder={disabled ? "전송 중..." : "메시지를 입력하세요. Shift+Enter로 줄바꿈, Enter로 전송됩니다."}
         value={msg}
         onChange={e => setMsg(e.target.value)}

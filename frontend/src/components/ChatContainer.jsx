@@ -1,7 +1,7 @@
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import { useRef, useEffect, useState, useMemo } from 'react';
-import { FiLoader, FiSend } from 'react-icons/fi';
+import { FiLoader, FiArrowUp } from 'react-icons/fi';
 
 function ChatContainer({
   scrollLocked,
@@ -19,6 +19,7 @@ function ChatContainer({
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const inputRef = useRef(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   // 입력창 자동 포커스
   useEffect(() => {
@@ -27,7 +28,6 @@ function ChatContainer({
     }
   }, []);
  
-
   // messages 또는 activeConversationId가 변경되면 localMessages 업데이트
   useEffect(() => {
     setLocalMessages(messages);
@@ -39,6 +39,32 @@ function ChatContainer({
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [localMessages, scrollLocked]);
+
+  // 스크롤 위치 감지하여 '맨 위로' 버튼 표시 여부 결정
+  const handleScroll = () => {
+    const container = chatContainerRef.current;
+    if (container) {
+      const scrollTop = container.scrollTop;
+      const scrollHeight = container.scrollHeight;
+      const visibleHeight = container.clientHeight;
+      // 스크롤이 맨 아래에 가까울 때는 버튼 숨김
+      setShowScrollTop(scrollTop < scrollHeight - visibleHeight - 100);
+    }
+  };
+
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll);
+      handleScroll(); // 초기 스크롤 위치 확인
+      return () => container.removeEventListener('scroll', handleScroll);
+    }
+  }, []);
+
+  // '맨 위로' 버튼 클릭 핸들러
+  const scrollToTop = () => {
+    chatContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // 메시지 전송 핸들러 (FastAPI 백엔드 연동)
   const handleSend = async (msg) => {
@@ -93,22 +119,6 @@ function ChatContainer({
     }
   };
 
-  // 검색 결과 표시 및 하이라이트 (간단한 CSS 스타일로 강조)
-  const highlightText = (text, term) => {
-    if (!term) return text;
-    const regex = new RegExp(`(${term})`, 'gi');
-    const parts = text.split(regex);
-    return parts.map((part, index) =>
-      part.toLowerCase() === term.toLowerCase() ? (
-        <span key={index} className="bg-yellow-200 dark:bg-yellow-700 text-black dark:text-white">
-          {part}
-        </span>
-      ) : (
-        part
-      )
-    );
-  };
-
   // 메시지 렌더링 성능 최적화
   const memoizedMessages = useMemo(() => {
     return (searchTerm ? filteredMessages : localMessages).map((msg, i) => (
@@ -120,9 +130,7 @@ function ChatContainer({
           animationDelay: `${i * 0.1}s`
         }}
       >
-        <ChatMessage
-          message={msg} // 하이라이트 적용 없이 원본 메시지 전달
-        />
+        <ChatMessage message={msg} />
       </div>
     ));
   }, [localMessages, filteredMessages, searchTerm]);
@@ -131,7 +139,7 @@ function ChatContainer({
     <div className="flex-1 flex flex-col overflow-hidden">
       <div
         ref={chatContainerRef}
-        className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-br from-transparent to-white/50 dark:from-transparent dark:to-gray-900/50"
+        className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-br from-transparent to-white/50 dark:from-transparent dark:to-gray-900/50 relative"
       >
         {memoizedMessages}
         {isLoading && (
@@ -147,6 +155,15 @@ function ChatContainer({
         )}
         <div ref={messagesEndRef} />
       </div>
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-16 right-6 bg-blue-600 text-white rounded-full p-2 shadow-lg hover:bg-blue-700 transition z-20 animate-fade-in"
+          title="맨 위로 이동"
+        >
+          <FiArrowUp size={20} />
+        </button>
+      )}
       <div className="sticky bottom-0 z-10 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
         <ChatInput onSend={handleSend} disabled={isSending || isLoading} />
       </div>
