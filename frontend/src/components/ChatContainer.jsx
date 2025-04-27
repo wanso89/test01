@@ -1,7 +1,7 @@
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import { useRef, useEffect, useState, useMemo } from 'react';
-import { FiLoader, FiArrowUp } from 'react-icons/fi';
+import { FiLoader, FiArrowUp, FiType } from 'react-icons/fi';
 
 function ChatContainer({
   scrollLocked,
@@ -20,6 +20,7 @@ function ChatContainer({
   const [isSending, setIsSending] = useState(false);
   const inputRef = useRef(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [isTyping, setIsTyping] = useState(false); // 입력 중 상태 추가
 
   // 입력창 자동 포커스
   useEffect(() => {
@@ -27,6 +28,13 @@ function ChatContainer({
       inputRef.current.focus();
     }
   }, []);
+
+  // "입력 중" 메세지 출력 시 스크롤 이동
+  useEffect(() => {
+    if (isTyping && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [isTyping]);
  
   // messages 또는 activeConversationId가 변경되면 localMessages 업데이트
   useEffect(() => {
@@ -71,6 +79,11 @@ function ChatContainer({
   // '맨 위로' 버튼 클릭 핸들러
   const scrollToTop = () => {
     chatContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // 입력 중 상태 핸들러
+  const handleTyping = (typing) => {
+    setIsTyping(typing);
   };
 
   // 메시지 전송 핸들러 (FastAPI 백엔드 연동)
@@ -157,6 +170,12 @@ function ChatContainer({
             <span className="ml-2 text-gray-600 dark:text-gray-400 text-sm">응답을 기다리는 중...</span>
           </div>
         )}
+        {isTyping && !isLoading && !isSending && (
+          <div className="flex justify-center items-center py-2">
+            <FiType className="animate-pulse text-gray-500 dark:text-gray-400" size={20} />
+            <span className="ml-2 text-gray-600 dark:text-gray-400 text-sm">입력 중...</span>
+          </div>
+        )}
         {error && (
           <div className="flex justify-center items-center py-2 text-red-500 dark:text-red-400 text-sm">
             {error}
@@ -174,7 +193,10 @@ function ChatContainer({
         </button>
       )}
       <div className="sticky bottom-0 z-10 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-        <ChatInput onSend={handleSend} disabled={isSending || isLoading} />
+        <ChatInput onSend={handleSend} 
+                   disabled={isSending || isLoading}
+                   onTyping={handleTyping}           
+        />
       </div>
     </div>
   );

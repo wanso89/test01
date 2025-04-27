@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { FiLoader, FiSend } from 'react-icons/fi';
 
-function ChatInput({ onSend, disabled }) {
+function ChatInput({ onSend, disabled, onTyping }) {
   const [msg, setMsg] = useState('');
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [suggestions, setSuggestions] = useState([]);
   const textareaRef = useRef(null);
   
   useEffect(() => {
@@ -19,6 +20,34 @@ function ChatInput({ onSend, disabled }) {
     }
   }, [msg]);
 
+  // 입력 상태 감지 및 상위 컴포넌트로 전달
+  useEffect(() => {
+    if (msg.trim().length > 0 && !disabled) {
+      onTyping(true); // 입력 중 상태 전달
+    } else {
+      onTyping(false); // 입력 중 상태 해제
+    }
+  }, [msg, disabled, onTyping]);
+
+  // 입력 중 자동 완성 제안 생성 (히스토리 기반)
+  useEffect(() => {
+    if (msg.trim().length > 0) {
+      const filteredSuggestions = history
+        .filter(item => item.toLowerCase().includes(msg.toLowerCase()))
+        .slice(0, 3); // 최대 3개 제안
+      setSuggestions(filteredSuggestions);
+    } else {
+      setSuggestions([]);
+    }
+  }, [msg, history]);
+
+  // 자동 완성 제안 선택 핸들러
+  const handleSuggestionSelect = (suggestion) => {
+    setMsg(suggestion);
+    setSuggestions([]);
+    textareaRef.current?.focus();
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -27,6 +56,7 @@ function ChatInput({ onSend, disabled }) {
         setHistory(prev => [msg, ...prev]); // 입력 히스토리에 추가
         setMsg('');
         setHistoryIndex(-1); // 히스토리 인덱스 초기화
+        setSuggestions([])
       }
     } else if (e.key === 'ArrowUp' && history.length > 0) {
       e.preventDefault();
@@ -43,6 +73,9 @@ function ChatInput({ onSend, disabled }) {
         setHistoryIndex(-1);
         setMsg('');
       }
+    } else if (e.key === 'Tab' && suggestion.length > 0) {
+      e.preventDefault();
+      handleSuggestionSelect(suggestions[0]);
     }
   };
 
@@ -56,6 +89,7 @@ function ChatInput({ onSend, disabled }) {
           setHistory(prev => [msg, ...prev]); // 입력 히스토리에 추가
           setMsg('');
           setHistoryIndex(-1); // 히스토리 인덱스 초기화
+          setSuggestions([]);
         }
       }}
     >

@@ -96,7 +96,79 @@
           "rank": 1
         }
       ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제5조 내용은 뭐야?",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**제5조 (보안 장치 방해 금지)**  본인은 보안을 위해 부착된 보안 스티커 등을 임의로 훼손하거나 제거하는 행위를 하지 않습니다.",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 1,
+          "similarity": 34.69082,
+          "rerank_score": 0.5335304141044617,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "제6조 내용은 뭐야?",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**제6조 (채용의 원칙)**   정보 없음",
+      "sources": [
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 10,
+          "similarity": 12.486913,
+          "rerank_score": 0.5113964080810547,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "ㅎㅎ",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "tmpgjc8z1h4.pdf",
+          "page": 61,
+          "similarity": 2.150461,
+          "rerank_score": 0.5012282729148865,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "ㅋㅋ",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "tmpgjc8z1h4.pdf",
+          "page": 32,
+          "similarity": 2.181379,
+          "rerank_score": 0.5007503628730774,
+          "rank": 1
+        }
+      ]
     }
   ],
-  "timestamp": "2025-04-27T21:49:11.748475"
+  "timestamp": "2025-04-27T23:18:50.690634"
 }
