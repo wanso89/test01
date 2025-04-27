@@ -24,6 +24,12 @@ function App() {
   const [defaultCategory, setDefaultCategory] = useState('메뉴얼'); // 기본 카테고리 상태
   const [showStatsDashboard, setShowStatsDashboard] = useState(false);
   const [statsData, setStatsData] = useState([]);
+  const [saveError, setSaveError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentMessages, setCurrentMessages] = useState([{ role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요?', sources: [] }]);
+  const [filteredMessages, setFilteredMessages] = useState(currentMessages);
+
+
 
   // 초기 대화 목록 로드 (로컬 스토리지 또는 백엔드)
   useEffect(() => {
@@ -93,6 +99,27 @@ useEffect(() => {
   // 백엔드에서 설정 불러오기
   loadUserSettingsFromBackend(userId);
 }, [userId]);
+
+// 검색어 변경 핸들러
+const handleSearchChange = (e) => {
+  setSearchTerm(e.target.value);
+};
+
+
+  // searchTerm 또는 currentMessages가 변경될 때 필터링 로직 적용
+useEffect(() => {
+  if (searchTerm && currentMessages.length > 0) {
+    const filtered = currentMessages.filter(msg =>
+      typeof msg.content === 'string' && msg.content.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredMessages(filtered);
+  } else {
+    setFilteredMessages(currentMessages);
+  }
+}, [searchTerm, currentMessages]);
+
+
+
 
 // 테마 변경 함수
 const handleChangeTheme = (newTheme) => {
@@ -343,8 +370,12 @@ const fetchStats = async () => {
         throw new Error(`대화 저장 실패: ${response.status} ${response.statusText}`);
       }
       console.log("대화가 백엔드에 저장되었습니다.");
+      setSaveError(null); // 성공 시 오류 메시지 초기화
     } catch (err) {
       console.error("대화 저장 중 오류 발생:", err);
+      setSaveError("대화 저장에 실패했습니다. 로컬에만 저장됩니다."); // 오류 메시지 설정
+      // 로컬 저장은 이미 conversations 변경 시 useEffect에서 보장됨
+      setTimeout(() => setSaveError(null), 5000); // 5초 후 알림 사라짐
     }
   };
 
@@ -378,10 +409,20 @@ const fetchStats = async () => {
     }
   };
 
-  // 현재 활성 대화의 메시지
-  const currentMessages =
-    conversations.find(conv => conv.id === activeConversationId)?.messages ||
-    [{ role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요?', sources: [] }];
+  
+  
+
+  // conversations와 activeConversationId가 초기화된 경우에만 메시지 가져오기
+  useEffect(() => {
+    if (conversations.length > 0 && activeConversationId) {
+      const activeConv = conversations.find(conv => conv.id === activeConversationId);
+      if (activeConv) {
+        setCurrentMessages(activeConv.messages);
+      }
+    } else {
+      setCurrentMessages([{ role: 'assistant', content: '안녕하세요! 무엇을 도와드릴까요?', sources: [] }]);
+    }
+  }, [conversations, activeConversationId]);
 
   // 반응형: 화면 크기 변경 시 사이드바 상태 업데이트
   useEffect(() => {
@@ -542,6 +583,13 @@ const fetchStats = async () => {
             RAG 챗봇
           </h1>
           <div className="flex items-center gap-2">
+          <input
+             type="text"
+             value={searchTerm}
+             onChange={handleSearchChange}
+             placeholder="메시지 검색..."
+             className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 transition w-48"
+          />
             <button
               onClick={handleRegenerate}
               className="px-3 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
@@ -673,8 +721,15 @@ const fetchStats = async () => {
                 activeConversationId={activeConversationId}
                 messages={currentMessages}
                 onUpdateMessages={handleUpdateMessages}
+                filteredMessages={filteredMessages}
+                searchTerm={searchTerm}
               />
               </main>
+              {saveError && (
+                <div className="fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded shadow-lg z-50 animate-fade-in">
+                  {saveError}
+                </div>
+              )}
               {showStatsDashboard && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center min-h-screen z-50 p-4 animate-fade-in">
                   <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-4xl w-full max-h-[80vh] overflow-y-auto shadow-2xl animate-slide-up">

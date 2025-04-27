@@ -1,0 +1,30 @@
+{
+  "userId": "user1",
+  "conversationId": "1745715488035",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "ㅎㅎㅎㅎ",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "tmpgjc8z1h4.pdf",
+          "page": 61,
+          "similarity": 2.13534,
+          "rerank_score": 0.5004599690437317,
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-27T09:58:41.284258"
+}

@@ -79,5 +79,68 @@
       "timestamp": "2025-04-26T16:19:27.529Z"
     },
     "timestamp": "2025-04-27T01:19:28.703833"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-04-27T00:51:19.407Z"
+    },
+    "timestamp": "2025-04-27T09:51:20.688262"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-04-27T00:51:43.711Z"
+    },
+    "timestamp": "2025-04-27T09:51:44.782414"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-04-27T00:58:10.346Z"
+    },
+    "timestamp": "2025-04-27T09:58:11.418441"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-04-27T02:26:12.019Z"
+    },
+    "timestamp": "2025-04-27T11:26:13.115104"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-04-27T02:50:56.448Z"
+    },
+    "timestamp": "2025-04-27T11:50:57.786461"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-04-27T02:51:03.516Z"
+    },
+    "timestamp": "2025-04-27T11:51:04.615800"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-04-27T02:51:12.998Z"
+    },
+    "timestamp": "2025-04-27T11:51:14.098171"
   }
 ]

@@ -7,6 +7,8 @@ function ChatContainer({
   scrollLocked,
   activeConversationId,
   messages,
+  searchTerm,
+  filteredMessages,
   onUpdateMessages
 }) {
   const [localMessages, setLocalMessages] = useState(messages);
@@ -91,9 +93,25 @@ function ChatContainer({
     }
   };
 
+  // 검색 결과 표시 및 하이라이트 (간단한 CSS 스타일로 강조)
+  const highlightText = (text, term) => {
+    if (!term) return text;
+    const regex = new RegExp(`(${term})`, 'gi');
+    const parts = text.split(regex);
+    return parts.map((part, index) =>
+      part.toLowerCase() === term.toLowerCase() ? (
+        <span key={index} className="bg-yellow-200 dark:bg-yellow-700 text-black dark:text-white">
+          {part}
+        </span>
+      ) : (
+        part
+      )
+    );
+  };
+
   // 메시지 렌더링 성능 최적화
   const memoizedMessages = useMemo(() => {
-    return localMessages.map((msg, i) => (
+    return (searchTerm ? filteredMessages : localMessages).map((msg, i) => (
       <div
         key={i}
         className="animate-fade-in-up opacity-0"
@@ -102,10 +120,12 @@ function ChatContainer({
           animationDelay: `${i * 0.1}s`
         }}
       >
-        <ChatMessage message={msg} />
+        <ChatMessage
+          message={msg} // 하이라이트 적용 없이 원본 메시지 전달
+        />
       </div>
     ));
-  }, [localMessages]);
+  }, [localMessages, filteredMessages, searchTerm]);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
