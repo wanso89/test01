@@ -68,7 +68,7 @@ function Sidebar({
           />
         )}
       </div>
-      <nav className={`flex-1 p-2 w-full space-y-1 ${collapsed ? 'px-1' : ''} overflow-y-auto custom-scrollbar`}>
+      <nav className={`flex-1 p-2 w-full space-y-1 ${collapsed ? 'px-1' : ''} overflow-y-auto`}>
         {filteredConversations.length === 0 ? (
           <div className="text-gray-400 text-sm text-center mt-8">검색 결과가 없습니다.</div>
         ) : (
@@ -76,7 +76,7 @@ function Sidebar({
             <div
               key={conv.id}
               className={`
-                p-2 rounded-xl cursor-pointer transition duration-200 mx-1 min-h-[60px]
+                p-2 rounded-xl cursor-pointer transition duration-200 mx-1
                 border ${activeConversationId === conv.id
                   ? 'border-blue-400 dark:border-blue-600 bg-gradient-to-r from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-800 text-blue-800 dark:text-blue-200 font-semibold shadow-sm'
                   : 'border-gray-200 dark:border-gray-700 bg-transparent text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}

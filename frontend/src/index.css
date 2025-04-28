@@ -52,3 +52,27 @@ body {
   .animate-slide-up {
     animation: slide-up 0.3s ease-out forwards;
   }
+
+  /* custom-scrollbar 클래스에 적용되는 스크롤바 스타일 */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px; /* 스크롤바 너비 얇게 설정 */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent; /* 트랙 배경 투명 */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.5); /* 스크롤바 색상 (회색, 반투명) */
+  border-radius: 3px; /* 둥글게 처리 */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.8); /* 호버 시 색상 진하게 */
+}
+
+/* Firefox 등 다른 브라우저용 스크롤바 스타일 */
+.custom-scrollbar {
+  scrollbar-width: thin; /* 얇은 스크롤바 */
+  scrollbar-color: rgba(156, 163, 175, 0.5) transparent; /* 스크롤바 색상 */
+}

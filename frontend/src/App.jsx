@@ -580,7 +580,7 @@ const fetchStats = async () => {
       <main className="flex-1 flex flex-col border-l border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 transition-all duration-300 md:w-0 w-full">
         <header className="p-4 border-b bg-white dark:bg-gray-800 flex items-center justify-between sticky top-0 z-10 backdrop-blur-sm">
           <h1 className="text-2xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-indigo-600 font-['Pretendard','Noto Sans KR',sans-serif] drop-shadow">
-            RAG 챗봇
+            쓰리에스소프트 챗봇 테스트 ㅇㅇㅇㅇ
           </h1>
           <div className="flex items-center gap-2">
           <input
