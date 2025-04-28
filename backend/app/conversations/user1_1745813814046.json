@@ -1,0 +1,48 @@
+{
+  "userId": "user1",
+  "conversationId": "1745813814046",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제 4조에 대해서 글자색을 빨간색으로 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**<span style=\"color:red\">본인은 본 서약을 위반하거나 보안규정을 위반하여 회사에 유∙무형의 손해를 끼칠 경우, 회사의 사규에 따른 징계 및 관련 법령에 따른 형사·민사상 책임을 감수할 것을 서약합니다.</span> **",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 2,
+          "similarity": 2.305405,
+          "rerank_score": 0.5043831467628479,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제 3조에 대해서 글자색을 파란색으로 해서 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**<span style=\"color:blue\">본인은 회사의 보안 강화를 위한 주기적인 보안 점검 및 교육에 성실히 참여하고, 관련 정책과 지침을 숙지하고 이행함을 확인합니다.</span>**",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 2,
+          "similarity": 2.2632236,
+          "rerank_score": 0.5046919584274292,
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-28T13:29:08.156917"
+}

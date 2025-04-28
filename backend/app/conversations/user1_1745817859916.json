@@ -1,0 +1,94 @@
+{
+  "userId": "user1",
+  "conversationId": "1745817859916",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "첨부파일: 네오오토_B-1001_취업규칙_20230109 (3).pdf",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**제공된 문서에는 다음 내용이 포함되어 있습니다.**\n\n* **(주) 네오오토 취업규칙 개요:**  \"취 업 규 칙 (주) 네오오토\", \"본 규정은 (주)네오오토 (이하 “회사”라 칭함) 취업규칙이라 칭한다.\" 와 같이 시작되는 문구가 존재합니다.\n* **취업규칙의 목적**: \"본 규칙은 회사에서 근무하는 직원의 근로조건을 정함으로써 직원의 기 본적 생활 보장과 회사업무의 효율화 및 건전한 발전을 도모함을 그 목적으로 한다.\"\n* **취업규칙의 적용범위**: \"직원의 취업에 관하여는 법령 기타 회사규정으로 별도로 정하는 외 에는 본 규칙의 정한 바에 의한다.\"\n* **직원의 정의**: \"본 규칙에서 직원이라 함은 본 규칙 제 2 장의 수속을 마치고 회사에 채용된 자를 말한다.\"\n* **신의성실의 원칙**: 직원의 책임과 회사의 비차별적인 처리 방식에 대한 내용입니다.",
+      "sources": [
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 2,
+          "similarity": 2.5734992,
+          "rerank_score": 0.9848023653030396,
+          "rank": 1
+        },
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 10,
+          "similarity": 36.45205,
+          "rerank_score": 0.920434832572937,
+          "rank": 2
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "첨부파일: ChatGPT Image 2025년 4월 1일 오후 03_00_39.png",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**<br></b>",
+      "sources": [
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 1,
+          "similarity": 2.162276,
+          "rerank_score": 0.5000274777412415,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "첨부파일: 네오오토_B-1001_취업규칙_20230109 (4).pdf, 기본데이터 변환프로그램 매뉴얼 (2).pdf, IT 보안서약서_2025.pdf",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**질문:** 첨부 파일 `네오오토_B-1001_취업규칙_20230109 (4).pdf` 에서 언급된 채용의 원칙은 무엇입니까?",
+      "sources": [
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 2,
+          "similarity": 2.398091,
+          "rerank_score": 0.997492790222168,
+          "rank": 1
+        },
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 1,
+          "similarity": 2.5122766,
+          "rerank_score": 0.9843689799308777,
+          "rank": 2
+        },
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 10,
+          "similarity": 2.3387506,
+          "rerank_score": 0.975121796131134,
+          "rank": 3
+        },
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 2,
+          "similarity": 2.4436734,
+          "rerank_score": 0.6959204077720642,
+          "rank": 4
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-28T15:30:39.130372"
+}
