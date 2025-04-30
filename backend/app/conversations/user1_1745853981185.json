@@ -1,0 +1,102 @@
+{
+  "userId": "user1",
+  "conversationId": "1745853981185",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 내용 중 제3조에 대해서 전체 글자색은 노란색으로 처리해주고 최종적으로 표로 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "| 조항 | 내용 |\n|---|---|\n|  제3조 |   <font color=\"yellow\">Ⅲ. 지침:<br/>1. 문서 정보를 기반으로 정확하고 간결한 답변을 작성하세요.<br/>2. 문서에 없는 정보는 '정보 없음'으로 명시하세요.<br/>3. 전문 용어는 정확히 사용하고, 불필요한 설명은 생략하세요.<br/>4. HTML 태그는 <b>, <ul>, <li>만 사용하세요.</font> |",
+      "sources": [
+        {
+          "path": "ca4a676c-3b44-4231-8f0a-3bc731726820_NDT User Guide(Win) (1).pdf",
+          "page": 18,
+          "similarity": 2.192875,
+          "rerank_score": 0.5111672282218933,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 내용 중 제4조에 대해서 전체 글자색은 초록색으로 처리해주고 최종적으로 표로 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "| 조항 | 내용 |\n|---|---|\n|  제4조 | <font color=\"green\">IV. 지침:</font><br/>1. 문서 정보를 기반으로 정확하고 간결한 답변을 작성하세요.<br/>2. 문서에 없는 정보는 '정보 없음'으로 명시하세요.<br/>3. 전문 용어는 정확히 사용하고, 불필요한 설명은 생략하세요.<br/>4. HTML 태그는 <b>, <ul>, <li>만 사용하세요.|",
+      "sources": [
+        {
+          "path": "ca4a676c-3b44-4231-8f0a-3bc731726820_NDT User Guide(Win) (1).pdf",
+          "page": 35,
+          "similarity": 2.1841302,
+          "rerank_score": 0.5093532204627991,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 내용 중 제2조에 대해서 전체 글자색은 노란색으로 처리해주고 최종적으로 표로 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "| 조항 | 내용 |\n|---|---|\n| 제2조 | <font color=\"yellow\">본인은 회사가 보안 관리를 위해 다음의 모니터링 활동을 수행할 수 있으며, 이에 동의합니다</font> |",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 1,
+          "similarity": 2.2678313,
+          "rerank_score": 0.5240238904953003,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "네오오토 취업규칙 중 특별청원휴가 종류에 대해서 글자색은 빨간색으로 해서 표로 자세하게 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "| 종류 | 내용 |\n|---|---|\n| **<font color=\"red\">특별 청원 휴가</font>** | - 출산/유모 및 입양 관련 사정이 있는 경우<br>- 배우자가 직장 내부 또는 외부에서 중요한 행사 참석 시 필요한 경우<br>- 가족 구성원(배우자, 부모, 자녀 등)에게 심각한 병상이나 재난 발생 시 필요한 경우<br>- 개인적인 상황으로 인하여 일정기간 동안 근무하지 못하는 경우 |",
+      "sources": [
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 2,
+          "similarity": 2.418511,
+          "rerank_score": 0.6041401624679565,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "특별청원휴가 종류에 대해 자세하게 설명해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "네오오토 취업규칙에 따르면 특별청원휴가는 다음과 같은 경우에 부여됩니다:\n\n*  출산/유모 및 입양 관련 사정이 있을 때\n*  배우자가 직장 내부 또는 외부에서 중요한 행사에 참석해야 할 때\n*  가족 구성원(배우자, 부모, 자녀 등)에게 심각한 병상이나 재난이 발생했을 때\n*  개인적인 상황으로 인해 일정 기간 동안 근무하지 않아야 할 때",
+      "sources": [
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 38,
+          "similarity": 2.490079,
+          "rerank_score": 0.5160813927650452,
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-29T00:29:24.601002"
+}

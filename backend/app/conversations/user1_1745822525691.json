@@ -1,0 +1,397 @@
+{
+  "userId": "user1",
+  "conversationId": "1745822525691",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "첨부파일: 기본데이터 변환프로그램 매뉴얼 (2).pdf",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**<br/></b>",
+      "sources": [
+        {
+          "path": "tmpgjc8z1h4.pdf",
+          "page": 67,
+          "similarity": 2.2725582,
+          "rerank_score": 0.5105142593383789,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "파일 업로드 실패",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**제공된 문서에는 \"파일 업로드 실패\" 문제 해결 방법에 대한 정보가 없습니다.**",
+      "sources": [
+        {
+          "path": "tmpw_b6ln7u.pdf",
+          "page": 1,
+          "similarity": 10.017191,
+          "rerank_score": 0.5047647953033447,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "1",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**정보 없음**",
+      "sources": [
+        {
+          "path": "tmpgjc8z1h4.pdf",
+          "page": 4,
+          "similarity": 4.838433,
+          "rerank_score": 0.5023727416992188,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "2",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "tmpgjc8z1h4.pdf",
+          "page": 2,
+          "similarity": 4.007403,
+          "rerank_score": 0.5020564198493958,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "3",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "tmpgjc8z1h4.pdf",
+          "page": 3,
+          "similarity": 7.5599027,
+          "rerank_score": 0.5020723938941956,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "4",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "tmpgjc8z1h4.pdf",
+          "page": 56,
+          "similarity": 8.425859,
+          "rerank_score": 0.5075198411941528,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "파일 업로드 실패",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**파일 업로드 실패**:  <br>\n* 원격업무지원시스템 PC에서 작성한 자료는 **웹하드**에 업로드해야 합니다.<br>\n* 원격업무지원시스템 PC는 로그아웃하면 초기화되어 데이터 복구가 불가능하기 때문에 중요 문서 작성 시에는 수시로 웹하드에 저장하여 관리해야 합니다.",
+      "sources": [
+        {
+          "path": "tmpw_b6ln7u.pdf",
+          "page": 1,
+          "similarity": 10.017191,
+          "rerank_score": 0.5047647953033447,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "파일 업로드 실패",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "원격업무지원시스템 PC에서 작성한 자료는 웹하드에 업로드해야 합니다.",
+      "sources": [
+        {
+          "path": "tmpw_b6ln7u.pdf",
+          "page": 1,
+          "similarity": 10.017191,
+          "rerank_score": 0.5047647953033447,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "첨부파일: NDT User Guide(Win) (1).pdf",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "tmpgjc8z1h4.pdf",
+          "page": 2,
+          "similarity": 2.2138016,
+          "rerank_score": 0.5001562833786011,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "NDT 툴바 기능에 대해서 설명해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "NEPYX NetDesktop의 툴바 기능은 다음과 같습니다.\n\n* **<ul><li>툴바 손잡이</li></ul>**:  툴바를 좌우로 이동할 수 있습니다.</br> * **<ul><li>핀 </li></ul>**: 툴바를 고정합니다.</br> * **<ul><li>최소화 버튼</li></ul>**: 전체 화면 모드에서 가상 머신 화면을 숨깁니다.</br> * **<ul><li>NDT 아이콘</li></ul>**: 가상 머신 화면을 전체 화면 모드로 복귀합니다.</br> * **<ul><li>창모드 버튼</li></ul>**: 전체 화면 모드에서 가상 머신 화면을 창 모드로 변경합니다.</br> * **<ul><li>멀티 모니터 버튼</li></ul>**: 전체 화면 모드로 멀티 모니터에 표시하고, 다시 한 번 클릭하면 창 모드로 변경합니다.</br> * **<ul><li>툴바 숨김 버튼</li></ul>**: 툴바를 숨깁니다.",
+      "sources": [
+        {
+          "path": "ca4a676c-3b44-4231-8f0a-3bc731726820_NDT User Guide(Win) (1).pdf",
+          "page": 36,
+          "similarity": 38.61127,
+          "rerank_score": 0.6005975604057312,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "첨부파일: EDB vs ExperDB_v1.0.pdf",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "tmpgjc8z1h4.pdf",
+          "page": 2,
+          "similarity": 2.2157774,
+          "rerank_score": 0.5000279545783997,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 내용 중 제3조에 대해서 글자색은 빨간색으로 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "ca4a676c-3b44-4231-8f0a-3bc731726820_NDT User Guide(Win) (1).pdf",
+          "page": 18,
+          "similarity": 2.2353494,
+          "rerank_score": 0.530441164970398,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "ExperDB에 대해서 간단히 설명해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "eXperDB는  EnterpriseDB에서 판매하는 **커머셜** 포스트그레스QL 데이터베이스입니다.   <br/>\n* 커뮤니티 에디션과 동일하지만, 제한적인 지원이 제공됩니다.<br/>\n* 구독형 및 영구 라이선스 형태로 제공되며, 각각 core당 월별 비용 또는 일회성 비용이 적용됩니다.",
+      "sources": [
+        {
+          "path": "9f95e10e-6f4c-4bf6-91f3-f7ecd99a6896_EDB vs ExperDB_v1.0.pdf",
+          "page": 5,
+          "similarity": 13.347619,
+          "rerank_score": 0.5001908540725708,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "PostgreSQLDB 랑 ExperDB 차이점이 뭐야? 표로 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "| 기능 | PostgreSQL(Community) | eXperDB |\n|---|---|---|\n| Synonym 지지 |  • | • |\n| 오라클 호환성 |  • | • |\n| 개발 편의성 |  • | • |\n| DBA_* ,DBMS_* 뷰 지원 |  • | • |\n| Object Creation Time 지원 |  • | • |\n| Procedure |  • | • |\n| Parallel Query |  • | • |\n| Materialized View |  • | • |\n| FDW (Foreign Data Wrapper) |  • | • |\n| Oracle DBLink 튜닝 기능 지원 |  • | • |\n| Oracle Hint 기능 지원 |  • | • |\n| Tuning Pack 제공 |  • | • |\n| HA 제공 |  Opensource RepMgr 등 - 3rd Party 적용 가능 |  HA • - EFM (EDB Failover Manager) 제공 |",
+      "sources": [
+        {
+          "path": "9f95e10e-6f4c-4bf6-91f3-f7ecd99a6896_EDB vs ExperDB_v1.0.pdf",
+          "page": 4,
+          "similarity": 2.3512127,
+          "rerank_score": 0.503298282623291,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "첨부파일: 엑셀테스트.pdf",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "tmpj864wsci.pdf",
+          "page": 7,
+          "similarity": 2.2389982,
+          "rerank_score": 0.5003227591514587,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "첨부파일: IT 보안서약서_2025.docx",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**네오오토 IT 보안 서약서는 다음 내용을 담고 있습니다.**\n\n* **정보보호 및 보안규정 준수:**\n    - 회사 정보의 제공, 누설 금지\n    - 승인되지 않은 자료 반출 금지\n    - 시스템 정보의 무단 접근, 변경, 삭제, 복제, 유출, 훼손 금지\n    - 불법 소프트웨어/비인가 하드웨어/소프트웨어 사용 금지\n    - 보안 장치 훼손 금지\n    - 음란물, 폭력물, 불법자료 송수신/저장 금지\n    - 업무용 시스템의 업무외 이용 금지\n    - 업무용 시스템에 개인 자료 저장 금지\n    - 인증 정보 공유/무단 사용 금지\n    - 회사에 유・무형 손해를 초래할 수 있는 행위 금지\n\n* **모니터링 및 동의:**\n   - 회사의 보안 관리 목적으로 전자결재, 이메일, 인터넷 사용, 출력 기록, 시스템 로그 등 업무 관련 행위 모니터링 허락\n   - 모니터링 결과가 보안사고 발생 시 법적 증거자료로 활용될 수 있다는 동의\n\n* **보안 교육 및 점검 협조:**\n   - 회사의 보안 강화를 위한 주기적인 보안 점검 및 교육 참여 의무\n\n* **책임 및 제재:**\n   - 서약 위반이나 보안규정 위반으로 인한 회사 피해 발생 시, 회사 내부 규칙에 따라 징계 및 관련 법률에 따른 형사·민사 책임을 집니다",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 1,
+          "similarity": 35.650322,
+          "rerank_score": 0.7479404807090759,
+          "rank": 1
+        },
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 2,
+          "similarity": 2.2863822,
+          "rerank_score": 0.7010273337364197,
+          "rank": 2
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제4조에 대해서 글자색은 빨간색으로 처리하고 최종적으로 답변은 표로 나타내줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**<font color=\"red\"> 네오오토 IT 보안 서약서 제4조</font>**:  업무용 시스템의 업무 외 이용 금지\n\n\n\n| 조항 | 내용 |\n|---|---|\n| 제4조 | 업무용 시스템의 업무외 이용 금지 |",
+      "sources": [
+        {
+          "path": "ca4a676c-3b44-4231-8f0a-3bc731726820_NDT User Guide(Win) (1).pdf",
+          "page": 35,
+          "similarity": 2.1697907,
+          "rerank_score": 0.502601683139801,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "내가 앞전에 뭐라고 물어봤지?",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 33,
+          "similarity": 14.174982,
+          "rerank_score": 0.5005083680152893,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "첨부파일: edb_net.pdf",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "9f95e10e-6f4c-4bf6-91f3-f7ecd99a6896_EDB vs ExperDB_v1.0.pdf",
+          "page": 1,
+          "similarity": 2.1895385,
+          "rerank_score": 0.5016347169876099,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "edb.net",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**정보 없음**",
+      "sources": [
+        {
+          "path": "9f95e10e-6f4c-4bf6-91f3-f7ecd99a6896_EDB vs ExperDB_v1.0.pdf",
+          "page": 1,
+          "similarity": 15.383011,
+          "rerank_score": 0.5097250938415527,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "edb.net",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "9f95e10e-6f4c-4bf6-91f3-f7ecd99a6896_EDB vs ExperDB_v1.0.pdf",
+          "page": 1,
+          "similarity": 15.383011,
+          "rerank_score": 0.5097250938415527,
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-29T00:11:26.111969"
+}

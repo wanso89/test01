@@ -847,37 +847,62 @@ async def startup_event():
 
 # 파일 업로드 및 인덱싱 엔드포인트
 @app.post("/api/upload")
-async def upload_file(
-    file: UploadFile = File(...),
-    category: str = Form("메뉴얼")
+async def upload_files(
+    files: List[UploadFile] = File(...),  # 다중 파일 지원
+    category: str = Form("메뉴얼"),
 ):
-    # 임시 파일 저장
-    file_path = f"app/static/uploads/{uuid.uuid4()}_{file.filename}"
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    
-    with open(file_path, "wb") as f:
-        content = await file.read()
-        f.write(content)
-    
-    # 파일 처리 및 인덱싱
-    try:
-        success = process_and_index_file(
-            es_client, 
-            embedding_function, 
-            file_path, 
-            category
-        )
-        
-        if success:
-            return {"status": "success", "message": f"파일 '{file.filename}' 인덱싱 완료"}
-        else:
-            raise HTTPException(status_code=500, detail="파일 인덱싱 실패")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"오류 발생: {str(e)}")
-    finally:
-        # 임시 파일 삭제
-        if os.path.exists(file_path):
-            os.remove(file_path)
+    results = []
+    for file in files:
+        print(f"파일 업로드 요청 수신: {file.filename}, 카테고리: {category}")
+        # 임시 파일 저장
+        file_path = f"app/static/uploads/{uuid.uuid4()}_{file.filename}"
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        print(f"임시 파일 저장 완료: {file_path}")
+
+        # 파일 처리 및 인덱싱
+        try:
+            print(f"파일 인덱싱 시작: {file.filename}")
+            success = await process_and_index_file(
+                es_client, embedding_function, file_path, category
+            )
+            if success:
+                print(f"파일 인덱싱 성공: {file.filename}")
+                results.append(
+                    {
+                        "filename": file.filename,
+                        "status": "success",
+                        "message": f"파일 '{file.filename}' 인덱싱 완료",
+                    }
+                )
+            else:
+                print(f"파일 인덱싱 실패: {file.filename}")
+                results.append(
+                    {
+                        "filename": file.filename,
+                        "status": "error",
+                        "message": "파일 인덱싱 실패",
+                    }
+                )
+        except Exception as e:
+            print(f"파일 처리 중 오류 발생: {file.filename}, 오류: {str(e)}")
+            results.append(
+                {
+                    "filename": file.filename,
+                    "status": "error",
+                    "message": f"오류 발생: {str(e)}",
+                }
+            )
+        finally:
+            # 임시 파일 삭제
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                print(f"임시 파일 삭제 완료: {file_path}")
+
+    print(f"업로드 결과: {len(results)}개 파일 처리 완료")
+    return {"results": results}
 
 # 질문-응답 엔드포인트
 @app.post("/api/chat")
@@ -899,6 +924,64 @@ async def chat(request: QuestionRequest = Body(...)):
         print(f"챗봇 응답 생성 중 오류 발생: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"챗봇 응답 생성 중 오류 발생: {str(e)}")
+
+@app.post("/api/upload")
+async def upload_files(
+    files: List[UploadFile] = File(...),  # 다중 파일 지원
+    category: str = Form("메뉴얼"),
+):
+    results = []
+    for file in files:
+        print(f"파일 업로드 요청 수신: {file.filename}, 카테고리: {category}")
+        # 임시 파일 저장
+        file_path = f"app/static/uploads/{uuid.uuid4()}_{file.filename}"
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        print(f"임시 파일 저장 완료: {file_path}")
+
+        # 파일 처리 및 인덱싱
+        try:
+            print(f"파일 인덱싱 시작: {file.filename}")
+            success = await process_and_index_file(
+                es_client, embedding_function, file_path, category
+            )
+            if success:
+                print(f"파일 인덱싱 성공: {file.filename}")
+                results.append(
+                    {
+                        "filename": file.filename,
+                        "status": "success",
+                        "message": f"파일 '{file.filename}' 인덱싱 완료",
+                    }
+                )
+            else:
+                print(f"파일 인덱싱 실패: {file.filename}")
+                results.append(
+                    {
+                        "filename": file.filename,
+                        "status": "error",
+                        "message": "파일 인덱싱 실패",
+                    }
+                )
+        except Exception as e:
+            print(f"파일 처리 중 오류 발생: {file.filename}, 오류: {str(e)}")
+            results.append(
+                {
+                    "filename": file.filename,
+                    "status": "error",
+                    "message": f"오류 발생: {str(e)}",
+                }
+            )
+        finally:
+            # 임시 파일 삭제
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                print(f"임시 파일 삭제 완료: {file_path}")
+
+    print(f"업로드 결과: {len(results)}개 파일 처리 완료")
+    return {"results": results}
 
 
 # 카테고리 목록 조회 엔드포인트

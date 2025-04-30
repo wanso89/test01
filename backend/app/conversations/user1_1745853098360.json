@@ -1,0 +1,66 @@
+{
+  "userId": "user1",
+  "conversationId": "1745853098360",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 내용 중 제 3조에 대해서 글자색은 빨간색으로하고 밑줄처리를 해서 최종적으로 표로 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "| 조항 | 내용 |\n|---|---|\n|  제 3조 | ***<font color=\"red\">보안 서약서는 개인의 신원 및 관련 정보가 포함되어 있으므로, 이를 유실하거나 누설하는 행위는 법적 책임이 따릅니다.***</font> |",
+      "sources": [
+        {
+          "path": "ca4a676c-3b44-4231-8f0a-3bc731726820_NDT User Guide(Win) (1).pdf",
+          "page": 18,
+          "similarity": 2.2239296,
+          "rerank_score": 0.5498297810554504,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 내용 중 제 3조에 대해서 모든 글자색은 빨간색으로하고 밑줄처리를 해서 최종적으로 표로 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "ca4a676c-3b44-4231-8f0a-3bc731726820_NDT User Guide(Win) (1).pdf",
+          "page": 18,
+          "similarity": 2.2108846,
+          "rerank_score": 0.5530524849891663,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 내용 중 제 3조에 대해서 글자색은 빨간색으로하고 밑줄처리를 해서 최종적으로 표로 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "ca4a676c-3b44-4231-8f0a-3bc731726820_NDT User Guide(Win) (1).pdf",
+          "page": 18,
+          "similarity": 2.2239296,
+          "rerank_score": 0.5498297810554504,
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-29T00:17:23.318045"
+}

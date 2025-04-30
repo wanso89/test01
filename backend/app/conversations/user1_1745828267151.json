@@ -1,0 +1,66 @@
+{
+  "userId": "user1",
+  "conversationId": "1745828267151",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 내용 중 제4조에 대해서 글자색은 파란색으로 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**<font color=\"blue\">본인은 본 서약을 위반하거나 보안규정을 위반하여 회사에 유∙무형의 손해를 끼칠 경우, 회사의 사규에 따른 징계 및 관련 법령에 따른 형사·민사상 책임을 감수할 것을 서약합니다.</font>**",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 2,
+          "similarity": 2.2781253,
+          "rerank_score": 0.5102155208587646,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 내용 중 제3조에 대해서 글자색은 빨간색으로 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "ca4a676c-3b44-4231-8f0a-3bc731726820_NDT User Guide(Win) (1).pdf",
+          "page": 18,
+          "similarity": 2.2353494,
+          "rerank_score": 0.530441164970398,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 내용 중 제3조에 대해서 글자색은 빨간색으로 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "ca4a676c-3b44-4231-8f0a-3bc731726820_NDT User Guide(Win) (1).pdf",
+          "page": 18,
+          "similarity": 2.2353494,
+          "rerank_score": 0.530441164970398,
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-28T17:18:40.616809"
+}

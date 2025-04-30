@@ -1,0 +1,94 @@
+{
+  "userId": "user1",
+  "conversationId": "1745912049063",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "첨부파일: ChatGPT Image 2025년 4월 1일 오후 03_00_39.png",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "tmpgjc8z1h4.pdf",
+          "page": 54,
+          "similarity": 2.1792536,
+          "rerank_score": 0.5000274181365967,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "첨부파일: 네오오토_B-1001_취업규칙_20230109 (4).pdf",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**  (주)네오오토의 취업규칙입니다.",
+      "sources": [
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 10,
+          "similarity": 29.516266,
+          "rerank_score": 0.9172885417938232,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "그라파나 설치 방법",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "b5b8212f-9d19-498d-8df4-ca83f809bb1d_그라파나 구성_V1.pptx",
+          "page": 6,
+          "similarity": 18.617392,
+          "rerank_score": 0.9583218097686768,
+          "rank": 1
+        },
+        {
+          "path": "b5b8212f-9d19-498d-8df4-ca83f809bb1d_그라파나 구성_V1.pptx",
+          "page": 43,
+          "similarity": 19.40233,
+          "rerank_score": 0.7638067007064819,
+          "rank": 2
+        },
+        {
+          "path": "b5b8212f-9d19-498d-8df4-ca83f809bb1d_그라파나 구성_V1.pptx",
+          "page": 1,
+          "similarity": 14.851624,
+          "rerank_score": 0.5735433101654053,
+          "rank": 3
+        },
+        {
+          "path": "b5b8212f-9d19-498d-8df4-ca83f809bb1d_그라파나 구성_V1.pptx",
+          "page": 7,
+          "similarity": 13.18923,
+          "rerank_score": 0.5077476501464844,
+          "rank": 4
+        },
+        {
+          "path": "b5b8212f-9d19-498d-8df4-ca83f809bb1d_그라파나 구성_V1.pptx",
+          "page": 4,
+          "similarity": 12.751797,
+          "rerank_score": 0.500933051109314,
+          "rank": 5
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-30T00:07:11.536728"
+}

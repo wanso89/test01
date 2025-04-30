@@ -1,0 +1,66 @@
+{
+  "userId": "user1",
+  "conversationId": "1745854449120",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제3조에 대해서 설명해주는데 조건은 표로 답변해주고 전체 글자 색은 전부 주황색으로 처리해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "<span style=\"color:orange\">| 항목 | 내용 </span> <br>\n<span style=\"color:orange\">|---|---|</span><br>\n<span style=\"color:orange\">|  교육내용 | 정보없음 </span><br>\n<span style=\"color:orange\">|  점검빈도 | 정보없음 </span><br>\n<span style=\"color:orange\">|  참여 의무 | 주기적인 보안 점검 및 교육에 성실히 참여 </span><br>",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 2,
+          "similarity": 2.2602024,
+          "rerank_score": 0.5064598321914673,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제3조에 대해서 설명해주는데 조건은 표로 답변해주고 전체 글자 색은 전부 빨간색으로 처리해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "```html\n<p style=\"color:red;\">| 항목 | 내용 </p>\n<p style=\"color:red;\">|---|---|</p>\n<p style=\"color:red;\">|  교육내용 | 정보없음 </p>\n<p style=\"color:red;\">|  점검빈도 | 정보없음 </p>\n<p style=\"color:red;\">|  참여 의무 | 주기적인 보안 점검 및 교육에 성실히 참여 </p>\n```",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 2,
+          "similarity": 2.2473924,
+          "rerank_score": 0.5057236552238464,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제3조에 대해서 설명해주는데 조건은 표로 답변해주고 전체 글자 색은 전부 파란색으로 처리해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "```html\n<p style=\"color:blue;\">| 항목 | 내용 </p>\n<p style=\"color:blue;\">|---|---|</p>\n<p style=\"color:blue;\">|  교육내용 | 정보없음 </p>\n<p style=\"color:blue;\">|  점검빈도 | 정보없음 </p>\n<p style=\"color:blue;\">|  참여 의무 | 주기적인 보안 점검 및 교육에 성실히 참여 </p>\n```",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 2,
+          "similarity": 2.2324905,
+          "rerank_score": 0.505371630191803,
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-29T00:34:48.204278"
+}

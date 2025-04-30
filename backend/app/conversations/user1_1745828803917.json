@@ -1,0 +1,30 @@
+{
+  "userId": "user1",
+  "conversationId": "1745828803917",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "한인섭 이건 문서에 없는 내용이니까 별도 대답하지마 그냥 자료에 없음 이라고 대답해",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "정보 없음",
+      "sources": [
+        {
+          "path": "tmpw_b6ln7u.pdf",
+          "page": 2,
+          "similarity": 26.48097,
+          "rerank_score": 0.500231146812439,
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-28T17:39:07.416911"
+}

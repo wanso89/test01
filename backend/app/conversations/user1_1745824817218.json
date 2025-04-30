@@ -1,0 +1,130 @@
+{
+  "userId": "user1",
+  "conversationId": "1745824817218",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "어떤 업무에 대답할 수 있어?",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**<br/> **  내부회계관리제도 운영 및 재무제표, 리스크 관리, 경영평가 관련 성과관리 업무, 법률자문 업무(기타 중요 법률문제 검토 및 주요사건 대응), 정관 및 사규의 제・개정 자문 등 , 지역센터 건강관리, 건강진단 결과 발견된 질병자의 요양지도 및 관리, 산업안전보건관련 사업장 점검·지도 및 조치건의 등 을 담당합니다.",
+      "sources": [
+        {
+          "path": "tmpj864wsci.pdf",
+          "page": 2,
+          "similarity": 11.359184,
+          "rerank_score": 0.5014044046401978,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "넌 어떤 LLM을 사용하고 있어?",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "정보 없음",
+      "sources": [
+        {
+          "path": "tmpw_b6ln7u.pdf",
+          "page": 1,
+          "similarity": 9.423143,
+          "rerank_score": 0.5001184344291687,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "사내 성폭력이 발생했어. 어떻게 조치해야 할까?",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**사내 성폭력이 발생했다면,** 아래 단계를 따라야 합니다.\n\n*   피해자가 보고하면 회사는 지체 없이 행위자를 피해자와 격리하고 사실관계를 파악합니다.\n*   성희롱이 실제로 발생했다면, 회사는 행위자에 대해 징계나 그 밖에 이에 준하는 조치를 취합니다.\n*   회사는 성희롱 피해자에게 해고나 불이익한 조치를 취하지 않습니다.",
+      "sources": [
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 9,
+          "similarity": 36.29871,
+          "rerank_score": 0.9957458972930908,
+          "rank": 1
+        },
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 39,
+          "similarity": 33.536797,
+          "rerank_score": 0.9843408465385437,
+          "rank": 2
+        },
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 9,
+          "similarity": 33.02519,
+          "rerank_score": 0.9642692804336548,
+          "rank": 3
+        },
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 41,
+          "similarity": 18.747232,
+          "rerank_score": 0.9627626538276672,
+          "rank": 4
+        },
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 40,
+          "similarity": 24.780539,
+          "rerank_score": 0.7162315845489502,
+          "rank": 5
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "몇조 몇항을 참고해야해?",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**정보 없음**",
+      "sources": [
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 17,
+          "similarity": 15.471269,
+          "rerank_score": 0.5136235952377319,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "어떤 법률에근거해?",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "정보 없음",
+      "sources": [
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 3,
+          "similarity": 7.7475314,
+          "rerank_score": 0.5156577825546265,
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-28T16:23:08.338307"
+}

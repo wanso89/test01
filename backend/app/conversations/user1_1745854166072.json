@@ -1,0 +1,37 @@
+{
+  "userId": "user1",
+  "conversationId": "1745854166072",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제3조에 대해서 설명해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "답변 생성 중 오류가 발생했습니다.",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 2,
+          "similarity": 34.931484,
+          "rerank_score": 0.6091541647911072,
+          "rank": 1
+        },
+        {
+          "path": "dec74dde-b466-4d45-af19-c26dc68462ad_IT 보안서약서_2025.docx",
+          "page": 2,
+          "similarity": 34.931484,
+          "rerank_score": 0.6091541647911072,
+          "rank": 2
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-29T00:30:54.073585"
+}

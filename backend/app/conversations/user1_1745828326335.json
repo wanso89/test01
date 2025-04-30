@@ -1,0 +1,91 @@
+{
+  "userId": "user1",
+  "conversationId": "1745828326335",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 내용 중 제4조에 대해서 글자색은 파란색으로 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**<font color=\"blue\">본인은 본 서약을 위반하거나 보안규정을 위반하여 회사에 유∙무형의 손해를 끼칠 경우, 회사의 사규에 따른 징계 및 관련 법령에 따른 형사·민사상 책임을 감수할 것을 서약합니다.</font>**",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 2,
+          "similarity": 2.2781253,
+          "rerank_score": 0.5102155208587646,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제3조에 대해서 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "***제3조 (보안 교육 및 점검 협조) ***  본인은 회사의 보안 강화를 위한 주기적인 보안 점검 및 교육에 성실히 참여하고, 관련 정책과 지침을 숙지하고 이행함을 확인합니다.",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 2,
+          "similarity": 36.566483,
+          "rerank_score": 0.5639697313308716,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "취업규칙에서 특별청원휴가 종류에 대해서 표로 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "| 종류 | 일 수 |\n|---|---|\n| 경조사 |   |\n|  * 본인    | 7 |\n|  * 배우자     | 7 |\n|  * 자녀      | 2 |\n|  * 본인 및 배우자의 형제자매 | 1 |\n|  * 본인 및 배우자 부모 | 1 |\n|  * 본인 및 배우자 (외)(조)부모 | 1 |\n|  * 본인 및 배우자의 백숙부모(고모(부)포함)| 2 |\n|  * 사망 친가와 동등한 촌수관계에 있는 이모(부) | 포함 |",
+      "sources": [
+        {
+          "path": "tmpnm1xccd8.pdf",
+          "page": 38,
+          "similarity": 2.548807,
+          "rerank_score": 0.5126782655715942,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 4조",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "***제4조 (책임 및 제재)*** 본인은 본 서약을 위반하거나 보안규정을 위반하여 회사에 유∙무형의 손해를 끼칠 경우, 회사의 사규에 따른 징계 및 관련 법령에 따른 형사·민사상 책임을 감수할 것을 서약합니다.",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 2,
+          "similarity": 31.003096,
+          "rerank_score": 0.9107457399368286,
+          "rank": 1
+        },
+        {
+          "path": "dec74dde-b466-4d45-af19-c26dc68462ad_IT 보안서약서_2025.docx",
+          "page": 2,
+          "similarity": 31.003096,
+          "rerank_score": 0.9107457399368286,
+          "rank": 2
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-29T11:21:08.074148"
+}

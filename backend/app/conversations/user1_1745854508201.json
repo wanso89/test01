@@ -1,0 +1,48 @@
+{
+  "userId": "user1",
+  "conversationId": "1745854508201",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제3조에 대해서 설명해주는데 조건은 표로 답변해주고 전체 글자 색은 전부 파란색으로 처리해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "<table border=\"1\" cellspacing=\"0\" cellpadding=\"0\">\n  <tbody><tr>\n    <th>항목</th>\n    <th>설명</th>\n  </tr>\n  <tr>\n    <td>제3조 내용</td>\n    <td>본인은 회사의 보안 강화를 위한 주기적인 보안 점검 및 교육에 성실히 참여하고, 관련 정책과 지침을 숙지하고 이행함을 확인한다.</td>\n  </tr>\n</tbody></table>",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 2,
+          "similarity": 2.2324905,
+          "rerank_score": 0.505371630191803,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제4조 내용에 대해서 글자색은 파란색으로 해주고 최종 답변은 표 형식으로 나타내줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "<table border=\"1\" cellspacing=\"0\" cellpadding=\"0\">\n  <tbody><tr>\n    <th>항목</th>\n    <th>설명</th>\n  </tr>\n  <tr>\n    <td>제4조 내용</td>\n    <td>정보 없음</td>\n  </tr>\n</tbody></table>",
+      "sources": [
+        {
+          "path": "ca4a676c-3b44-4231-8f0a-3bc731726820_NDT User Guide(Win) (1).pdf",
+          "page": 35,
+          "similarity": 2.1956596,
+          "rerank_score": 0.5164691209793091,
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-29T00:35:48.688838"
+}

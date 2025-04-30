@@ -1,0 +1,30 @@
+{
+  "userId": "user1",
+  "conversationId": "1745853851919",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "너 현재 사용중인 모델이름이뭐야?",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "정보 없음",
+      "sources": [
+        {
+          "path": "tmpgjc8z1h4.pdf",
+          "page": 69,
+          "similarity": 21.12217,
+          "rerank_score": 0.5001714825630188,
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-29T00:26:20.307061"
+}

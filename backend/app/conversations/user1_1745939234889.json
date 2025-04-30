@@ -1,0 +1,62 @@
+{
+  "userId": "user1",
+  "conversationId": "1745939234889",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "취업규칙에서 특별청원휴가 종류에 대해서 자세히 설명해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "검색된 관련 문서가 없습니다. 다른 질문을 시도해 보세요.",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "취업규칙에서 특별청원휴가 종류에 대해서 자세히 설명해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "검색된 관련 문서가 없습니다. 다른 질문을 시도해 보세요.",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "취업규칙",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "검색된 관련 문서가 없습니다. 다른 질문을 시도해 보세요.",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "휴가",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "검색된 관련 문서가 없습니다. 다른 질문을 시도해 보세요.",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "휴가",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "검색된 관련 문서가 없습니다. 다른 질문을 시도해 보세요.",
+      "sources": []
+    }
+  ],
+  "timestamp": "2025-04-30T00:33:03.318989"
+}

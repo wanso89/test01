@@ -1,0 +1,73 @@
+{
+  "userId": "user1",
+  "conversationId": "1745854670998",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제 3조에 대해서 설명해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**제3조 (보안 교육 및 점검 협조)**\n\n본인은 회사의 보안 강화를 위한 주기적인 보안 점검 및 교육에 성실히 참여하고, 관련 정책과 지침을 숙지하고 이행함을 확인합니다.",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 2,
+          "similarity": 34.929485,
+          "rerank_score": 0.6182568073272705,
+          "rank": 1
+        },
+        {
+          "path": "dec74dde-b466-4d45-af19-c26dc68462ad_IT 보안서약서_2025.docx",
+          "page": 2,
+          "similarity": 34.929485,
+          "rerank_score": 0.6182568073272705,
+          "rank": 2
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제3조에 대해서 글자색은 빨간색으로 설명해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "<font color=\"red\"> 본인은 회사의 보안 강화를 위한 주기적인 보안 점검 및 교육에 성실히 참여하고, 관련 정책과 지침을 숙지하고 이행함을 확인합니다.</font>",
+      "sources": [
+        {
+          "path": "ca4a676c-3b44-4231-8f0a-3bc731726820_NDT User Guide(Win) (1).pdf",
+          "page": 18,
+          "similarity": 2.182094,
+          "rerank_score": 0.514086902141571,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제3조에 대해서 글자색은 빨간색으로하고 답변은 표로 해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "| 조항 | 내용 |\n|---|---|\n|  **제3조 (보안 교육 및 점검 협조)** | <font color=\"red\">본인은 회사의 보안 강화를 위한 주기적인 보안 점검 및 교육에 성실히 참여하고, 관련 정책과 지침을 숙지하고 이행함을 확인합니다.</font> |",
+      "sources": [
+        {
+          "path": "tmp7d8b_myv.docx",
+          "page": 1,
+          "similarity": 36.965668,
+          "rerank_score": 0.5028374195098877,
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-29T15:34:26.905372"
+}

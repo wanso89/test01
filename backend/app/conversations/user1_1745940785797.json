@@ -1,0 +1,352 @@
+{
+  "userId": "user1",
+  "conversationId": "1745940785797",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "특별청원휴가",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "검색된 관련 문서가 없습니다. 다른 질문을 시도해 보세요.",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "취업규칙",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 10,
+          "similarity": 12.270816,
+          "rerank_score": 0.9792767763137817,
+          "rank": 1
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 4,
+          "similarity": 16.507462,
+          "rerank_score": 0.9107404947280884,
+          "rank": 2
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 6,
+          "similarity": 16.23613,
+          "rerank_score": 0.7278662919998169,
+          "rank": 3
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 12,
+          "similarity": 6.532961,
+          "rerank_score": 0.5566662549972534,
+          "rank": 4
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 11,
+          "similarity": 7.109686,
+          "rerank_score": 0.5542234778404236,
+          "rank": 5
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "연소근로자",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 12,
+          "similarity": 19.391533,
+          "rerank_score": 0.9708557724952698,
+          "rank": 1
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 5,
+          "similarity": 21.128029,
+          "rerank_score": 0.9614955186843872,
+          "rank": 2
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 6,
+          "similarity": 18.229828,
+          "rerank_score": 0.9552093744277954,
+          "rank": 3
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 6,
+          "similarity": 14.216969,
+          "rerank_score": 0.5682126879692078,
+          "rank": 4
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "연소근로자",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 12,
+          "similarity": 19.391533,
+          "rerank_score": 0.9708557724952698,
+          "rank": 1
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 5,
+          "similarity": 21.128029,
+          "rerank_score": 0.9614955186843872,
+          "rank": 2
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 6,
+          "similarity": 18.229828,
+          "rerank_score": 0.9552093744277954,
+          "rank": 3
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 6,
+          "similarity": 14.216969,
+          "rerank_score": 0.5682126879692078,
+          "rank": 4
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "특별청원휴가",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 38,
+          "similarity": 29.260838,
+          "rerank_score": 0.960539698600769,
+          "rank": 1
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 30,
+          "similarity": 10.676249,
+          "rerank_score": 0.6562004089355469,
+          "rank": 2
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 37,
+          "similarity": 9.055873,
+          "rerank_score": 0.5045348405838013,
+          "rank": 3
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 33,
+          "similarity": 10.689057,
+          "rerank_score": 0.5024932026863098,
+          "rank": 4
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 27,
+          "similarity": 6.7395887,
+          "rerank_score": 0.5017920136451721,
+          "rank": 5
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제 4조",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 37,
+          "similarity": 6.423766,
+          "rerank_score": 0.5010614395141602,
+          "rank": 1
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 4,
+          "similarity": 13.029874,
+          "rerank_score": 0.5007806420326233,
+          "rank": 2
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 21,
+          "similarity": 4.7716956,
+          "rerank_score": 0.5006900429725647,
+          "rank": 3
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 22,
+          "similarity": 6.9138136,
+          "rerank_score": 0.5006147027015686,
+          "rank": 4
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 7,
+          "similarity": 4.8462973,
+          "rerank_score": 0.5006079077720642,
+          "rank": 5
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "응답을 받아왔습니다.",
+      "sources": [
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 37,
+          "similarity": 5.92908,
+          "rerank_score": 0.5035496354103088,
+          "rank": 1
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 4,
+          "similarity": 12.560931,
+          "rerank_score": 0.50090491771698,
+          "rank": 2
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 40,
+          "similarity": 5.870118,
+          "rerank_score": 0.5005053281784058,
+          "rank": 3
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 11,
+          "similarity": 11.811002,
+          "rerank_score": 0.5003968477249146,
+          "rank": 4
+        },
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 22,
+          "similarity": 5.773386,
+          "rerank_score": 0.5002995729446411,
+          "rank": 5
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "네오오토",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**정보 없음**",
+      "sources": [
+        {
+          "path": "56d06042-b0ae-4078-875f-5909cfd2e747_네오오토_B-1001_취업규칙_20230109 (4).pdf",
+          "page": 2,
+          "similarity": 2.0798147,
+          "rerank_score": 0.5010319352149963,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "본 문서에는  \"네오오토\" 와 관련된 정보가 없습니다.",
+      "sources": [
+        {
+          "path": "4ff1ed2e-ad2a-473b-9889-de871b7b4692_IT 보안서약서_2025.docx",
+          "page": 1,
+          "similarity": 36.088673,
+          "rerank_score": 0.9916597604751587,
+          "rank": 1
+        },
+        {
+          "path": "4ff1ed2e-ad2a-473b-9889-de871b7b4692_IT 보안서약서_2025.docx",
+          "page": 2,
+          "similarity": 20.573118,
+          "rerank_score": 0.8063915967941284,
+          "rank": 2
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제4조 내용",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "본 문서에는  \"네오오토\" 와 관련된 정보가 없습니다.",
+      "sources": [
+        {
+          "path": "4ff1ed2e-ad2a-473b-9889-de871b7b4692_IT 보안서약서_2025.docx",
+          "page": 2,
+          "similarity": 22.311512,
+          "rerank_score": 0.9915363788604736,
+          "rank": 1
+        },
+        {
+          "path": "4ff1ed2e-ad2a-473b-9889-de871b7b4692_IT 보안서약서_2025.docx",
+          "page": 1,
+          "similarity": 22.654316,
+          "rerank_score": 0.9835528135299683,
+          "rank": 2
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-30T10:45:11.978436"
+}

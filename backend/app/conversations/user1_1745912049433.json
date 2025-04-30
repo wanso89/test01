@@ -1,0 +1,30 @@
+{
+  "userId": "user1",
+  "conversationId": "1745912049433",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "aa",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "**aa** 는 **AA Sel**. 입니다.",
+      "sources": [
+        {
+          "path": "ca4a676c-3b44-4231-8f0a-3bc731726820_NDT User Guide(Win) (1).pdf",
+          "page": 3,
+          "similarity": 25.334461,
+          "rerank_score": 0.5041595697402954,
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-04-30T00:07:11.914621"
+}
