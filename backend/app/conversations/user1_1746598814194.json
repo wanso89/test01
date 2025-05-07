@@ -1,0 +1,65 @@
+{
+  "userId": "user1",
+  "conversationId": "1746598814194",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제2조 내용 설명해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "검색된 관련 문서가 없습니다. 다른 질문을 시도해 보세요.",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제2조 내용 설명해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "\"본인은 회사가 보안 관리를 위해 다음의 모니터링 활동을 수행할 수 있으며, 이에 동의합니다.- 전자결재, 이메일, 인터넷 사용, 출력 기록, 시스템 로그 등 업무 관련 행위에 대한 모니터링<br>- 보안사고 발생 시 위의 기록이 법적 증거자료로 활용될 수 있음에 대한 동의\"(출처: a49958b8-559d-49b6-a1dc-7f61f5820a4f_IT 보안서약서_2025.pdf, 페이지: 1, 섹션: 제2조).",
+      "sources": [
+        {
+          "path": "a49958b8-559d-49b6-a1dc-7f61f5820a4f_IT 보안서약서_2025.pdf",
+          "page": 1,
+          "similarity": 6.313656,
+          "rerank_score": 0.8913578987121582,
+          "rank": 1
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제3조 내용 설명해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "\"본인은 회사의 보안 강화를 위한 주기적인 보안 점검 및 교육에 성실히 참여하고, 관련 정책과 지침을 숙지하고 이행함을 확인합니다\" (출처: a49958b8-559d-49b6-a1dc-7f61f5820a4f_IT 보안서약서_2025.pdf, 페이지: 1, 섹션: 제3조).",
+      "sources": [
+        {
+          "path": "a49958b8-559d-49b6-a1dc-7f61f5820a4f_IT 보안서약서_2025.pdf",
+          "page": 1,
+          "similarity": 4.3031263,
+          "rerank_score": 0.8985251188278198,
+          "rank": 1
+        },
+        {
+          "path": "a49958b8-559d-49b6-a1dc-7f61f5820a4f_IT 보안서약서_2025.pdf",
+          "page": 1,
+          "similarity": 5.329191,
+          "rerank_score": 0.890171468257904,
+          "rank": 2
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-05-07T15:37:47.098261"
+}

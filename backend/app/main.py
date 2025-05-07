@@ -411,18 +411,22 @@ async def generate_llm_response(
         conversation_context = "대화 기록:\n" + "\n".join(conversation_parts) + "\n\n"
 
     # 간결하고 명확한 프롬프트
-    prompt = f"""다음 질문에 제공된 문서 정보만을 기반으로 정확하게 답변하세요:
+    # 3. 답변에는 어떤 문서를 참고했는지 **정확한 출처(예: [문서 1](출처: 파일명, 페이지: 번호, 조항: 제3조))** 또는 **(출처: 파일명, 페이지: 번호, 섹션: 주요 내용)**과 같이 명시해야 합니다.
+    prompt = f"""<start_of_turn>user
+당신은 사용자 질문에 대해 주어진 참고 문서를 기반으로 답변하는 AI 어시스턴트입니다.
+다음 지침을 따라주세요:
+1. 답변은 반드시 제공된 '참고 문서' 섹션의 내용에 근거해야 합니다.
+2. 문서에 질문과 관련된 정보가 없다면, "제공된 문서에서 관련 정보를 찾을 수 없습니다."라고 명확히 답변하세요.
+3. 답변은 명확하고 간결하게 작성해주세요.
+5. HTML 태그는 <b>, <ul>, <li>만 사용할 수 있습니다.
 
-{conversation_context}현재 질문: {question}
+{conversation_context}
+현재 질문: {question}
 
 참고 문서:
 {combined_context}
-
-지침:
-1. 문서 정보를 기반으로 정확하고 간결한 답변을 작성하세요.
-2. 문서에 없는 정보는 '정보 없음'으로 명시하세요.
-3. 전문 용어는 정확히 사용하고, 불필요한 설명은 생략하세요.
-4. HTML 태그는 <b>, <ul>, <li>만 사용하세요.
+<end_of_turn>
+<start_of_turn>model
 
 답변:"""
 
@@ -438,7 +442,7 @@ async def generate_llm_response(
                     max_new_tokens=500,
                     repetition_penalty=1.2,
                     temperature=0.05,
-                    do_sample=True,
+                    do_sample=False,
                     top_p=0.95,
                     top_k=40,
                 ),
@@ -451,8 +455,13 @@ async def generate_llm_response(
             if "답변:" in generated_text:
                 answer = generated_text.split("답변:")[-1].strip()
             else:
-                answer = generated_text.replace(prompt, "").strip()
-
+                answer = (
+                    generated_text.replace(prompt.split("<start_of_turn>model")[0], "")
+                    .strip()
+                    .removeprefix("<start_of_turn>model")
+                    .removeprefix("답변:")
+                    .strip()
+                )  # 프롬프트 제거 강화
             return answer
     except Exception as e:
         print(f"LLM 답변 생성 중 오류 발생: {e}")
@@ -473,65 +482,56 @@ async def search_and_combine(
 ) -> Dict[str, Any]:
     """Elasticsearch 검색, Reranking, LLM 답변 생성을 수행합니다."""
 
-    # 대화 기록 초기화
     if conversation_history is None:
         conversation_history = []
 
-    # 대화 기록 최적화 함수 정의
     def optimize_conversation_history(
         history: List[Dict], max_turns: int = 5
     ) -> List[Dict]:
-        """대화 기록 최적화: 토큰 수 제한을 위해 최근 대화만 유지"""
-        if len(history) > max_turns * 2:  # 사용자+봇 메시지를 한 턴으로 계산
-            # 최근 대화만 유지
+        if len(history) > max_turns * 2:
             return history[-max_turns * 2 :]
         return history
 
-    # 대화 기록 최적화 적용
     if conversation_history:
         conversation_history = optimize_conversation_history(conversation_history)
 
-    # 쿼리가 None인 경우 처리
     if query is None:
         return {"answer": "질문을 입력해주세요.", "sources": []}
 
-    # 디버그 출력 추가
-    print(f"--- DEBUG: search_and_combine ---")
-    print(f"Original query (stripped): '{query}'")
-    print(f"Is query empty? : {not query}")
-
-    if not query:  # query.strip() 이후 query가 비어있는지 확인
-        print("--- DEBUG: Query is empty, returning early. ---")  # 확인용 출력
+    query = query.strip()
+    if not query:
+        print("--- DEBUG: Query is empty after strip, returning early. ---")
         return {
             "answer": "질문 내용을 입력해주세요. 공백만으로는 검색할 수 없습니다.",
             "sources": [],
         }
 
-    # 쿼리 전처리 및 정규화
-    query = query.strip()
+    print(f"--- DEBUG: search_and_combine ---")
+    print(f"Processed query: '{query}'")
 
-    if query is None:
-        return {"answer": "질문을 입력해주세요.", "sources": []}
-
-    # 쿼리 해시 생성 (캐싱용)
-    query_hash = hashlib.md5(f"{query.lower()}:{category}".encode()).hexdigest()
-
-    # 성능 측정 시작
+    # query_hash = hashlib.md5(f"{query.lower()}:{category}".encode()).hexdigest() # 캐싱용, 현재는 사용 안함
     start_time = time.time()
 
     # 1. 검색
     retrieval_start = time.time()
-    retriever = ElasticsearchRetriever(es_client, embedding_function, category=category)
+    # ElasticsearchRetriever는 k=20 (기본값) 사용
+    retriever = ElasticsearchRetriever(
+        es_client, embedding_function, category=category, k=20
+    )
     docs = retriever.get_relevant_documents(query)
     retrieval_time = time.time() - retrieval_start
+    print(f"Retrieval time: {retrieval_time:.2f}s, Found {len(docs)} docs from ES.")
 
     # 2. Reranking
     rerank_start = time.time()
-    reranker = EnhancedLocalReranker(reranker_model)
+    # EnhancedLocalReranker는 top_n=15 (기본값) 사용
+    reranker = EnhancedLocalReranker(reranker_model, top_n=15)
     reranked_docs = reranker.rerank(query, docs)
     rerank_time = time.time() - rerank_start
+    print(f"Reranking time: {rerank_time:.2f}s, Reranked to {len(reranked_docs)} docs.")
 
     if not reranked_docs:
+        print("--- DEBUG: No documents after reranking. ---")
         return {
             "answer": "검색된 관련 문서가 없습니다. 다른 질문을 시도해 보세요.",
             "sources": [],
@@ -539,14 +539,13 @@ async def search_and_combine(
 
     # 3. LLM 답변 생성
     llm_start = time.time()
-    final_docs = reranked_docs[:5]  # LLM에 전달할 최종 문서 수
-
-    print(f"--- DEBUG: Docs passed to LLM ---")
-    for idx, doc in enumerate(final_docs):
+    # final_docs는 reranked_docs[:5] 사용 (원본 코드 기준)
+    final_docs = reranked_docs[:5]
+    print(f"--- DEBUG: Passing {len(final_docs)} docs to LLM. ---")
+    for idx, doc_to_llm in enumerate(final_docs):
         print(
-            f"Doc {idx+1} (Source: {doc.metadata.get('source')}, Page: {doc.metadata.get('page')}) Content:\n{doc.page_content[:500]}..."
-        )  # 앞부분 500자 정도만 출력
-    print(f"---------------------------------")
+            f"  Doc for LLM {idx+1} - Source: {doc_to_llm.metadata.get('source')}, Page: {doc_to_llm.metadata.get('page')}, ChunkID: {doc_to_llm.metadata.get('chunk_id')}"
+        )
 
     answer = await generate_llm_response(
         llm_model,
@@ -556,36 +555,65 @@ async def search_and_combine(
         conversation_history=conversation_history,
     )
     llm_time = time.time() - llm_start
+    print(f"LLM generation time: {llm_time:.2f}s")
 
-    # 출처 정보 생성
+    # --- 출처 정보 생성 ---
     sources = []
-    source_contents = {}  # 원본 문서 내용 저장
+    print(
+        f"--- DEBUG: Creating sources for frontend from {len(final_docs)} final_docs ---"
+    )
+    for i, doc_for_source in enumerate(final_docs):
+        source_path = os.path.basename(doc_for_source.metadata.get("source", "unknown"))
 
-    for i, doc in enumerate(final_docs):
-        source_path = os.path.basename(doc.metadata.get("source", "N/A"))
-        page_num = doc.metadata.get("page", 1)
+        page_num_from_meta = doc_for_source.metadata.get("page")
+        page_num_to_send = 1  # 기본값
+        if page_num_from_meta is not None:
+            try:
+                page_num_to_send = int(page_num_from_meta)
+                if page_num_to_send <= 0:
+                    print(
+                        f"  WARNING (sources creation): Invalid page number {page_num_from_meta} for {source_path}. Defaulting to 1."
+                    )
+                    page_num_to_send = 1
+            except ValueError:
+                print(
+                    f"  WARNING (sources creation): Page number {page_num_from_meta} is not an int for {source_path}. Defaulting to 1."
+                )
+                page_num_to_send = 1
+        else:
+            print(
+                f"  WARNING (sources creation): 'page' key not found in metadata for {source_path}. Defaulting to page 1."
+            )
+            page_num_to_send = 1
 
-        # 출처 정보
-        source_info = {
+        chunk_id_to_send = doc_for_source.metadata.get(
+            "chunk_id", f"chunk_idx_{i}"
+        )  # chunk_id가 없으면 임시 ID
+
+        print(
+            f"  Source entry {i+1}: path='{source_path}', page='{page_num_to_send}', chunk_id='{chunk_id_to_send}'"
+        )
+
+        current_source_info = {
             "path": source_path,
-            "page": page_num,
-            "similarity": doc.metadata.get("relevance_score", 0.0),
-            "rerank_score": doc.metadata.get("rerank_score", 0.0),
-            "rank": doc.metadata.get("rank", i + 1),
+            "page": page_num_to_send,
+            "chunk_id": chunk_id_to_send,
+            "content_full": doc_for_source.page_content,  # !!!!! 청크의 전체 내용 !!!!!
+            "similarity": doc_for_source.metadata.get("relevance_score", 0.0),
+            "rerank_score": doc_for_source.metadata.get("rerank_score", 0.0),
+            "rank": i + 1,
         }
-        sources.append(source_info)
+        sources.append(current_source_info)  # !!!!! sources 리스트에 추가 !!!!!
+    # --- 출처 정보 생성 끝 ---
 
-        # 원본 문서 내용 저장 (모달 표시용)
-        source_key = f"{source_path}_{page_num}"
-        source_contents[source_key] = doc.page_content
-
-    # 총 처리 시간 계산
     total_time = time.time() - start_time
+    print(
+        f"Total search_and_combine time: {total_time:.2f}s, Returning {len(sources)} sources."
+    )
 
     return {
         "answer": answer,
         "sources": sources,
-        "source_contents": source_contents,  # 원본 문서 내용 추가
     }
 
 
@@ -796,45 +824,95 @@ async def load_user_settings_endpoint(request: UserSettingsLoadRequest = Body(..
 
 
 class SourcePreviewRequest(BaseModel):
-    path: str  # 문서 경로 (예: tmpmn1xccd8.pdf)
-    page: int  # 페이지 번호
+    path: str
+    page: int  # 페이지 정보는 여전히 유용할 수 있음 (UI 표시용)
+    chunk_id: Any  # 문자열 또는 정수일 수 있으므로 Any (ES 저장 방식에 따라)
 
 
 # 참고 문서 미리보기 엔드포인트
 @app.post("/api/source-preview")
 async def source_preview_endpoint(request: SourcePreviewRequest = Body(...)):
     try:
-        # Elasticsearch에서 해당 문서 내용 검색
+        print(
+            f"Source preview 요청: path={request.path}, page={request.page}, chunk_id={request.chunk_id}"
+        )
+
+        # chunk_id를 사용하여 ES에서 정확한 청크 검색
+        # doc_id 형식: f"{source_file.replace('.', '_')}_{page_number}_{chunk_id}"
+        # 이 형식을 정확히 맞춰서 _id로 검색하거나, source, page, chunk_id 필드로 bool query
+
+        # 예시: source, page, chunk_id 필드로 검색
+        must_clauses = [
+            {"term": {"source": request.path}},
+            {"term": {"page": request.page}},
+        ]
+        # chunk_id가 문자열인지 정수인지 ES 저장 방식에 따라 처리
+        # indexing_utils.py에서 chunk_id를 정수로 저장했다면 (metadata["chunk_id"] = i)
+        try:
+            chunk_id_val = int(request.chunk_id)
+            must_clauses.append({"term": {"chunk_id": chunk_id_val}})
+        except ValueError:
+            # chunk_id가 정수로 변환되지 않으면 문자열로 처리 (ES 필드 타입 확인 필요)
+            print(
+                f"Warning: chunk_id '{request.chunk_id}' is not an integer, searching as keyword."
+            )
+            must_clauses.append({"term": {"chunk_id": str(request.chunk_id)}})
+
         search_body = {
-            "query": {
-                "bool": {
-                    "must": [
-                        {"term": {"source": request.path}},
-                        {"term": {"page": request.page}},
-                    ]
-                }
-            },
+            "query": {"bool": {"must": must_clauses}},
             "size": 1,
-            "_source": ["text", "source", "page"],
+            "_source": ["text", "source", "page", "chunk_id"],
         }
+
         response = es_client.search(index=ES_INDEX_NAME, body=search_body)
         hits = response["hits"]["hits"]
+
         if hits:
-            hit = hits[0]
-            content = hit["_source"].get("text", "내용을 찾을 수 없습니다.")
+            hit = hits[0]["_source"]
             return {
                 "status": "success",
-                "content": content,
-                "source": hit["_source"].get("source", "N/A"),
-                "page": hit["_source"].get("page", 0),
+                "content": hit.get("text", "내용을 찾을 수 없습니다."),
+                "source": os.path.basename(hit.get("source", "N/A")),
+                "page": hit.get("page", 0),
+                "chunk_id": hit.get("chunk_id", "N/A"),
             }
         else:
+            # 만약 위 검색이 실패하면, source와 page로만 한번 더 검색 시도 (폴백)
+            fallback_search_body = {
+                "query": {
+                    "bool": {
+                        "must": [
+                            {"term": {"source": request.path}},
+                            {"term": {"page": request.page}},
+                        ]
+                    }
+                },
+                "size": 1,  # 해당 페이지의 첫번째 청크라도 보여주기
+                "sort": [{"chunk_id": "asc"}],  # chunk_id가 숫자라면 정렬 가능
+                "_source": ["text", "source", "page", "chunk_id"],
+            }
+            response_fallback = es_client.search(
+                index=ES_INDEX_NAME, body=fallback_search_body
+            )
+            hits_fallback = response_fallback["hits"]["hits"]
+            if hits_fallback:
+                hit_fb = hits_fallback[0]["_source"]
+                return {
+                    "status": "success",
+                    "content": hit_fb.get("text", "내용을 찾을 수 없습니다. (폴백)"),
+                    "source": os.path.basename(hit_fb.get("source", "N/A")),
+                    "page": hit_fb.get("page", 0),
+                    "chunk_id": hit_fb.get("chunk_id", "N/A"),
+                    "message": "정확한 청크를 찾지 못해 페이지의 첫 내용을 표시합니다.",
+                }
+
             return {
                 "status": "not_found",
-                "message": "해당 문서를 찾을 수 없습니다.",
+                "message": "해당 문서 내용을 찾을 수 없습니다.",
                 "content": "",
-                "source": request.path,
+                "source": os.path.basename(request.path),
                 "page": request.page,
+                "chunk_id": request.chunk_id,
             }
     except Exception as e:
         print(f"참고 문서 미리보기 중 오류 발생: {e}")
@@ -843,8 +921,9 @@ async def source_preview_endpoint(request: SourcePreviewRequest = Body(...)):
             "status": "error",
             "message": f"참고 문서 미리보기 중 오류 발생: {str(e)}",
             "content": "",
-            "source": request.path,
+            "source": os.path.basename(request.path),
             "page": request.page,
+            "chunk_id": request.chunk_id,
         }
 
 
@@ -1024,7 +1103,11 @@ async def chat(request: QuestionRequest = Body(...)):
             conversation_history=request.history,
         )
 
-        return {"bot_response": result["answer"], "sources": result["sources"]}
+        return {
+            "bot_response": result["answer"],
+            "sources": result["sources"],
+            "questionContext": request.question,
+        }
 
     except Exception as e:
         print(f"챗봇 응답 생성 중 오류 발생: {e}")

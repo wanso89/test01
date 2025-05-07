@@ -1,0 +1,57 @@
+{
+  "userId": "user1",
+  "conversationId": "1746598466012",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제1조 내용 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "검색된 관련 문서가 없습니다. 다른 질문을 시도해 보세요.",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제1조 내용 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "검색된 관련 문서가 없습니다. 다른 질문을 시도해 보세요.",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "본인은 네오오토(이하 \"회사\")의 임직원으로서 정보보호의 중요성을 인식하며, IT 보안 관련 규정을 숙지하고, 다음 각 호의 행위를 하지 않을 것을 서약합니다.(출처: e14a1b28-7107-45b9-b9ff-4eb91f08794f_IT 보안서약서_2025.docx, 페이지: 1)",
+      "sources": [
+        {
+          "path": "e14a1b28-7107-45b9-b9ff-4eb91f08794f_IT 보안서약서_2025.docx",
+          "page": 1,
+          "similarity": 6.9924817,
+          "rerank_score": 0.9808158874511719,
+          "rank": 1
+        },
+        {
+          "path": "e14a1b28-7107-45b9-b9ff-4eb91f08794f_IT 보안서약서_2025.docx",
+          "page": 1,
+          "similarity": 3.2818904,
+          "rerank_score": 0.8575531244277954,
+          "rank": 2
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-05-07T15:14:54.359284"
+}

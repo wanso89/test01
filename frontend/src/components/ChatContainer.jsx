@@ -101,21 +101,17 @@ function ChatContainer({
     setLocalMessages(updatedMessagesWithUser);
     onUpdateMessages(updatedMessagesWithUser);
 
-    // 로딩 상태 표시
     setIsLoading(true);
     setError(null);
 
     try {
-      // FastAPI 백엔드와 통신
       const response = await fetch("http://172.10.2.70:8000/api/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          question: msg,
-          category: "메뉴얼", // 카테고리 설정 (필요 시 동적 변경)
-          history: updatedMessagesWithUser.map((m) => ({
+          question: msg, // 사용자가 입력한 원본 질문
+          category: "메뉴얼", 
+          history: updatedMessagesWithUser.slice(0, -1).map((m) => ({ // 현재 user 메시지는 제외
             role: m.role,
             content: m.content,
           })),
@@ -123,32 +119,38 @@ function ChatContainer({
       });
 
       if (!response.ok) {
-        throw new Error(
-          `FastAPI 호출 실패: ${response.status} ${response.statusText}`
-        );
+        const errData = await response.json().catch(() => ({message: `HTTP error ${response.status}`}));
+        throw new Error(errData.message || `FastAPI 호출 실패: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = await response.json(); // data 객체에는 bot_response, sources, questionContext가 있어야 함
+      console.log("DEBUG: API 응답 data:", data); // 백엔드 응답 확인
+
+      // !!!!! aiResponse 객체 생성 시 questionContext 추가 !!!!!
       const aiResponse = {
         role: "assistant",
         content: data.bot_response || "응답을 받아왔습니다.",
         sources: data.sources || [],
+        questionContext: data.questionContext, // <--- 백엔드에서 받은 questionContext 추가
         reactions: {},
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       };
+      // !!!!! 추가 끝 !!!!!
+      
+      console.log("DEBUG: 생성된 aiResponse 객체:", aiResponse); // questionContext 포함 확인
+
       const updatedMessagesWithAI = [...updatedMessagesWithUser, aiResponse];
       setLocalMessages(updatedMessagesWithAI);
       onUpdateMessages(updatedMessagesWithAI);
     } catch (err) {
-      setError(
-        `응답을 가져오는 중 오류가 발생했습니다: ${err.message}. FastAPI 서버가 실행 중인지 확인해주세요.`
-      );
+      setError(`응답을 가져오는 중 오류가 발생했습니다: ${err.message}.`);
       console.error(err);
     } finally {
       setIsLoading(false);
       setIsSending(false);
     }
   };
+
 
   // 메시지 렌더링 성능 최적화
   const memoizedMessages = useMemo(() => {
