@@ -1,0 +1,65 @@
+{
+  "userId": "user1",
+  "conversationId": "1746595326563",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제3조 내용 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "검색된 관련 문서가 없습니다. 다른 질문을 시도해 보세요.",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "<p>본 문서에는  \"보안서약서\"라는 키워드가 들어간 전체 문서가 있습니다.</p>",
+      "sources": [
+        {
+          "path": "52da3797-0d66-4157-84f9-788fe6f2449e_IT 보안서약서_2025.docx",
+          "page": 1,
+          "similarity": 6.6918783,
+          "rerank_score": 0.9916598796844482,
+          "rank": 1
+        },
+        {
+          "path": "52da3797-0d66-4157-84f9-788fe6f2449e_IT 보안서약서_2025.docx",
+          "page": 2,
+          "similarity": 3.3255506,
+          "rerank_score": 0.806391716003418,
+          "rank": 2
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제3조에 대해서 답변해줘",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "<br> **보안서약서 제3조** 에 따라서는 회사의 보안 강화를 위한 주기적인 보안 점검 및 교육에 성실히 참여해야 하며, 관련 정책과 지침을 숙지하고 이행합니다.<br>",
+      "sources": [
+        {
+          "path": "52da3797-0d66-4157-84f9-788fe6f2449e_IT 보안서약서_2025.docx",
+          "page": 1,
+          "similarity": 8.426134,
+          "rerank_score": 0.7733713388442993,
+          "rank": 1
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-05-07T14:37:58.707303"
+}

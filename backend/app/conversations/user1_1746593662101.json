@@ -1,0 +1,32 @@
+{
+  "userId": "user1",
+  "conversationId": "1746593662101",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제3조 내용이 뭐야?",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "검색된 관련 문서가 없습니다. 다른 질문을 시도해 보세요.",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제3조 내용이 뭐야?",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "검색된 관련 문서가 없습니다. 다른 질문을 시도해 보세요.",
+      "sources": []
+    }
+  ],
+  "timestamp": "2025-05-07T14:11:37.326649"
+}

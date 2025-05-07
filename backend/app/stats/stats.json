@@ -529,5 +529,32 @@
       "timestamp": "2025-04-30T02:09:31.267Z"
     },
     "timestamp": "2025-04-30T11:09:32.201055"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-05-07T05:37:27.824Z"
+    },
+    "timestamp": "2025-05-07T14:37:29.035795"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-05-07T05:37:39.247Z"
+    },
+    "timestamp": "2025-05-07T14:37:40.450057"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-05-07T05:37:54.991Z"
+    },
+    "timestamp": "2025-05-07T14:37:56.198206"
   }
 ]
