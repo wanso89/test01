@@ -14,6 +14,8 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from elasticsearch import Elasticsearch
 from app.utils.indexing_utils import process_and_index_file, ES_INDEX_NAME
+from fastapi.responses import FileResponse, StreamingResponse
+import mimetypes  # 파일 타입 감지용
 
 
 # 모델 임포트
@@ -927,6 +929,55 @@ async def source_preview_endpoint(request: SourcePreviewRequest = Body(...)):
         }
 
 
+@app.get("/api/indexed-files")
+async def get_indexed_files():
+    """Elasticsearch에 인덱싱된 고유한 파일명 목록을 반환합니다."""
+    if not es_client:
+        raise HTTPException(status_code=503, detail="Elasticsearch is not connected")
+
+    try:
+        # Elasticsearch Terms Aggregation 쿼리
+        # source 필드의 고유한 값을 모두 가져오기 위해 size를 충분히 크게 설정
+        query = {
+            "size": 0,  # 실제 문서는 가져오지 않음
+            "aggs": {
+                "unique_sources": {
+                    "terms": {
+                        "field": "source",  # source 필드 기준
+                        "size": 10000,  # 충분히 큰 값 (예상되는 고유 파일 수 이상)
+                    }
+                }
+            },
+        }
+
+        response = es_client.search(index=ES_INDEX_NAME, body=query)
+
+        # Aggregation 결과에서 파일명 추출
+        buckets = (
+            response.get("aggregations", {})
+            .get("unique_sources", {})
+            .get("buckets", [])
+        )
+        file_list = [
+            bucket.get("key") for bucket in buckets if bucket.get("key")
+        ]  # key가 파일명
+
+        print(
+            f"Indexed file list requested. Found {len(file_list)} unique files."
+        )  # 로그 추가
+        return {"status": "success", "files": file_list}
+
+    except Exception as e:
+        print(f"인덱싱된 파일 목록 조회 중 오류 발생: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500, detail=f"파일 목록 조회 중 오류 발생: {str(e)}"
+        )
+
+
+# --- API 엔드포인트 추가 끝 ---
+
+
 class StatsRequest(BaseModel):
     userId: str  # 사용자 식별자
     action: str  # 수행한 행동 (예: question, feedback, view_source)
@@ -1028,6 +1079,40 @@ async def startup_event():
         print("필수 리소스 로딩에 실패했습니다. 서버 로그를 확인하세요.")
 
 
+@app.get("/api/file-viewer/{filename}")
+async def get_file_for_viewer(filename: str):
+    # UUID가 포함된 전체 파일명을 사용한다고 가정
+    # 보안: filename에 ../ 등이 포함되어 상위 디렉토리 접근 시도 방지
+    if ".." in filename or filename.startswith("/"):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    # 파일이 저장된 실제 경로 (main.py 기준 상대 경로 또는 절대 경로)
+    # /api/upload에서 저장한 경로와 동일해야 함
+    file_path = os.path.join(STATIC_DIR, "uploads", filename)
+
+    print(f"File view request for: {filename}, Path: {file_path}")
+
+    if not os.path.exists(file_path) or not os.path.isfile(file_path):
+        print(f"File not found: {file_path}")
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # 파일 타입(MIME) 추측
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if mime_type is None:
+        mime_type = "application/octet-stream"  # 기본값
+
+    # Content-Disposition을 inline으로 설정하여 브라우저에서 바로 열도록 시도
+    # (브라우저 설정에 따라 다운로드될 수도 있음)
+    # 실제 파일명을 표시하려면 cleanFilename 로직을 여기서도 사용 가능
+    # clean_name = filename[filename.find('_')+1:] if '_' in filename else filename
+    # headers = {'Content-Disposition': f'inline; filename="{clean_name}"'}
+
+    # FileResponse 사용하여 파일 내용 반환
+    # return FileResponse(path=file_path, media_type=mime_type, headers=headers)
+    # 간단히 파일 내용만 반환 (브라우저가 타입에 맞게 처리)
+    return FileResponse(path=file_path, media_type=mime_type)
+
+
 # 파일 업로드 및 인덱싱 엔드포인트
 @app.post("/api/upload")
 async def upload_files(
@@ -1081,8 +1166,9 @@ async def upload_files(
         finally:
             # 임시 파일 삭제
             if os.path.exists(file_path):
-                os.remove(file_path)
-                print(f"임시 파일 삭제 완료: {file_path}")
+                # os.remove(file_path)
+                # print(f"임시 파일 삭제 완료: {file_path}")
+                print(f"파일 처리 완료 및 파일 유지 : {file_path}")
 
     print(f"업로드 결과: {len(results)}개 파일 처리 완료")
     return {"results": results}
