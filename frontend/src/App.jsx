@@ -14,17 +14,23 @@ import {
   FiSearch,
   FiSun,
   FiMoon,
+  FiPlus,
+  FiMenu,
+  FiMessageSquare,
+  FiLayout,
+  FiChevronDown,
+  FiAlertCircle,
+  FiX
 } from "react-icons/fi";
+import { FiServer } from "react-icons/fi";
 
-const SIDEBAR_WIDTH = 220;
+const SIDEBAR_WIDTH = 280;
 const SIDEBAR_MIN = 60;
 const SIDEBAR_MAX = 400;
 
 function App() {
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_WIDTH);
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768); // md: 이상에서 기본적으로 열림
-  const [model, setModel] = useState("GPT-4");
-  const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [userName, setUserName] = useState("사용자");
@@ -290,6 +296,8 @@ function App() {
     };
     setConversations((prev) => [...prev, newConv]);
     setActiveConversationId(newConv.id);
+    // 새 대화 생성 시 검색어 초기화
+    setSearchTerm("");
   };
 
   // 대화 선택
@@ -297,6 +305,10 @@ function App() {
     setActiveConversationId(id);
     // 백엔드에서 대화 불러오기 (필요 시)
     loadConversationFromBackend(userId, id);
+    // 모바일에서 대화 선택 시 사이드바 닫기
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
   };
 
   // 대화 삭제
@@ -524,76 +536,65 @@ function App() {
   // 반응형: 화면 크기 변경 시 사이드바 상태 업데이트
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth < 768) {
+      if (window.innerWidth < 768 && sidebarOpen) {
         setSidebarOpen(false);
-      } else {
+      } else if (window.innerWidth >= 1200 && !sidebarOpen) {
         setSidebarOpen(true);
       }
     };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  }, [sidebarOpen]);
 
   // 드래그 핸들러
   const handleMouseDown = (e) => {
     isResizing.current = true;
-    document.body.style.cursor = "col-resize";
-    e.preventDefault();
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
   };
   const handleMouseMove = (e) => {
-    if (isResizing.current && sidebarOpen) {
-      let newWidth = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, e.clientX));
-      setSidebarWidth(newWidth);
-    }
+    if (!isResizing.current) return;
+    const newWidth = Math.max(
+      SIDEBAR_MIN,
+      Math.min(SIDEBAR_MAX, e.clientX)
+    );
+    setSidebarWidth(newWidth);
   };
   const handleMouseUp = () => {
-    if (isResizing.current) {
-      isResizing.current = false;
-      document.body.style.cursor = "default";
-    }
+    isResizing.current = false;
+    document.removeEventListener("mousemove", handleMouseMove);
+    document.removeEventListener("mouseup", handleMouseUp);
   };
-  useEffect(() => {
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  });
 
   // 토글(여닫이) 버튼
   const handleToggleSidebar = () => {
-    setSidebarOpen((open) => !open);
-  };
-
-  // 모델 선택 드롭다운 토글
-  const handleToggleModelDropdown = () => {
-    setShowModelDropdown(!showModelDropdown);
-    setShowSettingsDropdown(false);
+    setSidebarOpen(!sidebarOpen);
   };
 
   // 설정 드롭다운 토글
   const handleToggleSettingsDropdown = () => {
     setShowSettingsDropdown(!showSettingsDropdown);
-    setShowModelDropdown(false);
-  };
-
-  // 모델 선택
-  const handleSelectModel = (selectedModel) => {
-    setModel(selectedModel);
-    setShowModelDropdown(false);
-  };
-
-  // Regenerate 기능 (예시)
-  const handleRegenerate = () => {
-    console.log("Regenerate last response");
-    // 실제로는 마지막 메시지 재생성 로직 추가
   };
 
   // Clear Chat 기능 (예시)
   const handleClearChat = () => {
-    console.log("Clear chat history");
-    // 실제로는 대화 기록 초기화 로직 추가
+    if (window.confirm("대화 내용을 모두 삭제하시겠습니까?")) {
+      const updatedConversations = conversations.map((c) =>
+        c.id === activeConversationId
+          ? {
+              ...c,
+              messages: [
+                {
+                  role: "assistant",
+                  content: "안녕하세요! 무엇을 도와드릴까요?",
+                  sources: [],
+                },
+              ],
+            }
+          : c
+      );
+      setConversations(updatedConversations);
+    }
   };
 
   // 알림 설정 토글
@@ -606,162 +607,125 @@ function App() {
     setScrollLocked(!scrollLocked);
   };
 
-  // 사용자 이름 변경 (예시)
-  const handleChangeUserName = (newName) => {
-    setUserName(newName);
-    setShowSettingsDropdown(false);
-  };
-
   return (
-    <div className="flex h-screen bg-gradient-to-br from-[#f0f4f8] to-[#e3e9f0] dark:from-gray-900 dark:to-gray-800 transition-colors duration-300">
-      {/* 사이드바 */}
-      <div
-        className={`
-          relative h-full transition-all duration-300 ease-in-out
-          ${sidebarOpen ? "border-r border-gray-200 dark:border-gray-700" : ""}
-          bg-white dark:bg-gray-800
-          md:block hidden
-        `}
-        style={{
-          width: sidebarOpen ? sidebarWidth : 0,
-          minWidth: sidebarOpen ? SIDEBAR_MIN : 0,
-          maxWidth: sidebarOpen ? SIDEBAR_MAX : 0,
-          transform: sidebarOpen
-            ? "translateX(0)"
-            : `translateX(-${sidebarWidth}px)`,
-          overflow: "hidden",
-          zIndex: 20,
-        }}
-      >
-        <Sidebar
-          collapsed={!sidebarOpen}
-          conversations={conversations}
-          activeConversationId={activeConversationId}
-          onNewConversation={handleNewConversation}
-          onDeleteConversation={handleDeleteConversation}
-          onSelectConversation={handleSelectConversation}
-          onRenameConversation={handleRenameConversation}
-          onTogglePinConversation={handleTogglePinConversation}
-        />
-        {/* 닫기 버튼 */}
-        {sidebarOpen && (
-          <button
-            onClick={handleToggleSidebar}
-            className="absolute -right-4 top-1/2 z-30 transform -translate-y-1/2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-full shadow p-1 hover:bg-blue-100 dark:hover:bg-blue-900 transition"
-            style={{ width: 28, height: 28 }}
-            title="사이드바 접기"
-          >
-            <FiChevronLeft size={20} />
-          </button>
-        )}
-      </div>
-      {/* 열기 버튼 (항상 화면 왼쪽에 고정) */}
-      {!sidebarOpen && (
-        <button
-          onClick={handleToggleSidebar}
-          className="fixed left-2 top-1/2 z-40 transform -translate-y-1/2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-full shadow p-1 hover:bg-blue-100 dark:hover:bg-blue-900 transition md:block hidden"
-          style={{ width: 28, height: 28 }}
-          title="사이드바 펼치기"
-        >
-          <FiChevronRight size={20} />
-        </button>
-      )}
-      {/* 드래그 핸들 */}
-      {sidebarOpen && (
-        <div
-          className="w-2 cursor-col-resize bg-gray-100 dark:bg-gray-700 hover:bg-blue-200 dark:hover:bg-blue-800 transition z-20 absolute right-0 top-0 h-full md:block hidden"
-          onMouseDown={handleMouseDown}
-          style={{ userSelect: "none" }}
-          title="사이드바 크기 조절"
-        />
-      )}
-      {/* 본문 */}
-      <main className="flex-1 flex flex-col border-l border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 transition-all duration-300 md:w-0 w-full">
-        <header className="p-4 border-b bg-white dark:bg-gray-800 flex items-center justify-between sticky top-0 z-10 backdrop-blur-sm">
-          <h1 className="text-2xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-indigo-600 font-['Pretendard','Noto Sans KR',sans-serif] drop-shadow">
-            쓰리에스소프트 챗봇 테스트 ㅇㅇㅇㅇ
-          </h1>
-          <div className="flex items-center gap-2">
-            <div className="relative w-full max-w-xs">
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={handleSearchChange}
-                placeholder="메시지 검색..."
-                className="
-      w-full pl-10 pr-1 py-2
-      text-sm font-medium
-      text-gray-800 placeholder-gray-400
-      dark:text-white dark:placeholder-gray-500
-      bg-white/60 dark:bg-gray-800/70
-      backdrop-blur-md
-      border border-gray-200 dark:border-gray-600
-      rounded-xl
-      shadow-[inset_0_1px_2px_rgba(0,0,0,0.05),0_2px_6px_rgba(0,0,0,0.08)]
-      hover:shadow-[inset_0_1px_3px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.1)]
-      focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-      transition-all duration-200 ease-in-out
-    "
-              />
-              <FiSearch
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500"
-                size={16}
-              />
-            </div>
-
+    <div className={`flex flex-col h-screen ${isDark ? "dark" : ""} bg-gray-50 dark:bg-slate-900`}>
+      {/* 헤더 */}
+      <header className="border-b border-slate-200 dark:border-slate-800 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-slate-800 shadow-sm z-10 relative">
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
             <button
-              onClick={handleToggleTheme}
-              className={`
-    group relative flex items-center justify-center
-    w-10 h-10 rounded-full
-    bg-white dark:bg-gray-800
-    border border-gray-200 dark:border-gray-600
-    shadow-md hover:shadow-lg
-    transition-all duration-300 ease-in-out
-  `}
-              title="다크모드 토글"
+              className="p-2 rounded-lg hover:bg-slate-100/70 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300 md:hidden transition-colors"
+              onClick={handleToggleSidebar}
+              aria-label="메뉴 토글"
             >
-              <span
-                className={`
-    absolute inset-0 flex items-center justify-center
-    transition-all duration-300 ease-in-out
-    ${
-      isDark ? "opacity-0 scale-75 rotate-90" : "opacity-100 scale-100 rotate-0"
-    }
-  `}
-              >
-                <FiSun className="text-yellow-500" size={18} />
-              </span>
-
-              <span
-                className={`
-    absolute inset-0 flex items-center justify-center
-    transition-all duration-300 ease-in-out
-    ${
-      isDark
-        ? "opacity-100 scale-100 rotate-0"
-        : "opacity-0 scale-75 -rotate-90"
-    }
-  `}
-              >
-                <FiMoon className="text-blue-300" size={18} />
-              </span>
+              <FiMenu size={20} />
+            </button>
+            <div className="flex items-center gap-2.5">
+              <FiServer className="text-blue-500 dark:text-blue-400" size={22} />
+              <h1 className="font-semibold text-xl bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">RAG 챗봇</h1>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-1">
+            <button
+              className="p-2 rounded-lg hover:bg-slate-100/70 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300 transition-colors"
+              onClick={handleToggleTheme}
+              aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
+            >
+              {isDark ? <FiSun size={18} /> : <FiMoon size={18} />}
+            </button>
+            
+            <button
+              className="hidden md:flex items-center justify-center p-2 rounded-lg hover:bg-slate-100/70 dark:hover:bg-slate-800/80 
+                text-slate-700 dark:text-slate-300 transition-colors"
+              onClick={handleNewConversation}
+              aria-label="새 대화"
+            >
+              <FiPlus size={18} />
+            </button>
+            
+            <button
+              className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 
+                text-slate-700 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+              onClick={handleClearChat}
+              aria-label="대화 초기화"
+            >
+              <FiTrash2 size={18} />
             </button>
           </div>
-        </header>
-        <ChatContainer
-          key={activeConversationId}
-          scrollLocked={scrollLocked}
-          activeConversationId={activeConversationId}
-          messages={currentMessages}
-          onUpdateMessages={handleUpdateMessages}
-          filteredMessages={filteredMessages}
-          searchTerm={searchTerm}
-        />
-      </main>
+        </div>
+      </header>
+
+      {/* 메인 컨테이너 */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* 사이드바 */}
+        {sidebarOpen && (
+          <div
+            className="flex-shrink-0 h-full"
+            style={{ width: `${sidebarWidth}px` }}
+          >
+            <Sidebar
+              collapsed={false}
+              conversations={conversations}
+              activeConversationId={activeConversationId}
+              onNewConversation={handleNewConversation}
+              onDeleteConversation={handleDeleteConversation}
+              onSelectConversation={handleSelectConversation}
+              onRenameConversation={handleRenameConversation}
+              onTogglePinConversation={handleTogglePinConversation}
+            />
+          </div>
+        )}
+
+        {/* 드래그 핸들 */}
+        {sidebarOpen && (
+          <div
+            className="w-1 h-full cursor-col-resize bg-slate-200 dark:bg-slate-800 hover:bg-blue-500 dark:hover:bg-blue-600 custom-transition-colors"
+            onMouseDown={handleMouseDown}
+          ></div>
+        )}
+
+        {/* 메인 채팅 영역 */}
+        <div className="flex-1 flex flex-col bg-gradient-to-b from-slate-50 to-white dark:from-slate-900 dark:to-slate-950">
+          {/* 모바일 토글 버튼 */}
+          {!sidebarOpen && (
+            <button
+              className="fixed bottom-4 left-4 z-10 p-3 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-lg custom-transition-all md:hidden"
+              onClick={handleToggleSidebar}
+            >
+              <FiMessageSquare size={20} />
+            </button>
+          )}
+
+          {/* 채팅 컨테이너 */}
+          <ChatContainer
+            scrollLocked={scrollLocked}
+            activeConversationId={activeConversationId}
+            messages={currentMessages}
+            filteredMessages={filteredMessages}
+            searchTerm={searchTerm}
+            onUpdateMessages={handleUpdateMessages}
+          />
+        </div>
+      </div>
+      
+      {/* 에러 메시지 표시 */}
       {saveError && (
-        <div className="fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded shadow-lg z-50 animate-fade-in">
-          {saveError}
+        <div className="fixed bottom-4 right-4 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 
+          text-red-800 dark:text-red-200 px-4 py-3 rounded-lg shadow-lg animate-fade-in">
+          <div className="flex items-start">
+            <FiAlertCircle className="mt-0.5 mr-2 flex-shrink-0" />
+            <div>
+              <p className="font-medium">저장 오류</p>
+              <p className="text-sm">{saveError}</p>
+            </div>
+            <button 
+              className="ml-3 text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-100"
+              onClick={() => setSaveError(null)}
+            >
+              <FiX size={18} />
+            </button>
+          </div>
         </div>
       )}
     </div>

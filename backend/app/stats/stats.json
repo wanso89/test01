@@ -1159,5 +1159,41 @@
       "timestamp": "2025-05-08T06:19:48.603Z"
     },
     "timestamp": "2025-05-08T15:19:36.582535"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-05-08T16:25:13.286Z"
+    },
+    "timestamp": "2025-05-09T01:25:14.944563"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-05-08T16:42:10.592Z"
+    },
+    "timestamp": "2025-05-09T01:42:12.252776"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-05-08T16:42:27.233Z"
+    },
+    "timestamp": "2025-05-09T01:42:28.884402"
+  },
+  {
+    "userId": "user1",
+    "action": "question",
+    "details": {
+      "category": "메뉴얼",
+      "timestamp": "2025-05-08T16:42:40.887Z"
+    },
+    "timestamp": "2025-05-09T01:42:42.543119"
   }
 ]

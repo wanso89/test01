@@ -3,59 +3,214 @@
 @tailwind components;
 @tailwind utilities;
 
-
-
-body {
-    font-family: 'Inter', 'Pretendard', 'Noto Sans KR', sans-serif;
-    background: linear-gradient(120deg, #f0f4f8 0%, #e3e9f0 100%);
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
   }
-  
-  @keyframes fade-in-up {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-  
-  @keyframes fade-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-  
-  @keyframes slide-up {
-    from {
-      transform: translateY(20px);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
-  }
-  
-  .animate-fade-in-up {
-    animation: fade-in-up 0.3s ease-out forwards;
-  }
-  
-  .animate-fade-in {
-    animation: fade-in 0.2s ease-out forwards;
-  }
-  
-  .animate-slide-up {
-    animation: slide-up 0.3s ease-out forwards;
+ 
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
   }
 
-  /* custom-scrollbar 클래스에 적용되는 스크롤바 스타일 */
+  body {
+    @apply font-sans text-slate-800 dark:text-slate-200;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html, body {
+    height: 100%;
+    @apply bg-slate-50 dark:bg-slate-950;
+  }
+
+  /* 코드 블록 스타일 */
+  pre {
+    @apply p-4 rounded-lg bg-slate-100 dark:bg-slate-800 my-3 overflow-x-auto shadow-sm border border-slate-200 dark:border-slate-700;
+    font-family: 'Söhne Mono', Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  }
+
+  /* 인라인 코드 스타일 */
+  code:not(pre code) {
+    @apply px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-sm font-mono text-blue-600 dark:text-blue-400;
+  }
+
+  /* 링크 스타일 */
+  a {
+    @apply text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors;
+  }
+
+  /* 헤딩 스타일 */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-medium tracking-tight;
+  }
+  
+  h1 {
+    @apply text-2xl;
+  }
+  
+  h2 {
+    @apply text-xl;
+  }
+  
+  h3 {
+    @apply text-lg;
+  }
+  
+  /* 테이블 스타일 */
+  table {
+    @apply w-full my-3 text-sm border-collapse rounded-lg overflow-hidden shadow-sm;
+  }
+  
+  thead {
+    @apply bg-slate-100 dark:bg-slate-800;
+  }
+  
+  th {
+    @apply p-2 text-left font-medium border dark:border-slate-700;
+  }
+  
+  td {
+    @apply p-2 border dark:border-slate-700;
+  }
+  
+  /* 마크다운 스타일 */
+  blockquote {
+    @apply pl-4 my-3 border-l-2 border-blue-300 dark:border-blue-700 text-slate-700 dark:text-slate-300 bg-blue-50/50 dark:bg-blue-900/20 py-2 pr-3 rounded-r-md italic;
+  }
+  
+  hr {
+    @apply my-4 border-slate-200 dark:border-slate-800;
+  }
+  
+  ul, ol {
+    @apply pl-5 my-3;
+  }
+  
+  ul {
+    @apply list-disc;
+  }
+  
+  ol {
+    @apply list-decimal;
+  }
+  
+  /* 선택 텍스트 스타일 */
+  ::selection {
+    @apply bg-blue-100 dark:bg-blue-900/40 text-blue-900 dark:text-blue-50;
+  }
+}
+
+@layer components {
+  /* 채팅 메시지 컨테이너 */
+  .chat-message {
+    @apply p-4 rounded-xl max-w-full w-full;
+  }
+
+  .chat-message.user {
+    @apply bg-blue-50 dark:bg-blue-900/30 text-slate-800 dark:text-slate-200;
+  }
+
+  .chat-message.assistant {
+    @apply bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200;
+  }
+
+  /* 사이드바 아이템 */
+  .sidebar-item {
+    @apply flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors hover:bg-slate-100 dark:hover:bg-slate-800/80;
+  }
+
+  .sidebar-item.active {
+    @apply bg-blue-100 dark:bg-blue-900/30 font-medium text-blue-900 dark:text-blue-100;
+  }
+  
+  .sidebar-item .icon {
+    @apply flex-shrink-0 text-slate-500 dark:text-slate-400;
+  }
+  
+  .sidebar-item .title {
+    @apply flex-1 truncate;
+  }
+  
+  .sidebar-item .actions {
+    @apply flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity;
+  }
+
+  /* 버튼 스타일 */
+  .btn {
+    @apply inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 
+      shadow-sm h-10 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 
+      dark:focus:ring-offset-slate-900;
+  }
+
+  .btn-secondary {
+    @apply bg-slate-200 text-slate-900 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-100 
+      dark:hover:bg-slate-700 h-10 px-4 py-2 shadow-sm border border-slate-300 dark:border-slate-700;
+  }
+
+  .btn-ghost {
+    @apply hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 h-10 px-4 py-2;
+  }
+  
+  .btn-icon {
+    @apply h-9 w-9 rounded-lg flex items-center justify-center;
+  }
+  
+  /* 입력 스타일 */
+  .input {
+    @apply flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm 
+      ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium 
+      placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 
+      focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed 
+      disabled:opacity-50 dark:border-slate-800 dark:bg-slate-950 dark:ring-offset-slate-950 
+      dark:placeholder:text-slate-400 dark:focus-visible:ring-blue-600 shadow-sm;
+  }
+}
+
+/* custom-scrollbar 클래스에 적용되는 스크롤바 스타일 */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px; /* 스크롤바 너비 얇게 설정 */
+  width: 6px; /* 스크롤바 너비 */
+  height: 6px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
@@ -63,16 +218,141 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.5); /* 스크롤바 색상 (회색, 반투명) */
-  border-radius: 3px; /* 둥글게 처리 */
+  @apply bg-slate-300/80 dark:bg-slate-700/80;
+  border-radius: 8px; /* 둥글게 처리 */
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(156, 163, 175, 0.8); /* 호버 시 색상 진하게 */
+  @apply bg-slate-400 dark:bg-slate-600;
 }
 
 /* Firefox 등 다른 브라우저용 스크롤바 스타일 */
 .custom-scrollbar {
   scrollbar-width: thin; /* 얇은 스크롤바 */
-  scrollbar-color: rgba(156, 163, 175, 0.5) transparent; /* 스크롤바 색상 */
+  scrollbar-color: var(--scrollbar-thumb, rgba(203, 213, 225, 0.5)) transparent; /* 스크롤바 색상 */
+}
+
+/* 다크 모드에서 스크롤바 색상 변경 */
+@media (prefers-color-scheme: dark) {
+  .custom-scrollbar {
+    --scrollbar-thumb: rgba(51, 65, 85, 0.5);
+  }
+}
+
+/* 애니메이션 */
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out forwards;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.3s ease-out forwards;
+}
+
+.animate-shrink-fade-out {
+  animation: shrink-fade-out 0.3s ease-out forwards;
+}
+
+/* 키프레임 애니메이션 */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes fade-in-up {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes shrink-fade-out {
+  from { transform: scale(1); opacity: 1; }
+  to { transform: scale(0.95); opacity: 0; }
+}
+
+/* 커스텀 그라디언트 배경 */
+.bg-chat-gradient {
+  background: linear-gradient(180deg, rgba(249,250,251,0) 0%, rgba(249,250,251,0.8) 100%);
+}
+
+.dark .bg-chat-gradient {
+  background: linear-gradient(180deg, rgba(2,6,23,0) 0%, rgba(2,6,23,0.8) 100%);
+}
+
+/* 코드 하이라이트 스타일 */
+.prose pre {
+  @apply overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 my-4 shadow-md;
+}
+
+.prose pre > code {
+  @apply grid bg-transparent p-4 text-sm text-slate-800 dark:text-slate-300;
+  tab-size: 2;
+}
+
+/* 드롭 영역 스타일 */
+.drop-area {
+  @apply border-2 border-dashed rounded-lg p-6 transition-colors bg-slate-50 dark:bg-slate-900/60;
+}
+
+.drop-area.active {
+  @apply border-blue-500 bg-blue-50 dark:bg-blue-950/20;
+}
+
+/* 로딩 표시기 */
+.loader {
+  @apply inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-e-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite];
+}
+
+/* 도구팁 스타일 */
+.tooltip {
+  @apply invisible absolute z-10 rounded-md bg-slate-900 px-3 py-1.5 text-xs text-white opacity-0 shadow-sm;
+  transition: all 0.2s ease-in-out;
+}
+
+.has-tooltip:hover .tooltip {
+  @apply visible opacity-100;
+}
+
+/* 공통 트랜지션 클래스 */
+.custom-transition-all {
+  transition: all 0.2s ease-in-out;
+}
+
+.custom-transition-opacity {
+  transition: opacity 0.2s ease-in-out;
+}
+
+.custom-transition-colors {
+  transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+
+.custom-transition-transform {
+  transition: transform 0.2s ease-in-out;
+}
+
+/* 포커스 링 재설정 */
+:focus-visible {
+  @apply outline-none ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-slate-900;
+}
+
+/* 블러 그라디언트 효과 (배경 블러 효과) */
+.bg-blur-gradient {
+  @apply relative overflow-hidden;
+}
+
+.bg-blur-gradient::before {
+  content: '';
+  @apply absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-purple-600 opacity-20 blur-xl pointer-events-none;
+}
+
+/* 글래스모피즘 효과 (유리 같은 반투명 효과) */
+.glass-effect {
+  @apply bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg border border-white/20 dark:border-slate-700/30;
 }

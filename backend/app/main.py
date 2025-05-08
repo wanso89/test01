@@ -42,6 +42,9 @@ IMAGE_DIR = os.path.join(STATIC_DIR, "document_images")
 os.makedirs(IMAGE_DIR, exist_ok=True)
 
 
+
+
+
 # 질문 요청 모델
 class QuestionRequest(BaseModel):
     question: str
@@ -1174,6 +1177,163 @@ async def upload_files(
     return {"results": results}
 
 
+# 파일 삭제 엔드포인트 추가
+@app.delete("/api/delete-file")
+async def delete_file(filename: str):
+    """
+    인덱싱된 파일을 삭제하고 관련 Elasticsearch 인덱스도 함께 삭제합니다.
+    
+    Args:
+        filename: 삭제할 파일의 이름 (UUID 포함된 전체 파일명)
+    """
+    print(f"파일 삭제 요청: {filename}")
+    
+    if not es_client:
+        raise HTTPException(status_code=503, detail="Elasticsearch is not connected")
+    
+    if ".." in filename or filename.startswith("/"):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    
+    # 1. 파일 시스템에서 파일 삭제
+    file_path = os.path.join(STATIC_DIR, "uploads", filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+    
+    # 2. Elasticsearch에서 해당 파일과 관련된 모든 문서 삭제
+    try:
+        # filename은 UUID가 포함된 전체 파일명이지만,
+        # ES의 source 필드에는 원래 파일명만 저장되어 있을 수 있음
+        # 각각의 업로드 방식에 따라 조정 필요
+        
+        # 완전히 동일한 filename으로 저장된 경우 (1순위 시도)
+        delete_query = {
+            "query": {
+                "term": {
+                    "source": filename
+                }
+            }
+        }
+        
+        delete_response = es_client.delete_by_query(
+            index=ES_INDEX_NAME,
+            body=delete_query
+        )
+        
+        deleted_count = delete_response.get('deleted', 0)
+        
+        # 삭제된 문서가 없으면, UUID를 제외한 원본 파일명으로 다시 시도 (2순위 시도)
+        if deleted_count == 0:
+            # UUID를 제외한 원본 파일명 추출
+            original_filename = filename
+            if '_' in filename:
+                original_filename = filename[filename.find('_')+1:]
+            
+            delete_query = {
+                "query": {
+                    "term": {
+                        "source": original_filename
+                    }
+                }
+            }
+            
+            delete_response = es_client.delete_by_query(
+                index=ES_INDEX_NAME,
+                body=delete_query
+            )
+            
+            deleted_count = delete_response.get('deleted', 0)
+            
+        # 3순위 시도: 파일 경로 전체를 포함하는 경우
+        if deleted_count == 0:
+            delete_query = {
+                "query": {
+                    "term": {
+                        "source": f"app/static/uploads/{filename}"
+                    }
+                }
+            }
+            
+            delete_response = es_client.delete_by_query(
+                index=ES_INDEX_NAME,
+                body=delete_query
+            )
+            
+            deleted_count = delete_response.get('deleted', 0)
+            
+        # 4순위 시도: 파일 경로와 원본 파일명 결합
+        if deleted_count == 0:
+            original_filename = filename
+            if '_' in filename:
+                original_filename = filename[filename.find('_')+1:]
+                
+            delete_query = {
+                "query": {
+                    "term": {
+                        "source": f"app/static/uploads/{original_filename}"
+                    }
+                }
+            }
+            
+            delete_response = es_client.delete_by_query(
+                index=ES_INDEX_NAME,
+                body=delete_query
+            )
+            
+            deleted_count = delete_response.get('deleted', 0)
+            
+        # 5순위 시도: 부분 일치로 검색
+        if deleted_count == 0:
+            original_filename = filename
+            if '_' in filename:
+                original_filename = filename[filename.find('_')+1:]
+                
+            delete_query = {
+                "query": {
+                    "wildcard": {
+                        "source": f"*{original_filename}"
+                    }
+                }
+            }
+            
+            delete_response = es_client.delete_by_query(
+                index=ES_INDEX_NAME,
+                body=delete_query
+            )
+            
+            deleted_count = delete_response.get('deleted', 0)
+        
+        # 3. 파일 시스템에서 실제 파일 삭제
+        try:
+            os.remove(file_path)
+            print(f"파일 삭제 완료: {file_path}")
+        except Exception as e:
+            print(f"파일 삭제 중 오류 발생: {e}")
+            # 파일 삭제에 실패해도 일단 ES 인덱스가 삭제되었으면 성공으로 간주
+            
+        print(f"파일 '{filename}' 삭제 완료. Elasticsearch에서 {deleted_count}개 문서 삭제됨.")
+        return {
+            "status": "success",
+            "message": f"파일 '{filename}' 삭제 완료",
+            "deleted_docs": deleted_count
+        }
+        
+    except Exception as e:
+        print(f"파일 삭제 중 오류 발생: {e}")
+        traceback.print_exc()
+        # 이미 파일이 삭제된 경우에도 500 에러를 반환하면 사용자 경험이 좋지 않음
+        # 파일은 삭제되었지만 ES 인덱스 삭제에 실패한 경우 경고 메시지 반환
+        if not os.path.exists(file_path):
+            return {
+                "status": "warning",
+                "message": f"파일은 삭제되었으나 인덱스 삭제 중 오류 발생: {str(e)}"
+            }
+        else:
+            raise HTTPException(
+                status_code=500, 
+                detail=f"파일 삭제 중 오류 발생: {str(e)}"
+            )
+
+
 # 질문-응답 엔드포인트
 @app.post("/api/chat")
 async def chat(request: QuestionRequest = Body(...)):
@@ -1201,65 +1361,6 @@ async def chat(request: QuestionRequest = Body(...)):
         raise HTTPException(
             status_code=500, detail=f"챗봇 응답 생성 중 오류 발생: {str(e)}"
         )
-
-
-@app.post("/api/upload")
-async def upload_files(
-    files: List[UploadFile] = File(...),  # 다중 파일 지원
-    category: str = Form("메뉴얼"),
-):
-    results = []
-    for file in files:
-        print(f"파일 업로드 요청 수신: {file.filename}, 카테고리: {category}")
-        # 임시 파일 저장
-        file_path = f"app/static/uploads/{uuid.uuid4()}_{file.filename}"
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        with open(file_path, "wb") as f:
-            content = await file.read()
-            f.write(content)
-        print(f"임시 파일 저장 완료: {file_path}")
-
-        # 파일 처리 및 인덱싱
-        try:
-            print(f"파일 인덱싱 시작: {file.filename}")
-            success = await process_and_index_file(
-                es_client, embedding_function, file_path, category
-            )
-            if success:
-                print(f"파일 인덱싱 성공: {file.filename}")
-                results.append(
-                    {
-                        "filename": file.filename,
-                        "status": "success",
-                        "message": f"파일 '{file.filename}' 인덱싱 완료",
-                    }
-                )
-            else:
-                print(f"파일 인덱싱 실패: {file.filename}")
-                results.append(
-                    {
-                        "filename": file.filename,
-                        "status": "error",
-                        "message": "파일 인덱싱 실패",
-                    }
-                )
-        except Exception as e:
-            print(f"파일 처리 중 오류 발생: {file.filename}, 오류: {str(e)}")
-            results.append(
-                {
-                    "filename": file.filename,
-                    "status": "error",
-                    "message": f"오류 발생: {str(e)}",
-                }
-            )
-        finally:
-            # 임시 파일 삭제
-            if os.path.exists(file_path):
-                os.remove(file_path)
-                print(f"임시 파일 삭제 완료: {file_path}")
-
-    print(f"업로드 결과: {len(results)}개 파일 처리 완료")
-    return {"results": results}
 
 
 # 카테고리 목록 조회 엔드포인트

@@ -1,38 +1,54 @@
-import { useState, useRef, useEffect } from 'react';
-import { FiLoader, FiSend, FiPaperclip, FiX } from 'react-icons/fi';
+import { useState, useRef, useEffect, forwardRef } from 'react';
+import { FiLoader, FiSend, FiPaperclip, FiX, FiCheck, FiImage, FiMessageSquare } from 'react-icons/fi';
 
 function FileUpload({ onClose, categories, onUploadSuccess }) {
   const [file, setFile] = useState(null);
   const [category, setCategory] = useState(categories[0] || '메뉴얼');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
+  const [dragActive, setDragActive] = useState(false);
+  
+  const fileInputRef = useRef(null);
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setDragActive(true);
+  };
+  
+  const handleDragLeave = () => {
+    setDragActive(false);
+  };
+  
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setFile(e.dataTransfer.files[0]);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('handleSubmit 호출됨, file:', file);
     if (!file) {
-      console.log('파일이 선택되지 않음');
       setUploadStatus('파일을 선택해주세요.');
       return;
     }
     
     setIsUploading(true);
     setUploadStatus('업로드 중...');
-    console.log('업로드 시작, category:', category);
     
     const formData = new FormData();
-    formData.append('files', file); // 다중 파일을 위해 'files'로 이름 변경
+    formData.append('files', file);
     formData.append('category', category);
     
     try {
-      console.log('fetch 요청 전송 시작');
       const response = await fetch('http://172.10.2.70:8000/api/upload', {
         method: 'POST',
         body: formData,
       });
-      console.log('fetch 응답 수신:', response.status);
       const data = await response.json();
-      console.log('업로드 응답:', data); // 개발자 도구에서 확인 가능
+      
       if (data.results && data.results.length > 0) {
         const result = data.results[0];
         if (result.status === 'success') {
@@ -56,15 +72,23 @@ function FileUpload({ onClose, categories, onUploadSuccess }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-96 max-w-full">
-        <h2 className="text-xl font-bold mb-4">파일 업로드</h2>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-slate-900 rounded-xl p-6 w-full max-w-md shadow-xl animate-slide-up">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-medium text-slate-800 dark:text-slate-200">파일 업로드</h2>
+          <button 
+            onClick={onClose}
+            className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-full p-1 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <FiX size={20} />
+          </button>
+        </div>
         
         <div>
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">카테고리</label>
+            <label className="block text-sm font-medium mb-1.5 text-slate-700 dark:text-slate-300">카테고리</label>
             <select 
-              className="w-full p-2 border rounded-md"
+              className="input w-full"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
             >
@@ -75,25 +99,53 @@ function FileUpload({ onClose, categories, onUploadSuccess }) {
           </div>
           
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">파일 선택</label>
-            <input 
-              type="file" 
-              onChange={(e) => setFile(e.target.files[0])}
-              className="w-full p-2 border rounded-md"
-            />
+            <label className="block text-sm font-medium mb-1.5 text-slate-700 dark:text-slate-300">파일 선택</label>
+            <div 
+              className={`drop-area ${dragActive ? 'active' : ''}`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {file ? (
+                <div className="flex items-center justify-center space-x-2">
+                  <FiCheck className="text-green-500" size={20} />
+                  <span className="text-slate-800 dark:text-slate-200 text-sm truncate max-w-[200px]">
+                    {file.name}
+                  </span>
+                </div>
+              ) : (
+                <div className="text-slate-500 dark:text-slate-400">
+                  <FiPaperclip className="mx-auto mb-2" size={24} />
+                  <p className="text-sm">파일을 드래그하거나 클릭하여 선택하세요</p>
+                </div>
+              )}
+              <input 
+                type="file" 
+                ref={fileInputRef}
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                className="hidden"
+              />
+            </div>
           </div>
           
           {uploadStatus && (
-            <div className="mt-2 text-sm text-center text-green-600">
+            <div className={`mt-2 text-sm text-center p-2 rounded-md ${
+              uploadStatus.includes('성공') 
+                ? 'text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400' 
+                : uploadStatus.includes('실패') || uploadStatus.includes('오류')
+                  ? 'text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400'
+                  : 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400'
+            }`}>
               {uploadStatus}
             </div>
           )}
           
-          <div className="flex justify-end space-x-2">
+          <div className="flex justify-end space-x-3 mt-5">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border rounded-md"
+              className="btn btn-secondary"
             >
               취소
             </button>
@@ -101,9 +153,16 @@ function FileUpload({ onClose, categories, onUploadSuccess }) {
               type="button"
               onClick={handleSubmit}
               disabled={!file || isUploading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:bg-blue-300"
+              className="btn btn-primary flex items-center justify-center gap-2"
             >
-              {isUploading ? '업로드 중...' : '업로드'}
+              {isUploading ? (
+                <>
+                  <FiLoader className="animate-spin" size={16} />
+                  <span>업로드 중...</span>
+                </>
+              ) : (
+                <span>업로드</span>
+              )}
             </button>
           </div>
         </div>
@@ -112,17 +171,29 @@ function FileUpload({ onClose, categories, onUploadSuccess }) {
   );
 }
 
-function ChatInput({ onSend, disabled, onTyping }) {
+const ChatInput = forwardRef(function ChatInput({ onSend, disabled, onTyping }, ref) {
   const [msg, setMsg] = useState('');
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [suggestions, setSuggestions] = useState([]);
-  const [files, setFiles] = useState([]); // 다중 파일을 배열로 관리
+  const [files, setFiles] = useState([]);
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
+  
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
-  const categories = ['메뉴얼', '장애보고서', '기술문서', '기타']; // 카테고리 목록
+  const categories = ['메뉴얼', '장애보고서', '기술문서', '기타'];
+  
+  useEffect(() => {
+    if (ref) {
+      if (typeof ref === 'function') {
+        ref(textareaRef.current);
+      } else {
+        ref.current = textareaRef.current;
+      }
+    }
+  }, [ref]);
   
   useEffect(() => {
     textareaRef.current?.focus();
@@ -138,15 +209,14 @@ function ChatInput({ onSend, disabled, onTyping }) {
 
   useEffect(() => {
     if (msg.trim().length > 0 && !disabled) {
-      onTyping(true); // 입력 중 상태 전달
+      onTyping(true);
     } else {
-      onTyping(false); // 입력 중 상태 해제
+      onTyping(false);
     }
   }, [msg, disabled, onTyping]);
 
-  // 파일 선택 핸들러 (다중 파일 선택 지원)
   const handleFileChange = (e) => {
-    const selectedFiles = Array.from(e.target.files); // FileList를 배열로 변환
+    const selectedFiles = Array.from(e.target.files);
     if (selectedFiles.length > 0) {
       const updatedFiles = selectedFiles.map(file => {
         if (file.type.startsWith('image/')) {
@@ -161,34 +231,31 @@ function ChatInput({ onSend, disabled, onTyping }) {
         return { file, preview: null };
       });
       Promise.all(updatedFiles).then(newFiles => {
-        setFiles(prevFiles => [...prevFiles, ...newFiles]); // 기존 파일에 추가
+        setFiles(prevFiles => [...prevFiles, ...newFiles]);
       });
     }
     if (fileInputRef.current) {
-      fileInputRef.current.value = ''; // 파일 입력 초기화
+      fileInputRef.current.value = '';
     }
   };
 
-  // 입력 중 자동 완성 제안 생성 (히스토리 기반)
   useEffect(() => {
     if (msg.trim().length > 0) {
       const filteredSuggestions = history
         .filter(item => item.toLowerCase().includes(msg.toLowerCase()))
-        .slice(0, 3); // 최대 3개 제안
+        .slice(0, 3);
       setSuggestions(filteredSuggestions);
     } else {
       setSuggestions([]);
     }
   }, [msg, history]);
 
-  // 자동 완성 제안 선택 핸들러
   const handleSuggestionSelect = (suggestion) => {
     setMsg(suggestion);
     setSuggestions([]);
     textareaRef.current?.focus();
   };
 
-  // 파일 업로드 성공 콜백
   const handleUploadSuccess = (message) => {
     setUploadStatus(message);
     setTimeout(() => {
@@ -196,175 +263,175 @@ function ChatInput({ onSend, disabled, onTyping }) {
     }, 3000);
   };
 
-  // 파일 첨부 버튼 클릭 시 모달 표시
   const handleFileUploadClick = () => {
     setShowFileUpload(true);
   };
 
-  // 메시지 전송 함수
   const handleSendMessage = () => {
-    if ((msg.trim() || files.length > 0) && !disabled) {
-      let content = msg.trim();
-      if (files.length > 0) {
-        const fileNames = files.map(f => f.file.name).join(', ');
-        content = content ? `${content} (첨부파일: ${fileNames})` : `첨부파일: ${fileNames}`;
-      }
-      onSend(content);
-      setHistory(prev => [content, ...prev]); // 입력 히스토리에 추가
+    if (msg.trim() && !disabled) {
+      onSend(msg.trim());
+      setHistory(prev => {
+        const updatedHistory = prev.includes(msg.trim()) 
+          ? prev 
+          : [...prev, msg.trim()];
+        return updatedHistory.slice(-20);
+      });
       setMsg('');
-      setHistoryIndex(-1); // 히스토리 인덱스 초기화
-      setSuggestions([]); // 제안 초기화
-      setFiles([]); // 파일 초기화
+      setHistoryIndex(-1);
+      textareaRef.current?.focus();
     }
   };
 
-  // 파일 제거 핸들러 (특정 파일만 제거)
   const handleRemoveFile = (indexToRemove) => {
-    setFiles(prevFiles => prevFiles.filter((_, index) => index !== indexToRemove));
+    setFiles(files.filter((_, index) => index !== indexToRemove));
   };
 
-  // handleKeyDown 함수
   const handleKeyDown = (e) => {
+    if (e.key === 'ArrowUp' && history.length > 0 && msg === '') {
+      e.preventDefault();
+      const newIndex = historyIndex < history.length - 1 ? historyIndex + 1 : historyIndex;
+      setHistoryIndex(newIndex);
+      setMsg(history[history.length - 1 - newIndex] || '');
+    } else if (e.key === 'ArrowDown' && historyIndex > -1) {
+      e.preventDefault();
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      setMsg(newIndex >= 0 ? history[history.length - 1 - newIndex] : '');
+    }
+    
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if ((msg.trim() || files.length > 0) && !disabled) {
-        handleSendMessage();
-      }
-    } else if (e.key === 'ArrowUp' && history.length > 0) {
-      e.preventDefault();
-      if (historyIndex < history.length - 1) {
-        setHistoryIndex(prev => prev + 1);
-        setMsg(history[historyIndex + 1]);
-      }
-    } else if (e.key === 'ArrowDown' && history.length > 0) {
-      e.preventDefault();
-      if (historyIndex > 0) {
-        setHistoryIndex(prev => prev - 1);
-        setMsg(history[historyIndex - 1]);
-      } else if (historyIndex === 0) {
-        setHistoryIndex(-1);
-        setMsg('');
-      }
-    } else if (e.key === 'Tab' && suggestions.length > 0) {
-      e.preventDefault();
-      handleSuggestionSelect(suggestions[0]); // 첫 번째 제안 선택
+      handleSendMessage();
     }
   };
 
   return (
-    <div className="flex flex-col p-4 border-t bg-white dark:bg-gray-800">
-      <form
-        className="flex"
-        onSubmit={e => {
-          e.preventDefault();
-          handleSendMessage();
-        }}
-      >
-        <div className="flex-1">
-          <textarea
-            ref={textareaRef}
-            className="flex-1 p-3 rounded-full border-2 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-700 text-gray-800 dark:text-white transition resize-none overflow-hidden"
-            placeholder={disabled ? "전송 중..." : "메시지를 입력하세요. Shift+Enter로 줄바꿈, Enter로 전송됩니다."}
-            value={msg}
-            onChange={e => setMsg(e.target.value)}
-            onKeyDown={handleKeyDown}
-            rows={1}
-            disabled={disabled}
-            style={{ minHeight: 40, maxHeight: 120, scrollbarWidth: 'none', msOverflowStyle: 'none', width: '100%' }}
-          />
-          {suggestions.length > 0 && (
-            <div className="absolute bottom-16 left-0 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-10 max-h-40 overflow-y-auto">
-              {suggestions.map((suggestion, index) => (
-                <div
-                  key={index}
-                  className="px-3 py-2 text-gray-800 dark:text-gray-100 hover:bg-blue-100 dark:hover:bg-blue-800 transition cursor-pointer"
-                  onClick={() => handleSuggestionSelect(suggestion)}
-                >
-                  {suggestion}
-                </div>
-              ))}
-            </div>
-          )}
-          {files.length > 0 && (
-            <div className="mt-2 max-h-24 overflow-y-auto bg-gray-50 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600 p-2">
-              {files.map((fileItem, index) => (
-                <div key={index} className="flex items-center justify-between mb-1 bg-gray-100 dark:bg-gray-800 rounded px-2 py-1">
-                  {fileItem.preview ? (
-                    <div className="flex items-center">
-                      <img src={fileItem.preview} alt="미리보기" className="w-8 h-8 object-cover rounded mr-2" />
-                      <span 
-                        className="text-gray-800 dark:text-gray-100 text-xs overflow-wrap-break-word" 
-                        style={{ overflowWrap: 'break-word' }} 
-                        title={fileItem.file.name}
-                      >
-                        {fileItem.file.name}
-                      </span>
-                    </div>
-                  ) : (
-                    <span 
-                      className="text-gray-800 dark:text-gray-100 text-xs overflow-wrap-break-word" 
-                      style={{ overflowWrap: 'break-word' }} 
-                      title={fileItem.file.name}
-                    >
-                      {fileItem.file.name}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveFile(index)}
-                    className="ml-2 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400"
-                    title="파일 제거"
-                  >
-                    <FiX size={12} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          {uploadStatus && (
-            <div className="mt-2 text-sm text-center text-green-600">
-              {uploadStatus}
-            </div>
-          )}
+    <div className="px-4 py-3 relative">
+      {uploadStatus && (
+        <div className="absolute -top-14 left-0 right-0 mx-auto w-max px-4 py-2 rounded-lg 
+          bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-200 
+          shadow-lg border border-green-100 dark:border-green-800 animate-fade-in-up z-10">
+          <div className="flex items-center gap-2">
+            <FiCheck className="text-green-500 dark:text-green-400" size={16} />
+            <span className="text-sm font-medium">{uploadStatus}</span>
+          </div>
         </div>
-        <input
-          type="file"
-          ref={fileInputRef}
-          style={{ display: 'none' }}
-          onChange={handleFileChange}
-          accept="image/*,application/pdf,.doc,.docx"
-          multiple // 다중 파일 선택 가능
+      )}
+  
+      {files.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {files.map((fileObj, index) => (
+            <div 
+              key={index} 
+              className="relative bg-white dark:bg-slate-800 rounded-md p-2 pr-8 text-sm 
+                flex items-center gap-2 shadow-sm border border-slate-200 dark:border-slate-700 animate-fade-in"
+            >
+              <FiImage size={14} className="text-blue-500 dark:text-blue-400" />
+              <span className="truncate max-w-[200px] text-slate-700 dark:text-slate-300">
+                {fileObj.file.name}
+              </span>
+              <button
+                onClick={() => handleRemoveFile(index)}
+                className="absolute right-1.5 top-1.5 text-slate-400 hover:text-red-500 
+                  dark:text-slate-400 dark:hover:text-red-400 p-0.5 rounded-full 
+                  hover:bg-red-50 dark:hover:bg-red-900/20 custom-transition-colors"
+                title="파일 제거"
+              >
+                <FiX size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+  
+      <div className={`relative flex items-end rounded-xl overflow-hidden custom-transition-all
+        ${isFocused 
+          ? 'shadow-lg dark:shadow-slate-800/30 ring-2 ring-blue-500/30 dark:ring-blue-500/20' 
+          : 'shadow-md dark:shadow-slate-800/20'}
+        ${disabled ? 'opacity-80' : ''}
+      `}>
+        <textarea
+          ref={textareaRef}
+          value={msg}
+          onChange={(e) => setMsg(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          placeholder={disabled ? "메시지를 처리 중입니다..." : "메시지를 입력하세요..."}
+          disabled={disabled}
+          className="flex-1 resize-none p-4 pr-20 h-14 max-h-[140px] bg-white dark:bg-slate-800 
+            outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400 
+            dark:placeholder-slate-500 border border-slate-200 dark:border-slate-700 rounded-xl"
+          style={{ overflowY: 'auto' }}
         />
-        <button
-          type="button"
-          onClick={handleFileUploadClick}
-          className="ml-2 px-3 py-2 rounded-full text-gray-600 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
-          disabled={disabled}
-          title="파일 첨부"
-          style={{ minWidth: 40, minHeight: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          <FiPaperclip size={18} />
-        </button>
-        <button
-          type="submit"
-          className={`ml-2 px-6 py-2 rounded-full text-white font-bold shadow transition transform duration-200 ${
-            disabled 
-              ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed' 
-              : 'bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 hover:scale-105'
-          }`}
-          disabled={disabled}
-        >
-          {disabled ? <FiLoader className="animate-spin" size={18} /> : <FiSend size={18} />}
-        </button>
-      </form>
+        
+        <div className="absolute bottom-2.5 right-3 flex items-center gap-1.5">
+          <button
+            onClick={handleFileUploadClick}
+            disabled={disabled}
+            className="p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 
+              dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700/70 custom-transition-colors"
+            title="파일 첨부"
+          >
+            <FiPaperclip size={18} />
+          </button>
+          
+          <button
+            onClick={handleSendMessage}
+            disabled={disabled || !msg.trim()}
+            className={`p-2 rounded-lg custom-transition-colors ${
+              msg.trim() && !disabled
+                ? 'text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20'
+                : 'text-slate-400 dark:text-slate-600 cursor-not-allowed'
+            }`}
+            title="전송"
+          >
+            {disabled ? (
+              <FiLoader size={18} className="animate-spin" />
+            ) : (
+              <FiSend size={18} />
+            )}
+          </button>
+        </div>
+      </div>
+  
+      {suggestions.length > 0 && !disabled && (
+        <div className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-slate-800 
+          border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden z-10 animate-fade-in-up">
+          {suggestions.map((suggestion, index) => (
+            <button
+              key={index}
+              className="w-full text-left px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 
+                text-slate-800 dark:text-slate-200 text-sm truncate border-b 
+                border-slate-100 dark:border-slate-700 last:border-0"
+              onClick={() => handleSuggestionSelect(suggestion)}
+            >
+              <div className="flex items-center gap-2">
+                <FiMessageSquare size={14} className="text-blue-500 dark:text-blue-400" />
+                <span>{suggestion}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+  
       {showFileUpload && (
-        <FileUpload 
-          onClose={() => setShowFileUpload(false)} 
-          categories={categories} 
-          onUploadSuccess={handleUploadSuccess} 
+        <FileUpload
+          onClose={() => setShowFileUpload(false)}
+          categories={categories}
+          onUploadSuccess={handleUploadSuccess}
         />
       )}
+      
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        multiple
+        className="hidden"
+      />
     </div>
   );
-}
+});
+
 export default ChatInput;
