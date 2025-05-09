@@ -230,6 +230,7 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess }, r
           categories={categories}
           onUploadSuccess={handleFileUpload}
           initialCategory={selectedCategory}
+          containerSelector="#chat-content-container"
         />
       )}
 

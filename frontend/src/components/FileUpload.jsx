@@ -1,7 +1,8 @@
 import { useState, useRef } from "react";
 import { FiLoader, FiX, FiPaperclip, FiCheck, FiFolder, FiFile, FiUploadCloud } from 'react-icons/fi';
+import ReactDOM from 'react-dom';
 
-function FileUpload({ onClose, categories, onUploadSuccess, initialCategory }) {
+function FileUpload({ onClose, categories, onUploadSuccess, initialCategory, containerSelector }) {
   const [files, setFiles] = useState([]);
   const [category, setCategory] = useState(initialCategory || categories[0] || "메뉴얼");
   const [isUploading, setIsUploading] = useState(false);
@@ -104,9 +105,10 @@ function FileUpload({ onClose, categories, onUploadSuccess, initialCategory }) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md shadow-card-elevated animate-message-pop overflow-hidden relative">
+  // 모달 콘텐츠
+  const modalContent = (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md shadow-xl overflow-hidden relative">
         {/* 배경 장식 */}
         <div className="absolute -right-20 -top-20 w-64 h-64 bg-gradient-to-br from-indigo-500/20 to-purple-500/10 rounded-full blur-3xl"></div>
         <div className="absolute -left-20 -bottom-20 w-64 h-64 bg-gradient-to-tr from-blue-500/10 to-indigo-500/20 rounded-full blur-3xl"></div>
@@ -286,6 +288,17 @@ function FileUpload({ onClose, categories, onUploadSuccess, initialCategory }) {
       </div>
     </div>
   );
+
+  // 지정된 컨테이너에 렌더링하거나, 없으면 body에 렌더링
+  if (containerSelector) {
+    const container = document.querySelector(containerSelector);
+    if (container) {
+      return ReactDOM.createPortal(modalContent, container);
+    }
+  }
+  
+  // 기본: body에 렌더링
+  return modalContent;
 }
 
 export default FileUpload;

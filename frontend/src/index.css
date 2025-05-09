@@ -177,12 +177,20 @@ body {
     @apply rounded-2xl p-4 shadow-bubble transition-all duration-200;
   }
 
-  .message-bubble.user {
-    @apply bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-tr-sm;
+  .user-bubble {
+    @apply bg-gradient-to-r from-indigo-600 to-purple-500 text-white rounded-tr-sm;
   }
 
-  .message-bubble.assistant {
-    @apply bg-white dark:bg-gray-800 text-gray-800 dark:text-white border border-gray-200 dark:border-gray-700 rounded-tl-sm;
+  .assistant-bubble {
+    @apply bg-gradient-to-br from-gray-700/90 to-gray-800/95 text-gray-100 border border-gray-700/50 rounded-tl-sm;
+  }
+
+  .dark .user-bubble {
+    @apply from-indigo-600 to-purple-500 border-none shadow-lg;
+  }
+
+  .dark .assistant-bubble {
+    @apply from-gray-800/90 to-gray-850/95 border-gray-700/50 shadow-lg;
   }
 
   .message-bubble:hover {

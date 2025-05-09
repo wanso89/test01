@@ -304,33 +304,33 @@ function ChatMessage({ message, searchTerm = "", isSearchMode }) {
     
     return (
       <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fade-in">
-        <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-soft-2xl">
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80">
-            <h3 className="font-medium flex items-center text-gray-700 dark:text-gray-200">
+        <div className="bg-gradient-to-br from-gray-800 to-gray-850 rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-soft-2xl border border-gray-700/50">
+          <div className="flex items-center justify-between p-4 border-b border-gray-700/50 bg-gradient-to-r from-gray-800/90 to-gray-850/90">
+            <h3 className="font-medium flex items-center text-gray-200">
               <FiEye className="mr-2 text-indigo-500" />
               <span className="truncate max-w-md">{previewSource.title || previewSource.path}</span>
-              {previewSource.page && <span className="ml-2 text-gray-500 dark:text-gray-400 text-sm">(페이지 {previewSource.page})</span>}
+              {previewSource.page && <span className="ml-2 text-gray-400 text-sm">(페이지 {previewSource.page})</span>}
             </h3>
             <button 
               onClick={handleClosePreview}
-              className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-500 dark:text-gray-400"
+              className="p-2 rounded-full hover:bg-gray-700 transition-colors text-gray-400"
             >
               <FiX size={20} />
             </button>
           </div>
           
-          <div className="flex-1 overflow-auto p-6 custom-scrollbar">
+          <div className="flex-1 overflow-auto p-6 custom-scrollbar bg-gradient-to-b from-gray-800/90 to-gray-850/95">
             {loadingContent ? (
               <div className="flex flex-col justify-center items-center h-32 space-y-3">
                 <FiLoader className="animate-spin text-indigo-500" size={24} />
-                <span className="text-gray-500 dark:text-gray-400 text-sm">내용을 불러오는 중...</span>
+                <span className="text-gray-400 text-sm">내용을 불러오는 중...</span>
               </div>
             ) : previewContent ? (
               <div className="prose prose-sm dark:prose-invert max-w-none">
                 {previewContent}
               </div>
             ) : (
-              <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+              <div className="text-center text-gray-400 py-8">
                 미리보기를 불러올 수 없습니다.
               </div>
             )}
@@ -452,7 +452,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode }) {
                       </div>
                     ) : (
                       <code
-                        className={`${className} rounded-md bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 text-gray-800 dark:text-gray-200`}
+                        className={`${className} rounded-md bg-gray-800/80 dark:bg-gray-900/80 px-1.5 py-0.5 text-gray-200 dark:text-gray-200`}
                         {...props}
                       >
                         {children}
@@ -530,7 +530,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode }) {
             <div className="w-full mt-1">
               <button
                 onClick={() => setSourcesVisible(!sourcesVisible)}
-                className="text-xs flex items-center gap-1 text-gray-500 hover:text-indigo-500 dark:text-gray-400 dark:hover:text-indigo-400 transition-colors mt-1 mb-1 px-1 py-0.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800/50"
+                className="text-xs flex items-center gap-1 text-gray-400 hover:text-indigo-400 dark:text-gray-400 dark:hover:text-indigo-400 transition-colors mt-1 mb-1 px-1 py-0.5 rounded-md hover:bg-gray-800/50 dark:hover:bg-gray-800/50"
               >
                 <FiLink size={12} />
                 <span>
@@ -544,11 +544,11 @@ function ChatMessage({ message, searchTerm = "", isSearchMode }) {
                     <div
                       key={idx}
                       onClick={() => handlePreviewSource(source)}
-                      className="flex items-center cursor-pointer p-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-750 text-sm text-gray-700 dark:text-gray-300 transition-all border border-gray-200 dark:border-gray-700 group bg-white/70 dark:bg-gray-800/50 backdrop-blur-sm shadow-sm hover:shadow-md"
+                      className="flex items-center cursor-pointer p-2.5 rounded-lg hover:bg-gray-800/70 dark:hover:bg-gray-750 text-sm text-gray-300 dark:text-gray-300 transition-all border border-gray-700/50 dark:border-gray-700/50 group bg-gray-850/70 dark:bg-gray-800/50 backdrop-blur-sm shadow-sm hover:shadow-md"
                     >
                       <div className="flex-shrink-0 mr-2">
-                        <div className="w-6 h-6 bg-indigo-100 dark:bg-indigo-900/50 rounded-full flex items-center justify-center">
-                          <span className="text-xs font-medium text-indigo-700 dark:text-indigo-400">
+                        <div className="w-6 h-6 bg-indigo-900/30 dark:bg-indigo-900/30 rounded-full flex items-center justify-center">
+                          <span className="text-xs font-medium text-indigo-400 dark:text-indigo-400">
                             {idx + 1}
                           </span>
                         </div>
@@ -556,13 +556,13 @@ function ChatMessage({ message, searchTerm = "", isSearchMode }) {
                       <div className="flex-1 truncate">
                         <div className="truncate font-medium">{source.path || "Unknown"}</div>
                         {source.page && (
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                          <div className="text-xs text-gray-400 dark:text-gray-400">
                             페이지: {source.page}
                           </div>
                         )}
                       </div>
                       <FiEye
-                        className="text-gray-400 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 ml-2 transform group-hover:scale-110 transition-all"
+                        className="text-gray-400 group-hover:text-indigo-400 dark:group-hover:text-indigo-400 ml-2 transform group-hover:scale-110 transition-all"
                         size={16}
                       />
                     </div>
@@ -618,7 +618,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode }) {
         {/* 프로필 아이콘 (사용자만) */}
         {isUser && (
           <div className="flex-shrink-0 ml-3 mt-1">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-avatar">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-avatar">
               <FiUser size={15} className="text-white" />
             </div>
           </div>

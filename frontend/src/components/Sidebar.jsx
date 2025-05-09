@@ -13,7 +13,12 @@ import {
   FiMoreVertical,
   FiEdit3,
   FiCheck,
-  FiArrowRight
+  FiArrowRight,
+  FiGithub,
+  FiInfo,
+  FiHelpCircle,
+  FiMoon,
+  FiSun
 } from "react-icons/fi";
 
 function Sidebar({
@@ -25,6 +30,8 @@ function Sidebar({
   onSelectConversation,
   onRenameConversation,
   onTogglePinConversation,
+  onToggleTheme,
+  isDarkMode,
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -144,6 +151,30 @@ function Sidebar({
         </div>
       </div>
 
+      {/* 검색 입력 필드 추가 */}
+      <div className="px-4 pb-2">
+        <div className="relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="대화 검색..."
+            className="w-full bg-gray-800/50 border border-gray-700 rounded-lg py-2 pl-9 pr-3 text-sm text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+          />
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <FiSearch className="h-4 w-4 text-gray-500" />
+          </div>
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-300"
+            >
+              <FiX className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* 대화 목록 */}
       <div className="flex-1 overflow-hidden px-3 relative">
         {/* 장식 요소 - 시각적인 흥미 추가 */}
@@ -225,19 +256,38 @@ function Sidebar({
         </div>
       </div>
 
-      {/* 푸터 */}
+      {/* 푸터 - 수정된 부분 */}
       <div className="p-3 bg-gradient-to-r from-gray-800/80 to-gray-850/80 backdrop-blur-sm border-t border-gray-800">
-        {/* 필요한 경우 여기에 설정, 사용자 정보 등 추가 */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-indigo-400">
-              <span className="text-sm font-medium">사용자</span>
+        <div className="flex flex-col space-y-3">
+          {/* 테마 전환 버튼 */}
+          <div className="flex items-center justify-between rounded-lg bg-gray-800/70 px-3 py-2 transition-colors hover:bg-gray-750">
+            <div className="flex items-center text-sm text-gray-300">
+              <FiMoon size={16} className={`mr-2 ${isDarkMode ? 'text-indigo-400' : 'text-gray-500'}`} />
+              <span>다크 모드</span>
             </div>
-            <div className="text-sm text-gray-500">설정</div>
+            <button 
+              onClick={onToggleTheme}
+              className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${isDarkMode ? 'bg-indigo-600' : 'bg-gray-600'}`}
+            >
+              <span 
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isDarkMode ? 'translate-x-5' : 'translate-x-1'}`} 
+              />
+            </button>
           </div>
-          <button className="p-1.5 text-gray-500 hover:text-indigo-400 rounded-full hover:bg-gray-800 transition-colors">
-            <FiArrowRight size={18} />
+          
+          {/* 도움말 버튼 */}
+          <button className="group flex items-center justify-between rounded-lg bg-gray-800/70 px-3 py-2 text-sm text-gray-300 transition-colors hover:bg-gray-750">
+            <div className="flex items-center">
+              <FiHelpCircle size={16} className="mr-2 text-indigo-400" />
+              <span>도움말</span>
+            </div>
+            <FiChevronRight size={16} className="text-gray-500 transition-transform group-hover:translate-x-1" />
           </button>
+          
+          {/* 버전 정보 */}
+          <div className="mt-2 flex items-center justify-center text-xs text-gray-500">
+            <span>RAG Chatbot v1.0.2</span>
+          </div>
         </div>
       </div>
     </div>

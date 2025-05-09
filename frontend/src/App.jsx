@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import Sidebar from "./components/Sidebar";
 import ChatContainer from "./components/ChatContainer";
 import {
@@ -66,7 +66,10 @@ function App() {
   const [conversations, setConversations] = useState([]);
   const isResizing = useRef(false);
   const [userId, setUserId] = useState("user1"); // 임시 사용자 ID, 실제로는 인증 기반 ID 사용
-  const [theme, setTheme] = useState("dark"); // 테마 상태 (dark/light)
+  const [theme, setTheme] = useState(() => {
+    // 로컬 스토리지 또는 기본 설정에서 테마 가져오기
+    return localStorage.getItem("theme") || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? "dark" : "light");
+  });
   const [defaultCategory, setDefaultCategory] = useState("메뉴얼"); // 기본 카테고리 상태
   const [saveError, setSaveError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -83,6 +86,21 @@ function App() {
   const [isEmbedding, setIsEmbedding] = useState(false);
   const [embeddingStatus, setEmbeddingStatus] = useState(null);
   const [embeddedFiles, setEmbeddedFiles] = useState([]);
+
+  // 테마 변경 함수
+  const toggleTheme = useCallback(() => {
+    setTheme((prevTheme) => {
+      const newTheme = prevTheme === "dark" ? "light" : "dark";
+      localStorage.setItem("theme", newTheme);
+      document.documentElement.classList.toggle("dark", newTheme === "dark");
+      return newTheme;
+    });
+  }, []);
+  
+  // 테마 적용
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
 
   // 초기 대화 목록 로드 (로컬 스토리지 또는 백엔드)
   useEffect(() => {
@@ -527,7 +545,7 @@ function App() {
   };
 
   return (
-    <div className="h-screen overflow-hidden bg-gradient-to-br from-gray-950 to-gray-900">
+    <div className="h-screen overflow-hidden bg-gradient-to-br from-gray-950 to-gray-900 dark:from-gray-950 dark:to-gray-900 text-gray-300 dark:text-gray-300 transition-colors duration-200">
       {/* Sidebar */}
       <div
         className={`fixed left-0 top-0 h-full z-10 transition-all duration-300 ${
@@ -545,6 +563,8 @@ function App() {
           onSelectConversation={handleSelectConversation}
           onRenameConversation={handleRenameConversation}
           onTogglePinConversation={handleTogglePinConversation}
+          onToggleTheme={toggleTheme}
+          isDarkMode={theme === "dark"}
         />
       </div>
 

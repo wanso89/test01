@@ -616,9 +616,9 @@ function ChatContainer({
   };
 
   return (
-    <div className="flex flex-col h-full relative bg-gradient-to-b from-gray-900 to-gray-950">
+    <div className="flex flex-col h-full relative bg-gradient-to-b from-gray-900 via-gray-925 to-gray-950">
       {/* 헤더 */}
-      <div className="flex items-center justify-between py-4 px-6 border-b border-gray-800/50 bg-gray-900/70 backdrop-blur-sm shadow-md z-10">
+      <div className="flex items-center justify-between py-4 px-6 border-b border-gray-800/50 bg-gradient-to-r from-gray-900/90 to-gray-850/90 backdrop-blur-sm shadow-md z-10">
         <div className="flex items-center">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 mr-3 flex items-center justify-center shadow-glow-sm">
             <FiMessageSquare size={16} className="text-white" />
@@ -629,7 +629,7 @@ function ChatContainer({
         </div>
         {/* 파일 관리 버튼 */}
         <div className="flex gap-2">
-      <button
+          <button
             onClick={handleFileManager}
             className="p-2.5 rounded-full text-gray-400 hover:text-indigo-400 hover:bg-gray-800/70 transition-colors flex items-center gap-2 group"
             title="인덱싱된 파일 관리"
@@ -637,14 +637,15 @@ function ChatContainer({
           >
             <FiHardDrive size={16} className="group-hover:scale-110 transition-transform" />
             <span className="text-sm hidden sm:inline-block">파일 관리</span>
-    </button>
+          </button>
         </div>
       </div>
 
       {/* 메시지 목록 */}
       <div 
         ref={containerRef}
-        className="flex-1 overflow-y-auto custom-scrollbar py-6 px-4 md:px-6"
+        id="chat-content-container"
+        className="flex-1 overflow-y-auto custom-scrollbar py-6 px-4 md:px-6 bg-gradient-to-b from-gray-900 via-gray-925 to-gray-950"
       >
         <div className="flex flex-col space-y-2 max-w-4xl mx-auto">
           {/* 메시지가 없을 때 안내 메시지 */}
@@ -684,7 +685,7 @@ function ChatContainer({
       </div>
 
       {/* 입력 영역 */}
-      <div className="border-t border-gray-800/50 bg-gray-900/70 backdrop-blur-sm shadow-lg relative z-10">
+      <div className="border-t border-gray-800/50 bg-gradient-to-r from-gray-900/90 to-gray-850/90 backdrop-blur-sm shadow-lg relative z-10">
         <div className="max-w-4xl mx-auto w-full">
           <ChatInput
             ref={chatInputRef}
