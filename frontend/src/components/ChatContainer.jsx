@@ -5,6 +5,68 @@ import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { FiLoader, FiArrowUp, FiType, FiList, FiX, FiExternalLink, FiTrash2, FiHardDrive, FiFile, FiFolder, FiSearch, FiMessageSquare } from "react-icons/fi"; 
 import { FiAlertCircle } from "react-icons/fi";
 
+// 로딩 인디케이터 컴포넌트 추가
+const LoadingIndicator = ({ active }) => {
+  // 로딩 시간이 길어질 경우 보여줄 다양한 메시지들
+  const loadingMessages = [
+    "문서를 검색하고 답변을 작성하고 있습니다",
+    "관련 정보를 분석하고 있습니다",
+    "최적의 답변을 생성하고 있습니다",
+    "조금만 더 기다려주세요"
+  ];
+  
+  // 메시지를 주기적으로 변경하기 위한 상태
+  const [messageIndex, setMessageIndex] = useState(0);
+  
+  // 활성화되면 메시지 변경 타이머 시작
+  useEffect(() => {
+    if (!active) return;
+    
+    const interval = setInterval(() => {
+      setMessageIndex(prev => (prev + 1) % loadingMessages.length);
+    }, 3000);
+    
+    return () => clearInterval(interval);
+  }, [active, loadingMessages.length]);
+  
+  if (!active) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex flex-col items-center justify-center z-[60] animate-fade-in">
+      <div className="relative flex flex-col items-center p-10 rounded-2xl bg-gray-800/40 backdrop-blur-lg shadow-2xl border border-gray-700/30">
+        {/* 메인 로딩 원형 */}
+        <div className="w-24 h-24 rounded-full border-4 border-indigo-500/20 relative flex items-center justify-center">
+          <div className="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
+          <div className="absolute inset-0 rounded-full border-4 border-indigo-500/10 border-b-transparent animate-ping opacity-30"></div>
+          
+          {/* 내부 원형 */}
+          <div className="absolute inset-5 rounded-full bg-indigo-500/10 flex items-center justify-center">
+            <FiMessageSquare className="text-indigo-400 animate-pulse" size={20} />
+          </div>
+          
+          {/* 주변 빛나는 효과 */}
+          <div className="absolute -inset-2 rounded-full bg-indigo-500/5 blur-xl"></div>
+        </div>
+        
+        {/* 텍스트 */}
+        <div className="mt-8 text-center space-y-2">
+          <p className="text-gray-200 font-medium">응답 생성 중...</p>
+          <p className="text-gray-400 text-sm min-h-[20px] transition-all duration-500">
+            {loadingMessages[messageIndex]}
+          </p>
+        </div>
+        
+        {/* 로딩 점 애니메이션 */}
+        <div className="flex items-center space-x-2 mt-4">
+          <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+          <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '200ms' }}></div>
+          <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '400ms' }}></div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // 전역 스타일 (CSS-in-JS 방식으로 변경)
 const globalStyles = `
   .custom-scrollbar::-webkit-scrollbar {
@@ -503,7 +565,10 @@ function ChatContainer({
     const updatedMessages = [...messages, userMessage];
     onUpdateMessages(updatedMessages);
     
-    setLoading(true);
+    // 로딩 상태 활성화 - 약간의 지연 추가 (UI가 부드럽게 전환되도록)
+    setTimeout(() => {
+      setLoading(true);
+    }, 100);
     setError(null);
     
     try {
@@ -595,7 +660,10 @@ function ChatContainer({
       };
       onUpdateMessages([...updatedMessages, errorMessage]);
     } finally {
-      setLoading(false);
+      // 로딩 상태 비활성화 - 약간의 지연 추가 (UI가 부드럽게 전환되도록)
+      setTimeout(() => {
+        setLoading(false);
+      }, 300);
       setUserInput("");
     }
   };
@@ -616,9 +684,12 @@ function ChatContainer({
   };
 
   return (
-    <div className="flex flex-col h-full relative bg-gradient-to-b from-gray-900 via-gray-925 to-gray-950">
+    <div className="flex flex-col h-full relative bg-gray-900">
+      {/* 로딩 인디케이터 추가 */}
+      <LoadingIndicator active={loading} />
+      
       {/* 헤더 */}
-      <div className="flex items-center justify-between py-4 px-6 border-b border-gray-800/50 bg-gradient-to-r from-gray-900/90 to-gray-850/90 backdrop-blur-sm shadow-md z-10">
+      <div className="flex items-center justify-between py-4 px-6 bg-gray-900 shadow-sm z-10">
         <div className="flex items-center">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 mr-3 flex items-center justify-center shadow-glow-sm">
             <FiMessageSquare size={16} className="text-white" />
@@ -644,8 +715,7 @@ function ChatContainer({
       {/* 메시지 목록 */}
       <div 
         ref={containerRef}
-        id="chat-content-container"
-        className="flex-1 overflow-y-auto custom-scrollbar py-6 px-4 md:px-6 bg-gradient-to-b from-gray-900 via-gray-925 to-gray-950"
+        className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-900 px-4 pt-2 pb-4 custom-scrollbar"
       >
         <div className="flex flex-col space-y-2 max-w-4xl mx-auto">
           {/* 메시지가 없을 때 안내 메시지 */}
@@ -685,7 +755,7 @@ function ChatContainer({
       </div>
 
       {/* 입력 영역 */}
-      <div className="border-t border-gray-800/50 bg-gradient-to-r from-gray-900/90 to-gray-850/90 backdrop-blur-sm shadow-lg relative z-10">
+      <div className="bg-gray-900 shadow-sm relative z-10">
         <div className="max-w-4xl mx-auto w-full">
           <ChatInput
             ref={chatInputRef}

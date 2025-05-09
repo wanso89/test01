@@ -13,7 +13,7 @@ import {
 } from "react-icons/fi";
 
 const SIDEBAR_WIDTH = 280;
-const SIDEBAR_MIN = 60;
+const SIDEBAR_MIN = 240;
 const SIDEBAR_MAX = 400;
 
 // 임베딩 알림 오버레이 컴포넌트 추가
@@ -67,8 +67,9 @@ function App() {
   const isResizing = useRef(false);
   const [userId, setUserId] = useState("user1"); // 임시 사용자 ID, 실제로는 인증 기반 ID 사용
   const [theme, setTheme] = useState(() => {
-    // 로컬 스토리지 또는 기본 설정에서 테마 가져오기
-    return localStorage.getItem("theme") || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? "dark" : "light");
+    // 항상 다크모드를 기본값으로 설정
+    localStorage.setItem("theme", "dark");
+    return "dark";
   });
   const [defaultCategory, setDefaultCategory] = useState("메뉴얼"); // 기본 카테고리 상태
   const [saveError, setSaveError] = useState(null);
@@ -99,7 +100,7 @@ function App() {
   
   // 테마 적용
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
+    document.documentElement.classList.add("dark");
   }, [theme]);
 
   // 초기 대화 목록 로드 (로컬 스토리지 또는 백엔드)
@@ -164,10 +165,11 @@ function App() {
 
   // 초기 설정 로드 (로컬 스토리지 또는 백엔드)
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme") || "dark";
+    // 다크모드로 항상 설정
+    const savedTheme = "dark";
     const savedCategory = localStorage.getItem("defaultCategory");
     setTheme(savedTheme);
-    document.documentElement.classList.toggle("light", savedTheme === "light");
+    document.documentElement.classList.add("dark");
     if (savedCategory) {
       setDefaultCategory(savedCategory);
     }
@@ -545,7 +547,7 @@ function App() {
   };
 
   return (
-    <div className="h-screen overflow-hidden bg-gradient-to-br from-gray-950 to-gray-900 dark:from-gray-950 dark:to-gray-900 text-gray-300 dark:text-gray-300 transition-colors duration-200">
+    <div className="h-screen overflow-hidden bg-gray-900 dark:bg-gray-900 text-gray-300 dark:text-gray-300 transition-colors duration-200">
       {/* Sidebar */}
       <div
         className={`fixed left-0 top-0 h-full z-10 transition-all duration-300 ${
@@ -571,11 +573,11 @@ function App() {
       {/* Sidebar 드래그 리사이즈 핸들 */}
       {sidebarOpen && (
         <div
-          className="fixed left-0 top-0 h-full z-20 w-1 cursor-ew-resize flex items-center justify-center hover:bg-indigo-500/30"
+          className="fixed left-0 top-0 h-full z-20 w-1 cursor-ew-resize flex items-center justify-center"
           style={{ left: `${sidebarWidth}px` }}
           onMouseDown={handleMouseDown}
         >
-          <div className="h-8 w-1 bg-indigo-400/40 rounded-full"></div>
+          <div className="h-8 w-1 bg-gray-900 rounded-full"></div>
         </div>
       )}
 

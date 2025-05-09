@@ -133,11 +133,11 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess }, r
   };
 
   return (
-    <div className="p-3 md:p-4 animate-float-in">
-      <div className={`chat-input mx-auto max-w-4xl transition-all duration-300 ${isFocused ? 'shadow-md' : ''}`}>
+    <div className="p-3 md:p-4 animate-float-in bg-gray-900">
+      <div className={`chat-input mx-auto max-w-4xl transition-all duration-300 bg-gray-900 ${isFocused ? 'shadow-sm' : ''}`}>
         {/* 카테고리 선택 영역 추가 */}
         <div className="mb-2 flex justify-start">
-          <div className="inline-flex text-xs bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
+          <div className="inline-flex text-xs bg-gray-800 dark:bg-gray-800 rounded-lg overflow-hidden">
             {categories.map((category) => (
               <button
                 key={category}
@@ -145,7 +145,7 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess }, r
                 className={`px-3 py-1 transition-colors ${
                   selectedCategory === category 
                     ? 'bg-indigo-500 text-white' 
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    : 'text-gray-400 dark:text-gray-400 hover:bg-gray-700 dark:hover:bg-gray-700'
                 }`}
               >
                 {category}
@@ -155,17 +155,17 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess }, r
         </div>
         
         {files.length > 0 && (
-          <div className="flex flex-wrap gap-2 p-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+          <div className="flex flex-wrap gap-2 p-2 bg-gray-800 dark:bg-gray-800">
             {files.map((file, index) => (
               <div 
                 key={index} 
-                className="flex items-center gap-1.5 py-1 px-2.5 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-full text-sm animate-fade-in-fast shadow-sm"
+                className="flex items-center gap-1.5 py-1 px-2.5 bg-indigo-900/50 dark:bg-indigo-900/50 text-indigo-300 dark:text-indigo-300 rounded-full text-sm animate-fade-in-fast shadow-sm"
               >
                 <FiFile size={14} />
                 <span className="truncate max-w-[150px] font-medium">{file.name}</span>
                 <button 
                   onClick={() => removeFile(index)}
-                  className="p-0.5 hover:bg-indigo-200 dark:hover:bg-indigo-800 rounded-full transition-colors"
+                  className="p-0.5 hover:bg-indigo-800 dark:hover:bg-indigo-800 rounded-full transition-colors"
                   title="파일 제거"
                 >
                   <FiX size={14} />
@@ -178,7 +178,7 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess }, r
         <div className="flex items-end gap-2 p-2.5">
           <button
             onClick={handleFileButtonClick}
-            className={`p-2.5 rounded-full text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`p-2.5 rounded-full text-gray-400 hover:text-indigo-400 dark:text-gray-400 dark:hover:text-indigo-400 hover:bg-gray-800 dark:hover:bg-gray-800 transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             disabled={disabled || isUploading}
             title="파일 첨부"
           >
@@ -198,12 +198,12 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess }, r
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
               placeholder="메시지를 입력하세요..."
-              className="w-full resize-none outline-none bg-transparent text-gray-800 dark:text-gray-200 py-2 min-h-[44px] max-h-[150px] placeholder:text-gray-400 dark:placeholder:text-gray-500"
+              className="w-full resize-none outline-none bg-transparent text-gray-200 dark:text-gray-200 py-2 min-h-[44px] max-h-[150px] placeholder:text-gray-500 dark:placeholder:text-gray-500"
               disabled={disabled}
               rows={1}
             />
             {message.length === 0 && (
-              <div className="absolute right-0 bottom-2 text-xs text-gray-400 dark:text-gray-500 pointer-events-none pr-2">
+              <div className="absolute right-0 bottom-2 text-xs text-gray-500 dark:text-gray-500 pointer-events-none pr-2">
                 Enter 키로 전송
               </div>
             )}
@@ -214,7 +214,7 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess }, r
             className={`p-2.5 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 transition-colors ${
               (disabled || (!message.trim() && files.length === 0))
                 ? 'opacity-50 cursor-not-allowed'
-                : 'shadow-md hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0 active:shadow-md'
+                : 'shadow-sm transform hover:-translate-y-0.5 active:translate-y-0'
             }`}
             disabled={disabled || (!message.trim() && files.length === 0)}
             title="메시지 보내기"

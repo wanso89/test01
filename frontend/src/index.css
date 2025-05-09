@@ -182,7 +182,7 @@ body {
   }
 
   .assistant-bubble {
-    @apply bg-gradient-to-br from-gray-700/90 to-gray-800/95 text-gray-100 border border-gray-700/50 rounded-tl-sm;
+    @apply bg-gray-900 text-gray-100 border border-gray-700/50 rounded-tl-sm;
   }
 
   .dark .user-bubble {
@@ -190,7 +190,7 @@ body {
   }
 
   .dark .assistant-bubble {
-    @apply from-gray-800/90 to-gray-850/95 border-gray-700/50 shadow-lg;
+    @apply bg-gray-900 border-gray-700/50 shadow-lg;
   }
 
   .message-bubble:hover {
@@ -267,12 +267,11 @@ body {
 
   /* 채팅 입력 필드 */
   .chat-input {
-    @apply relative rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 
-           shadow-md overflow-hidden transition-all duration-200;
+    @apply relative bg-gray-900 overflow-hidden transition-all duration-200;
   }
   
   .chat-input:focus-within {
-    @apply border-indigo-400 dark:border-indigo-500 shadow-glow-sm;
+    @apply shadow-sm;
   }
 
   /* 타이핑 인디케이터 */
@@ -760,5 +759,48 @@ body {
 
   .hljs-strong {
     font-weight: bold;
+  }
+
+  /* 추가 애니메이션 */
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  @keyframes ping {
+    0% { transform: scale(1); opacity: 1; }
+    75%, 100% { transform: scale(2); opacity: 0; }
+  }
+
+  @keyframes bounce {
+    0%, 100% {
+      transform: translateY(0);
+      animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+    }
+    50% {
+      transform: translateY(-10px);
+      animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+    }
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out forwards;
+  }
+
+  .animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .animate-ping {
+    animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+
+  .animate-bounce {
+    animation: bounce 1s infinite;
   }
 }

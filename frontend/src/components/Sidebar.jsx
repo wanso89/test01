@@ -130,7 +130,7 @@ function Sidebar({
   }, [conversations, searchQuery]);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-gradient-to-br from-gray-900 to-gray-850">
+    <div className="flex flex-col h-full overflow-hidden bg-gray-900">
       {/* 헤더 */}
       <div className="p-4">
         <div className="flex items-center justify-between">
@@ -139,7 +139,7 @@ function Sidebar({
               <FiMessageSquare size={18} className="text-white" />
             </div>
             <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-500 to-indigo-400 bg-clip-text text-transparent">
-              RAG 챗봇
+              쓰리에스소프트
             </h1>
           </div>
           <button
@@ -256,37 +256,12 @@ function Sidebar({
         </div>
       </div>
 
-      {/* 푸터 - 수정된 부분 */}
-      <div className="p-3 bg-gradient-to-r from-gray-800/80 to-gray-850/80 backdrop-blur-sm border-t border-gray-800">
+      {/* 푸터 - 수정된 부분 (다크모드, 도움말 제거) */}
+      <div className="p-3 bg-gray-900">
         <div className="flex flex-col space-y-3">
-          {/* 테마 전환 버튼 */}
-          <div className="flex items-center justify-between rounded-lg bg-gray-800/70 px-3 py-2 transition-colors hover:bg-gray-750">
-            <div className="flex items-center text-sm text-gray-300">
-              <FiMoon size={16} className={`mr-2 ${isDarkMode ? 'text-indigo-400' : 'text-gray-500'}`} />
-              <span>다크 모드</span>
-            </div>
-            <button 
-              onClick={onToggleTheme}
-              className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${isDarkMode ? 'bg-indigo-600' : 'bg-gray-600'}`}
-            >
-              <span 
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isDarkMode ? 'translate-x-5' : 'translate-x-1'}`} 
-              />
-            </button>
-          </div>
-          
-          {/* 도움말 버튼 */}
-          <button className="group flex items-center justify-between rounded-lg bg-gray-800/70 px-3 py-2 text-sm text-gray-300 transition-colors hover:bg-gray-750">
-            <div className="flex items-center">
-              <FiHelpCircle size={16} className="mr-2 text-indigo-400" />
-              <span>도움말</span>
-            </div>
-            <FiChevronRight size={16} className="text-gray-500 transition-transform group-hover:translate-x-1" />
-          </button>
-          
-          {/* 버전 정보 */}
+          {/* 버전 정보만 남김 */}
           <div className="mt-2 flex items-center justify-center text-xs text-gray-500">
-            <span>RAG Chatbot v1.0.2</span>
+            <span>3Ssoft Chatbot v1</span>
           </div>
         </div>
       </div>
