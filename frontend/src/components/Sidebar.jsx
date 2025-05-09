@@ -1,317 +1,362 @@
-import { useState, useEffect } from 'react';
-import { 
-  FiPlus, FiTrash2, FiStar, FiChevronDown, FiSearch, 
-  FiMessageSquare, FiX, FiEdit2, FiCheck, FiMenu, FiServer
-} from 'react-icons/fi';
+import { useState, useEffect, useMemo, useRef } from "react";
+import {
+  FiChevronRight,
+  FiSearch,
+  FiPlus,
+  FiMessageSquare,
+  FiStar,
+  FiEdit2,
+  FiTrash2,
+  FiX,
+  FiClock,
+  FiChevronDown,
+  FiMoreVertical,
+  FiEdit3,
+  FiCheck,
+  FiArrowRight
+} from "react-icons/fi";
 
 function Sidebar({
-  collapsed,
-  conversations,
+  collapsed = false,
+  conversations = [],
   activeConversationId,
   onNewConversation,
   onDeleteConversation,
   onSelectConversation,
   onRenameConversation,
-  onTogglePinConversation
+  onTogglePinConversation,
 }) {
-  // 제목 편집 상태
+  const [searchQuery, setSearchQuery] = useState("");
   const [editingId, setEditingId] = useState(null);
-  const [editTitle, setEditTitle] = useState('');
-  // 검색 상태
-  const [searchTerm, setSearchTerm] = useState('');
-  // 더보기 상태 (대화 목록이 많을 경우 제한적으로 표시)
-  const [showMore, setShowMore] = useState(false);
-  const visibleLimit = 15; // 초기 표시 대화 수 제한 증가
-  // 그룹화된 대화 목록 (날짜별)
-  const [groupedConversations, setGroupedConversations] = useState({});
+  const [editTitle, setEditTitle] = useState("");
+  const [dropdownMenu, setDropdownMenu] = useState(null);
 
-  // 즐겨찾기 고정: pinned=true인 대화가 상단
-  const sortedConversations = [...conversations].sort((a, b) => {
-    if (a.pinned === b.pinned) {
-      // 최신순 정렬
-      return new Date(b.timestamp) - new Date(a.timestamp);
+  // 날짜 포맷팅 함수
+  const formatDate = (timestamp) => {
+    if (!timestamp) return '';
+    
+    // timestamp가 숫자 또는 문자열인 경우 처리
+    let dateObj;
+    if (typeof timestamp === 'number' || !isNaN(parseInt(timestamp))) {
+      dateObj = new Date(timestamp);
+    } else if (typeof timestamp === 'string') {
+      // ISO 형식 문자열 날짜 처리
+      dateObj = new Date(timestamp);
+    } else {
+      return '';
     }
-    return a.pinned ? -1 : 1;
-  });
-
-  // 검색어 필터링
-  const filteredConversations = sortedConversations.filter(conv =>
-    conv.title.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // 표시할 대화 목록 (더보기 여부에 따라 제한)
-  const visibleConversations = showMore ? filteredConversations : filteredConversations.slice(0, visibleLimit);
-
-  // 날짜별로 대화 그룹화
-  useEffect(() => {
-    if (!filteredConversations.length) return;
     
-    const grouped = filteredConversations.reduce((acc, conv) => {
-      // 오늘, 어제, 이번 주, 이번 달, 더 오래된 대화 등으로 분류
-      const date = new Date(conv.timestamp);
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      
-      let group = '이전 대화';
-      
-      if (date >= today) {
-        group = '오늘';
-      } else if (date >= yesterday) {
-        group = '어제';
-      } else if (date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()) {
-        group = '이번 달';
-      }
-      
-      if (!acc[group]) {
-        acc[group] = [];
-      }
-      acc[group].push(conv);
-      return acc;
-    }, {});
+    // 올바른 날짜가 아닌 경우 빈 문자열 반환
+    if (isNaN(dateObj.getTime())) return '';
     
-    setGroupedConversations(grouped);
-  }, [filteredConversations]);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    // 오늘이면 시간만 표시
+    if (dateObj >= today) {
+      return dateObj.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
+    }
+    // 어제면 '어제'로 표시
+    else if (dateObj >= yesterday) {
+      return '어제';
+    }
+    // 올해면 월/일만 표시
+    else if (dateObj.getFullYear() === now.getFullYear()) {
+      return `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
+    }
+    // 작년 이전이면 연/월/일 표시
+    else {
+      return `${dateObj.getFullYear()}/${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
+    }
+  };
 
-  // 제목 더블클릭 → 편집모드
+  // 타이틀 편집 시작
   const handleTitleDoubleClick = (conv) => {
     setEditingId(conv.id);
     setEditTitle(conv.title);
   };
-  
-  const handleTitleChange = (e) => setEditTitle(e.target.value);
-  
+
+  // 타이틀 변경 이벤트
+  const handleTitleChange = (e) => {
+    setEditTitle(e.target.value);
+  };
+
+  // 타이틀 편집 완료 (Enter 또는 blur)
   const handleTitleBlurOrEnter = (conv) => {
-    if (editTitle.trim() && editTitle !== conv.title) {
+    if (editTitle.trim() !== "") {
       onRenameConversation(conv.id, editTitle.trim());
     }
     setEditingId(null);
   };
 
-  // 검색어 입력 핸들러
-  const handleSearchChange = (e) => setSearchTerm(e.target.value);
-  const clearSearch = () => setSearchTerm('');
+  // 모바일 메뉴 토글
+  const toggleDropdownMenu = (id) => {
+    setDropdownMenu(dropdownMenu === id ? null : id);
+  };
+
+  // 클릭 외부 감지
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setDropdownMenu(null);
+    };
+    document.addEventListener("click", handleClickOutside);
+    return () => {
+      document.removeEventListener("click", handleClickOutside);
+    };
+  }, []);
+
+  // 대화 검색 필터링
+  const filteredConversations = useMemo(() => {
+    return conversations
+      .filter((conv) =>
+        conv.title.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+      .sort((a, b) => {
+        // 고정된 대화 우선
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+        // 그 다음 최신순
+        return new Date(b.timestamp) - new Date(a.timestamp);
+      });
+  }, [conversations, searchQuery]);
 
   return (
-    <div className={`flex flex-col h-full ${collapsed ? 'w-16' : 'w-72'} custom-transition-all duration-300 
-      border-r border-slate-200 dark:border-slate-800 
-      bg-gradient-to-b from-gray-50 to-slate-100 dark:from-slate-900 dark:to-slate-950
-      shadow-md`}>
-      
-      {/* 헤더 섹션 */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800 
-        bg-white dark:bg-slate-900 shadow-sm">
-        {!collapsed && (
-          <div className="flex items-center gap-2">
-            <FiServer className="text-blue-500 dark:text-blue-400" size={20} />
-            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">RAG 챗봇</h2>
-          </div>
-        )}
-        
-        <button 
-          onClick={onNewConversation}
-          className="flex items-center justify-center h-9 w-9 rounded-lg 
-            bg-blue-500 hover:bg-blue-600 text-white shadow-sm custom-transition-colors"
-          aria-label="새 대화"
-        >
-          <FiPlus className="w-5 h-5" />
-        </button>
-      </div>
-      
-      {/* 검색 필드 */}
-      {!collapsed && (
-        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800">
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <FiSearch className="h-4 w-4 text-slate-400" />
+    <div className="flex flex-col h-full overflow-hidden bg-gradient-to-br from-gray-900 to-gray-850">
+      {/* 헤더 */}
+      <div className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-600 to-indigo-500 flex items-center justify-center shadow-md">
+              <FiMessageSquare size={18} className="text-white" />
             </div>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={handleSearchChange}
-              placeholder="대화 검색..."
-              className="w-full pl-10 pr-10 py-2 text-sm border border-slate-200 dark:border-slate-700 
-                rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200
-                placeholder-slate-400 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            {searchTerm && (
-              <button 
-                onClick={clearSearch}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-              >
-                <FiX className="h-4 w-4" />
-              </button>
-            )}
+            <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-500 to-indigo-400 bg-clip-text text-transparent">
+              RAG 챗봇
+            </h1>
           </div>
-        </div>
-      )}
-      
-      {/* 대화 목록 */}
-      <nav className="flex-1 px-2 py-2 overflow-y-auto custom-scrollbar space-y-1">
-        {filteredConversations.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center py-10">
-            <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4">
-              <FiMessageSquare className="w-7 h-7 text-slate-400 dark:text-slate-500" />
-            </div>
-            <p className="text-slate-500 dark:text-slate-400 text-sm px-4">
-              {searchTerm ? "검색 결과가 없습니다." : "대화가 없습니다. 새 대화를 시작하세요."}
-            </p>
-            {!searchTerm && (
-              <button
-                onClick={onNewConversation}
-                className="mt-4 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium custom-transition-colors"
-              >
-                <span className="flex items-center gap-2">
-                  <FiPlus size={16} />
-                  새 대화 시작
-                </span>
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {!collapsed && Object.entries(groupedConversations).map(([group, convs]) => (
-              <div key={group} className="space-y-1 mb-3">
-                <h3 className="text-xs font-medium text-slate-500 dark:text-slate-400 px-3 py-2 uppercase tracking-wider">{group}</h3>
-                {convs.slice(0, showMore ? undefined : visibleLimit).map(conv => (
-                  <div
-                    key={conv.id}
-                    className={`
-                      flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer custom-transition-all 
-                      group relative overflow-hidden
-                      ${activeConversationId === conv.id
-                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100 font-medium'
-                        : 'hover:bg-slate-200/70 dark:hover:bg-slate-800/60 text-slate-800 dark:text-slate-200'}
-                    `}
-                    onClick={() => onSelectConversation(conv.id)}
-                  >
-                    <div className="flex-shrink-0">
-                      {conv.pinned ? 
-                        <FiStar size={18} className={`${activeConversationId === conv.id ? 'text-yellow-500' : 'text-yellow-500'} fill-current`} /> : 
-                        <FiMessageSquare size={18} className={activeConversationId === conv.id ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'} />
-                      }
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      {editingId === conv.id ? (
-                        <input
-                          className="w-full px-2 py-1 text-sm rounded-md border border-blue-300 dark:border-blue-700 
-                            bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 
-                            focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
-                          value={editTitle}
-                          autoFocus
-                          onChange={handleTitleChange}
-                          onBlur={() => handleTitleBlurOrEnter(conv)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') handleTitleBlurOrEnter(conv);
-                            if (e.key === 'Escape') setEditingId(null);
-                          }}
-                        />
-                      ) : (
-                        <>
-                          <div
-                            className="text-sm truncate"
-                            onDoubleClick={() => handleTitleDoubleClick(conv)}
-                            tabIndex={0}
-                            title={conv.title}
-                          >
-                            {conv.title}
-                          </div>
-                          
-                          {/* 타임스탬프 */}
-                          <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-                            {new Date(conv.timestamp).toLocaleDateString()}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    
-                    {/* 액션 버튼들 - 투명 배경에서 호버 시 보이게 */}
-                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 
-                      absolute right-2 custom-transition-opacity">
-                      <button
-                        onClick={e => {
-                          e.stopPropagation();
-                          handleTitleDoubleClick(conv);
-                        }}
-                        className="p-1.5 rounded-md text-slate-500 hover:text-slate-700 
-                          hover:bg-slate-300/50 dark:hover:bg-slate-700/50 dark:hover:text-slate-300 custom-transition-colors"
-                        aria-label="대화 이름 변경"
-                      >
-                        <FiEdit2 size={14} />
-                      </button>
-                      
-                      <button
-                        onClick={e => {
-                          e.stopPropagation();
-                          onTogglePinConversation(conv.id);
-                        }}
-                        className={`p-1.5 rounded-md hover:bg-slate-300/50 dark:hover:bg-slate-700/50 custom-transition-colors
-                          ${conv.pinned ? 'text-yellow-500' : 'text-slate-500 hover:text-yellow-500 dark:hover:text-yellow-400'}`}
-                        aria-label={conv.pinned ? "즐겨찾기 해제" : "즐겨찾기"}
-                      >
-                        <FiStar size={14} className={conv.pinned ? 'fill-current' : ''} />
-                      </button>
-                      
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (window.confirm('이 대화를 삭제하시겠습니까?')) {
-                            onDeleteConversation(conv.id);
-                          }
-                        }}
-                        className="p-1.5 rounded-md text-slate-500 hover:text-red-500 
-                          hover:bg-red-100 dark:hover:bg-red-900/30 dark:hover:text-red-400 custom-transition-colors"
-                        aria-label="대화 삭제"
-                      >
-                        <FiTrash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
-            
-            {/* 간소화된 버전 (모바일/접힌 상태) */}
-            {collapsed && visibleConversations.map(conv => (
-              <div
-                key={conv.id}
-                className={`
-                  flex justify-center p-2.5 mb-1 rounded-lg cursor-pointer custom-transition-colors
-                  ${activeConversationId === conv.id
-                    ? 'bg-blue-100 dark:bg-blue-900/30'
-                    : 'hover:bg-slate-200 dark:hover:bg-slate-800/70'}
-                `}
-                onClick={() => onSelectConversation(conv.id)}
-                title={conv.title}
-              >
-                {conv.pinned ? 
-                  <FiStar size={20} className="text-yellow-500 fill-current" /> : 
-                  <FiMessageSquare size={20} className={activeConversationId === conv.id 
-                    ? 'text-blue-600 dark:text-blue-400' 
-                    : 'text-slate-500 dark:text-slate-400'} />
-                }
-              </div>
-            ))}
-          </div>
-        )}
-      </nav>
-      
-      {/* 더보기 버튼 */}
-      {!collapsed && filteredConversations.length > visibleLimit && !showMore && (
-        <div className="p-3 border-t border-slate-200 dark:border-slate-800">
           <button
-            onClick={() => setShowMore(true)}
-            className="w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 
-              text-slate-600 dark:text-slate-300 text-sm font-medium rounded-lg 
-              custom-transition-colors flex items-center justify-center shadow-sm"
+            onClick={onNewConversation}
+            className="p-2 bg-gradient-to-r from-indigo-100/10 to-indigo-50/10 rounded-xl text-indigo-400 hover:from-indigo-200/20 hover:to-indigo-100/20 transition-all duration-300 shadow-sm hover:shadow transform hover:scale-105 focus:outline-none"
           >
-            <FiChevronDown size={16} className="mr-1 text-slate-500" />
-            더보기 ({filteredConversations.length - visibleLimit}개)
+            <FiPlus size={20} />
           </button>
         </div>
-      )}
+      </div>
+
+      {/* 대화 목록 */}
+      <div className="flex-1 overflow-hidden px-3 relative">
+        {/* 장식 요소 - 시각적인 흥미 추가 */}
+        <div 
+          className="absolute -right-8 top-20 w-16 h-16 rounded-full bg-indigo-200 opacity-20"
+          style={{ filter: 'blur(20px)' }}
+        ></div>
+        <div 
+          className="absolute -left-8 bottom-40 w-20 h-20 rounded-full bg-indigo-300 opacity-10"
+          style={{ filter: 'blur(25px)' }}
+        ></div>
+        
+        {/* 스크롤 영역 */}
+        <div 
+          className="overflow-y-auto h-full pr-1 custom-scrollbar relative z-10"
+          style={{
+            maskImage: 'linear-gradient(to bottom, transparent, black 10px, black calc(100% - 10px), transparent)',
+            WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 10px, black calc(100% - 10px), transparent)'
+          }}
+        >
+          {/* 핀된 대화 목록 */}
+          {filteredConversations.some(conv => conv.pinned) && (
+            <div className="mb-4">
+              <div className="flex items-center px-2 py-1.5 text-xs text-indigo-400 font-medium">
+                <FiStar size={12} className="mr-1.5" />
+                <span>핀 고정</span>
+              </div>
+              <div className="space-y-1.5 mt-1.5">
+                {filteredConversations.filter(conv => conv.pinned).map((conversation, index) => (
+                  <ConversationItem
+                    key={conversation.id}
+                    conversation={conversation}
+                    isActive={conversation.id === activeConversationId}
+                    onClick={() => onSelectConversation(conversation.id)}
+                    onRename={(newTitle) => onRenameConversation(conversation.id, newTitle)}
+                    onDelete={() => onDeleteConversation(conversation.id)}
+                    onTogglePin={() => onTogglePinConversation(conversation.id)}
+                    animationDelay={index * 0.05}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 최근 대화 목록 */}
+          <div>
+            <div className="flex items-center px-2 py-1.5 text-xs text-gray-500 font-medium">
+              <FiClock size={12} className="mr-1.5" />
+              <span>최근 대화</span>
+            </div>
+            <div className="space-y-1.5 mt-1.5">
+              {filteredConversations.length === 0 ? (
+                <div className="px-3 py-6 text-center">
+                  <div className="text-gray-400 text-sm">대화 기록이 없습니다</div>
+                  <button
+                    onClick={onNewConversation}
+                    className="mt-2 px-3 py-1.5 bg-indigo-900/30 text-indigo-400 text-sm rounded-lg hover:bg-indigo-800/40 transition-colors inline-flex items-center"
+                  >
+                    <FiPlus size={14} className="mr-1" />
+                    새 대화 시작하기
+                  </button>
+                </div>
+              ) : (
+                filteredConversations.filter(conv => !conv.pinned).map((conversation, index) => (
+                  <ConversationItem
+                    key={conversation.id}
+                    conversation={conversation}
+                    isActive={conversation.id === activeConversationId}
+                    onClick={() => onSelectConversation(conversation.id)}
+                    onRename={(newTitle) => onRenameConversation(conversation.id, newTitle)}
+                    onDelete={() => onDeleteConversation(conversation.id)}
+                    onTogglePin={() => onTogglePinConversation(conversation.id)}
+                    animationDelay={index * 0.05}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 푸터 */}
+      <div className="p-3 bg-gradient-to-r from-gray-800/80 to-gray-850/80 backdrop-blur-sm border-t border-gray-800">
+        {/* 필요한 경우 여기에 설정, 사용자 정보 등 추가 */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-indigo-400">
+              <span className="text-sm font-medium">사용자</span>
+            </div>
+            <div className="text-sm text-gray-500">설정</div>
+          </div>
+          <button className="p-1.5 text-gray-500 hover:text-indigo-400 rounded-full hover:bg-gray-800 transition-colors">
+            <FiArrowRight size={18} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 대화 항목 컴포넌트 업데이트
+function ConversationItem({ conversation, isActive, onClick, onRename, onDelete, onTogglePin, animationDelay }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [newTitle, setNewTitle] = useState(conversation.title);
+  const inputRef = useRef(null);
+
+  // 타이틀 편집 시작
+  const startEditing = () => {
+    setIsEditing(true);
+  };
+
+  // 타이틀 편집 완료 (Enter 또는 blur)
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (newTitle.trim() !== "") {
+      onRename(newTitle.trim());
+    }
+    setIsEditing(false);
+  };
+
+  // 타이틀 편집 취소
+  const cancelEditing = () => {
+    setNewTitle(conversation.title);
+    setIsEditing(false);
+  };
+
+  return (
+    <div 
+      className={`relative group transition-all duration-200 ${isEditing ? 'z-20' : 'z-10'}`}
+      style={{ 
+        animation: 'fade-in-right 0.3s ease-out forwards',
+        animationDelay: `${animationDelay}s`
+      }}
+    >
+      <div
+        className={`flex items-center px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-300 ${
+          isActive 
+            ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md' 
+            : 'hover:bg-gray-800/70 text-gray-300'
+        }`}
+        onClick={isEditing ? undefined : onClick}
+      >
+        <div className="mr-2 text-sm">
+          <FiMessageSquare size={16} className={isActive ? 'text-white' : 'text-indigo-400'} />
+        </div>
+        
+        {isEditing ? (
+          <form onSubmit={handleSubmit} className="flex-1 flex">
+            <input
+              type="text"
+              ref={inputRef}
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-sm text-white"
+              autoFocus
+            />
+            <div className="flex ml-1">
+              <button
+                type="submit"
+                className="p-1 bg-green-800/70 text-green-400 rounded-lg hover:bg-green-700/70"
+              >
+                <FiCheck size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={cancelEditing}
+                className="p-1 bg-gray-800/70 text-gray-400 rounded-lg ml-1 hover:bg-gray-700/70"
+              >
+                <FiX size={16} />
+              </button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <div className="flex-1 truncate text-sm">
+              {conversation.title}
+            </div>
+            
+            <div className={`flex space-x-1 ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTogglePin();
+                }}
+                className={`p-1 rounded-lg ${isActive ? 'text-white hover:bg-white/20' : 'text-gray-400 hover:bg-gray-700'} transition-colors`}
+                title={conversation.pinned ? "핀 제거" : "대화 핀 고정"}
+              >
+                <FiStar size={14} className={conversation.pinned ? "fill-current" : ""} />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startEditing();
+                }}
+                className={`p-1 rounded-lg ${isActive ? 'text-white hover:bg-white/20' : 'text-gray-400 hover:bg-gray-700'} transition-colors`}
+                title="대화 이름 변경"
+              >
+                <FiEdit2 size={14} />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(); // 확인 창 없이 바로 삭제
+                }}
+                className={`p-1 rounded-lg ${isActive ? 'text-white hover:bg-white/20' : 'text-gray-400 hover:bg-gray-700'} transition-colors`}
+                title="대화 삭제"
+              >
+                <FiTrash2 size={14} />
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -4,45 +4,70 @@ import ChatContainer from "./components/ChatContainer";
 import {
   FiChevronLeft,
   FiChevronRight,
-  FiSettings,
-  FiRefreshCcw,
-  FiTrash2,
-  FiUser,
-  FiBell,
-  FiLock,
-  FiUnlock,
-  FiSearch,
-  FiSun,
-  FiMoon,
-  FiPlus,
-  FiMenu,
   FiMessageSquare,
-  FiLayout,
-  FiChevronDown,
-  FiAlertCircle,
-  FiX
+  FiPlus,
+  FiX,
+  FiLoader,
+  FiCheckCircle,
+  FiFile
 } from "react-icons/fi";
-import { FiServer } from "react-icons/fi";
 
 const SIDEBAR_WIDTH = 280;
 const SIDEBAR_MIN = 60;
 const SIDEBAR_MAX = 400;
 
+// 임베딩 알림 오버레이 컴포넌트 추가
+const EmbeddingOverlay = ({ isActive, status, files }) => {
+  if (!isActive) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-gray-900/90 backdrop-blur-sm flex flex-col items-center justify-center z-[100] animate-fade-in">
+      <div className="max-w-lg w-full px-6 py-8 rounded-2xl bg-gray-800/70 backdrop-blur-md text-center space-y-6">
+        <div className="relative mx-auto w-24 h-24">
+          <div className="absolute inset-0 rounded-full border-4 border-indigo-500/20"></div>
+          <div className="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
+          <div className="absolute inset-4 rounded-full bg-indigo-500/20 flex items-center justify-center">
+            <FiFile className="text-indigo-200" size={24} />
+          </div>
+        </div>
+        
+        <div className="space-y-2">
+          <h3 className="text-xl font-bold text-white">{status || "파일 임베딩 처리 중..."}</h3>
+          <p className="text-gray-300 text-sm">
+            이 과정은 파일 크기와 내용에 따라 몇 분 정도 소요될 수 있습니다.<br/>
+            임베딩이 완료될 때까지 기다려주세요.
+          </p>
+        </div>
+        
+        {files && files.length > 0 && (
+          <div className="bg-gray-900/50 rounded-xl p-4 max-h-40 overflow-y-auto">
+            <p className="text-gray-400 text-xs mb-2">{files.length}개 파일 처리 중:</p>
+            <div className="space-y-1.5">
+              {files.map((file, index) => (
+                <div key={index} className="flex items-center">
+                  <div className="w-2 h-2 bg-indigo-500 rounded-full mr-2"></div>
+                  <span className="text-gray-200 text-sm truncate">{file.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 function App() {
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_WIDTH);
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768); // md: 이상에서 기본적으로 열림
-  const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [userName, setUserName] = useState("사용자");
   const [scrollLocked, setScrollLocked] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [conversations, setConversations] = useState([]);
   const isResizing = useRef(false);
   const [userId, setUserId] = useState("user1"); // 임시 사용자 ID, 실제로는 인증 기반 ID 사용
-  const [theme, setTheme] = useState("light"); // 테마 상태 (light/dark)
+  const [theme, setTheme] = useState("dark"); // 테마 상태 (dark/light)
   const [defaultCategory, setDefaultCategory] = useState("메뉴얼"); // 기본 카테고리 상태
-  const [showStatsDashboard, setShowStatsDashboard] = useState(false);
-  const [statsData, setStatsData] = useState([]);
   const [saveError, setSaveError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentMessages, setCurrentMessages] = useState([
@@ -50,9 +75,14 @@ function App() {
       role: "assistant",
       content: "안녕하세요! 무엇을 도와드릴까요?",
       sources: [],
+      timestamp: new Date().getTime(),
     },
   ]);
   const [filteredMessages, setFilteredMessages] = useState(currentMessages);
+  // 임베딩 상태 관련 변수 추가
+  const [isEmbedding, setIsEmbedding] = useState(false);
+  const [embeddingStatus, setEmbeddingStatus] = useState(null);
+  const [embeddedFiles, setEmbeddedFiles] = useState([]);
 
   // 초기 대화 목록 로드 (로컬 스토리지 또는 백엔드)
   useEffect(() => {
@@ -116,12 +146,10 @@ function App() {
 
   // 초기 설정 로드 (로컬 스토리지 또는 백엔드)
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
+    const savedTheme = localStorage.getItem("theme") || "dark";
     const savedCategory = localStorage.getItem("defaultCategory");
-    if (savedTheme) {
-      setTheme(savedTheme);
-      document.documentElement.classList.toggle("dark", savedTheme === "dark");
-    }
+    setTheme(savedTheme);
+    document.documentElement.classList.toggle("light", savedTheme === "light");
     if (savedCategory) {
       setDefaultCategory(savedCategory);
     }
@@ -150,29 +178,22 @@ function App() {
 
   const isDark = theme === "dark";
 
-  const handleToggleTheme = () => {
-    const newTheme = isDark ? "light" : "dark";
-    setTheme(newTheme);
-    localStorage.setItem("theme", newTheme);
-    document.documentElement.classList.toggle("dark", newTheme === "dark");
-    saveUserSettingsToBackend(userId, { theme: newTheme, defaultCategory });
-  };
+  // 파일 업로드 완료 핸들러 추가
+  const handleUploadSuccess = (files) => {
+    setIsEmbedding(true);
+    setEmbeddedFiles(files);
+    setEmbeddingStatus(`${files.length}개 파일 임베딩 중...`);
 
-  // 테마 변경 함수
-  const handleChangeTheme = (newTheme) => {
-    setTheme(newTheme);
-    localStorage.setItem("theme", newTheme);
-    document.documentElement.classList.toggle("dark", newTheme === "dark");
-    // 백엔드에 설정 저장
-    saveUserSettingsToBackend(userId, { theme: newTheme, defaultCategory });
-  };
-
-  // 기본 카테고리 변경 함수
-  const handleChangeDefaultCategory = (newCategory) => {
-    setDefaultCategory(newCategory);
-    localStorage.setItem("defaultCategory", newCategory);
-    // 백엔드에 설정 저장
-    saveUserSettingsToBackend(userId, { theme, defaultCategory: newCategory });
+    // 임베딩이 진행 중임을 알리는 메시지
+    // 실제로는 웹소켓이나 주기적인 폴링을 통해 임베딩 상태를 확인할 수 있음
+    // 여기서는 간단하게 5초 후에 임베딩이 완료되었다고 가정
+    setTimeout(() => {
+      setEmbeddingStatus(`${files.length}개 파일 임베딩 완료!`);
+      setTimeout(() => {
+        setIsEmbedding(false);
+        setEmbeddingStatus(null);
+      }, 3000);
+    }, 5000);
   };
 
   // 백엔드에 사용자 설정 저장
@@ -228,8 +249,8 @@ function App() {
           setTheme(data.settings.theme);
           localStorage.setItem("theme", data.settings.theme);
           document.documentElement.classList.toggle(
-            "dark",
-            data.settings.theme === "dark"
+            "light",
+            data.settings.theme === "light"
           );
         }
         if (data.settings.defaultCategory) {
@@ -313,6 +334,7 @@ function App() {
 
   // 대화 삭제
   const handleDeleteConversation = (id) => {
+    // 확인 창 없이 바로 삭제 처리
     setConversations((prev) => {
       const updated = prev.filter((conv) => conv.id !== id);
       let newActive = activeConversationId;
@@ -357,83 +379,6 @@ function App() {
         conv.id === id ? { ...conv, pinned: !conv.pinned } : conv
       )
     );
-  };
-
-  // 사용자 행동 기록 함수
-  const logUserAction = async (action, details = {}) => {
-    try {
-      const response = await fetch("http://172.10.2.70:8000/api/stats/save", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          userId: userId,
-          action: action,
-          details: details,
-        }),
-      });
-      if (!response.ok) {
-        throw new Error(
-          `통계 저장 실패: ${response.status} ${response.statusText}`
-        );
-      }
-      console.log(`통계 저장됨: ${action}`);
-    } catch (err) {
-      console.error("통계 저장 중 오류 발생:", err);
-    }
-  };
-
-  // 통계 조회 함수
-  const fetchStats = async () => {
-    try {
-      const response = await fetch("http://172.10.2.70:8000/api/stats/query", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          userId: "", // 전체 사용자 조회
-          startDate: "", // 모든 기간
-          endDate: "", // 모든 기간
-        }),
-      });
-      if (!response.ok) {
-        throw new Error(
-          `통계 조회 실패: ${response.status} ${response.statusText}`
-        );
-      }
-      const data = await response.json();
-      if (data.status === "success") {
-        setStatsData(data.stats);
-        setShowStatsDashboard(true);
-        console.log("통계 조회 완료");
-      }
-    } catch (err) {
-      console.error("통계 조회 중 오류 발생:", err);
-      alert("통계 조회에 실패했습니다. 서버 연결을 확인해주세요.");
-    }
-  };
-
-  // 메시지 업데이트
-  const handleUpdateMessages = (updatedMessages) => {
-    setConversations((prev) =>
-      prev.map((conv) =>
-        conv.id === activeConversationId
-          ? { ...conv, messages: updatedMessages }
-          : conv
-      )
-    );
-    // 사용자가 질문을 보낸 경우 통계 기록
-    if (
-      updatedMessages.length > 0 &&
-      updatedMessages[updatedMessages.length - 1].role === "user"
-    ) {
-      logUserAction("question", {
-        category: defaultCategory,
-        timestamp: new Date().toISOString(),
-      });
-    }
   };
 
   // 백엔드에 대화 저장
@@ -571,163 +516,88 @@ function App() {
     setSidebarOpen(!sidebarOpen);
   };
 
-  // 설정 드롭다운 토글
-  const handleToggleSettingsDropdown = () => {
-    setShowSettingsDropdown(!showSettingsDropdown);
-  };
-
-  // Clear Chat 기능 (예시)
-  const handleClearChat = () => {
-    if (window.confirm("대화 내용을 모두 삭제하시겠습니까?")) {
-      const updatedConversations = conversations.map((c) =>
-        c.id === activeConversationId
-          ? {
-              ...c,
-              messages: [
-                {
-                  role: "assistant",
-                  content: "안녕하세요! 무엇을 도와드릴까요?",
-                  sources: [],
-                },
-              ],
-            }
-          : c
-      );
-      setConversations(updatedConversations);
-    }
-  };
-
-  // 알림 설정 토글
-  const handleToggleNotifications = () => {
-    setNotificationsEnabled(!notificationsEnabled);
-  };
-
-  // 스크롤 잠금 토글
-  const handleToggleScrollLock = () => {
-    setScrollLocked(!scrollLocked);
+  // 메시지 업데이트
+  const handleUpdateMessages = (updatedMessages) => {
+    setConversations((prev) =>
+      prev.map((conv) =>
+        conv.id === activeConversationId
+          ? { ...conv, messages: updatedMessages }
+          : conv
+      )
+    );
   };
 
   return (
-    <div className={`flex flex-col h-screen ${isDark ? "dark" : ""} bg-gray-50 dark:bg-slate-900`}>
-      {/* 헤더 */}
-      <header className="border-b border-slate-200 dark:border-slate-800 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-slate-800 shadow-sm z-10 relative">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <button
-              className="p-2 rounded-lg hover:bg-slate-100/70 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300 md:hidden transition-colors"
-              onClick={handleToggleSidebar}
-              aria-label="메뉴 토글"
-            >
-              <FiMenu size={20} />
-            </button>
-            <div className="flex items-center gap-2.5">
-              <FiServer className="text-blue-500 dark:text-blue-400" size={22} />
-              <h1 className="font-semibold text-xl bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">RAG 챗봇</h1>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-1">
-            <button
-              className="p-2 rounded-lg hover:bg-slate-100/70 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300 transition-colors"
-              onClick={handleToggleTheme}
-              aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
-            >
-              {isDark ? <FiSun size={18} /> : <FiMoon size={18} />}
-            </button>
-            
-            <button
-              className="hidden md:flex items-center justify-center p-2 rounded-lg hover:bg-slate-100/70 dark:hover:bg-slate-800/80 
-                text-slate-700 dark:text-slate-300 transition-colors"
-              onClick={handleNewConversation}
-              aria-label="새 대화"
-            >
-              <FiPlus size={18} />
-            </button>
-            
-            <button
-              className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 
-                text-slate-700 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-              onClick={handleClearChat}
-              aria-label="대화 초기화"
-            >
-              <FiTrash2 size={18} />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* 메인 컨테이너 */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* 사이드바 */}
-        {sidebarOpen && (
-          <div
-            className="flex-shrink-0 h-full"
-            style={{ width: `${sidebarWidth}px` }}
-          >
-            <Sidebar
-              collapsed={false}
-              conversations={conversations}
-              activeConversationId={activeConversationId}
-              onNewConversation={handleNewConversation}
-              onDeleteConversation={handleDeleteConversation}
-              onSelectConversation={handleSelectConversation}
-              onRenameConversation={handleRenameConversation}
-              onTogglePinConversation={handleTogglePinConversation}
-            />
-          </div>
-        )}
-
-        {/* 드래그 핸들 */}
-        {sidebarOpen && (
-          <div
-            className="w-1 h-full cursor-col-resize bg-slate-200 dark:bg-slate-800 hover:bg-blue-500 dark:hover:bg-blue-600 custom-transition-colors"
-            onMouseDown={handleMouseDown}
-          ></div>
-        )}
-
-        {/* 메인 채팅 영역 */}
-        <div className="flex-1 flex flex-col bg-gradient-to-b from-slate-50 to-white dark:from-slate-900 dark:to-slate-950">
-          {/* 모바일 토글 버튼 */}
-          {!sidebarOpen && (
-            <button
-              className="fixed bottom-4 left-4 z-10 p-3 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-lg custom-transition-all md:hidden"
-              onClick={handleToggleSidebar}
-            >
-              <FiMessageSquare size={20} />
-            </button>
-          )}
-
-          {/* 채팅 컨테이너 */}
-          <ChatContainer
-            scrollLocked={scrollLocked}
-            activeConversationId={activeConversationId}
-            messages={currentMessages}
-            filteredMessages={filteredMessages}
-            searchTerm={searchTerm}
-            onUpdateMessages={handleUpdateMessages}
-          />
-        </div>
+    <div className="h-screen overflow-hidden bg-gradient-to-br from-gray-950 to-gray-900">
+      {/* Sidebar */}
+      <div
+        className={`fixed left-0 top-0 h-full z-10 transition-all duration-300 ${
+          sidebarOpen
+            ? `w-[${sidebarWidth}px] translate-x-0`
+            : "w-0 -translate-x-full"
+        }`}
+        style={{ width: sidebarOpen ? `${sidebarWidth}px` : 0 }}
+      >
+        <Sidebar
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          onNewConversation={handleNewConversation}
+          onDeleteConversation={handleDeleteConversation}
+          onSelectConversation={handleSelectConversation}
+          onRenameConversation={handleRenameConversation}
+          onTogglePinConversation={handleTogglePinConversation}
+        />
       </div>
-      
-      {/* 에러 메시지 표시 */}
-      {saveError && (
-        <div className="fixed bottom-4 right-4 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 
-          text-red-800 dark:text-red-200 px-4 py-3 rounded-lg shadow-lg animate-fade-in">
-          <div className="flex items-start">
-            <FiAlertCircle className="mt-0.5 mr-2 flex-shrink-0" />
-            <div>
-              <p className="font-medium">저장 오류</p>
-              <p className="text-sm">{saveError}</p>
-            </div>
-            <button 
-              className="ml-3 text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-100"
-              onClick={() => setSaveError(null)}
-            >
-              <FiX size={18} />
-            </button>
-          </div>
+
+      {/* Sidebar 드래그 리사이즈 핸들 */}
+      {sidebarOpen && (
+        <div
+          className="fixed left-0 top-0 h-full z-20 w-1 cursor-ew-resize flex items-center justify-center hover:bg-indigo-500/30"
+          style={{ left: `${sidebarWidth}px` }}
+          onMouseDown={handleMouseDown}
+        >
+          <div className="h-8 w-1 bg-indigo-400/40 rounded-full"></div>
         </div>
       )}
+
+      {/* 메인 콘텐츠 */}
+      <div
+        className="h-full transition-all duration-300"
+        style={{
+          marginLeft: sidebarOpen ? `${sidebarWidth}px` : 0,
+        }}
+      >
+        {/* 사이드바 토글 버튼 */}
+        <button
+          className="fixed top-4 left-4 z-30 p-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 shadow-lg"
+          onClick={handleToggleSidebar}
+        >
+          {sidebarOpen ? (
+            <FiChevronLeft size={20} />
+          ) : (
+            <FiChevronRight size={20} />
+          )}
+        </button>
+
+        {/* 대화 컨테이너 */}
+        <ChatContainer
+          scrollLocked={scrollLocked}
+          activeConversationId={activeConversationId}
+          messages={currentMessages}
+          searchTerm={searchTerm}
+          filteredMessages={filteredMessages}
+          onUpdateMessages={handleUpdateMessages}
+          isEmbedding={isEmbedding}
+          onUploadSuccess={handleUploadSuccess}
+        />
+      </div>
+
+      {/* 임베딩 알림 오버레이 */}
+      <EmbeddingOverlay 
+        isActive={isEmbedding} 
+        status={embeddingStatus} 
+        files={embeddedFiles}
+      />
     </div>
   );
 }

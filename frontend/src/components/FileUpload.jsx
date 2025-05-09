@@ -1,85 +1,271 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { FiLoader, FiX, FiPaperclip, FiCheck, FiFolder, FiFile } from 'react-icons/fi';
 
-function FileUpload({ onClose, categories }) {
-  const [file, setFile] = useState(null);
+function FileUpload({ onClose, categories, onUploadSuccess }) {
+  const [files, setFiles] = useState([]);
   const [category, setCategory] = useState(categories[0] || "메뉴얼");
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
+  const [dragActive, setDragActive] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  
+  const fileInputRef = useRef(null);
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setDragActive(true);
+  };
+  
+  const handleDragLeave = () => {
+    setDragActive(false);
+  };
+  
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const newFiles = Array.from(e.dataTransfer.files);
+      setFiles(prevFiles => [...prevFiles, ...newFiles]);
+    }
+  };
+  
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const newFiles = Array.from(e.target.files);
+      setFiles(prevFiles => [...prevFiles, ...newFiles]);
+    }
+  };
+  
+  const removeFile = (index) => {
+    setFiles(prevFiles => prevFiles.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!file) return;
-
+    if (files.length === 0) {
+      setUploadStatus('파일을 선택해주세요.');
+      return;
+    }
+    
     setIsUploading(true);
-
+    setUploadStatus('업로드 중...');
+    setUploadProgress(0);
+    
     const formData = new FormData();
-    formData.append("file", file);
-    formData.append("category", category);
-
+    files.forEach(file => {
+      formData.append('files', file);
+    });
+    formData.append('category', category);
+    
     try {
-      const response = await fetch("http://172.10.2.70:8000/api/upload", {
-        method: "POST",
+      const response = await fetch('http://172.10.2.70:8000/api/upload', {
+        method: 'POST',
         body: formData,
       });
-
       const data = await response.json();
-      if (data.status === "success") {
-        onClose();
-        // 필요하다면 성공 메시지 표시
+      
+      if (data.results && data.results.length > 0) {
+        const successCount = data.results.filter(r => r.status === 'success').length;
+        if (successCount === files.length) {
+          setUploadStatus(`${files.length}개 파일 업로드 성공!`);
+          if (onUploadSuccess) {
+            onUploadSuccess(files);
+          }
+          setTimeout(() => {
+            onClose();
+          }, 2000);
+        } else if (successCount > 0) {
+          setUploadStatus(`${successCount}/${files.length} 파일 업로드 성공`);
+        } else {
+          setUploadStatus(`업로드 실패: ${data.results[0].message || '알 수 없는 오류'}`);
+        }
+      } else {
+        setUploadStatus(`업로드 실패: 응답 데이터 오류`);
       }
     } catch (error) {
-      console.error("업로드 실패:", error);
+      console.error('업로드 실패:', error);
+      setUploadStatus(`업로드 오류: ${error.message}`);
     } finally {
       setIsUploading(false);
+      setUploadProgress(100);
     }
+  };
+  
+  // 파일 크기 표시 형식화 (예: 2.5MB)
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-96 max-w-full">
-        <h2 className="text-xl font-bold mb-4">파일 업로드</h2>
-
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">카테고리</label>
-            <select
-              className="w-full p-2 border rounded-md"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md shadow-2xl animate-slide-up overflow-hidden relative">
+        {/* 배경 장식 */}
+        <div className="absolute -right-20 -top-20 w-40 h-40 bg-indigo-400/10 rounded-full blur-2xl"></div>
+        <div className="absolute -left-20 -bottom-20 w-40 h-40 bg-purple-400/10 rounded-full blur-2xl"></div>
+        
+        <div className="relative z-10">
+          <div className="flex justify-between items-center mb-5">
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">파일 업로드</h2>
+            <button 
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-full p-2 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              aria-label="닫기"
+              disabled={isUploading}
             >
+              <FiX size={18} />
+            </button>
+          </div>
+          
+          <div className="mb-5">
+            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">카테고리</label>
+            <div className="grid grid-cols-2 gap-2">
               {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategory(cat)}
+                  className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    category === cat 
+                      ? 'bg-indigo-600 text-white shadow-md' 
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                  disabled={isUploading}
+                >
+                  <div className="flex items-center justify-center">
+                    {category === cat && (
+                      <FiCheck size={16} className="mr-1.5" />
+                    )}
+                    <span>{cat}</span>
+                  </div>
+                </button>
               ))}
-            </select>
+            </div>
           </div>
-
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">파일 선택</label>
-            <input
-              type="file"
-              onChange={(e) => setFile(e.target.files[0])}
-              className="w-full p-2 border rounded-md"
-            />
+          
+          <div className="mb-6">
+            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">파일 선택</label>
+            <div 
+              className={`drop-area border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600
+                ${dragActive ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-300 dark:border-gray-500'}`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => !isUploading && fileInputRef.current?.click()}
+            >
+              {files.length > 0 ? (
+                <div className="py-2 space-y-2">
+                  <div className="flex justify-center items-center mb-2">
+                    <span className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 text-xs font-semibold py-1 px-3 rounded-full">
+                      {files.length}개 파일 선택됨
+                    </span>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto">
+                    {files.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between bg-white dark:bg-gray-700 rounded-lg p-2 mb-1 shadow-sm group">
+                        <div className="flex items-center">
+                          <FiFile className="text-indigo-500 mr-2 flex-shrink-0" size={14} />
+                          <span className="text-gray-800 dark:text-gray-200 text-xs truncate max-w-[160px]">
+                            {file.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center">
+                          <span className="text-xs text-gray-500 dark:text-gray-400 mr-2">
+                            {formatFileSize(file.size)}
+                          </span>
+                          {!isUploading && (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeFile(index);
+                              }} 
+                              className="opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
+                            >
+                              <FiX size={14} className="text-gray-500 dark:text-gray-400" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-gray-500 dark:text-gray-400 py-5">
+                  <div className="mx-auto w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/20 flex items-center justify-center mb-3">
+                    <FiPaperclip className="text-indigo-500" size={24} />
+                  </div>
+                  <p className="text-sm font-medium mb-1">파일을 여기에 드래그하세요</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500">또는 클릭하여 여러 파일 선택</p>
+                </div>
+              )}
+              <input 
+                type="file" 
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="hidden"
+                multiple
+                disabled={isUploading}
+              />
+            </div>
           </div>
-
-          <div className="flex justify-end space-x-2">
+          
+          {isUploading && (
+            <div className="mb-4">
+              <div className="h-1.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+              <p className="text-xs text-center mt-1.5 text-gray-500 dark:text-gray-400">
+                업로드 중... 이 과정은 파일 크기에 따라 수 분이 소요될 수 있습니다.
+              </p>
+            </div>
+          )}
+          
+          {uploadStatus && !isUploading && (
+            <div className={`mt-2 text-sm p-3 rounded-lg transition-all ${
+              uploadStatus.includes('성공') 
+                ? 'text-green-700 bg-green-100 dark:bg-green-900/20 dark:text-green-400' 
+                : uploadStatus.includes('실패') || uploadStatus.includes('오류')
+                  ? 'text-red-700 bg-red-100 dark:bg-red-900/20 dark:text-red-400'
+                  : 'text-indigo-700 bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400'
+            }`}>
+              {uploadStatus}
+            </div>
+          )}
+          
+          <div className="flex justify-end space-x-3 mt-6">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border rounded-md"
+              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-colors font-medium"
+              disabled={isUploading}
             >
               취소
             </button>
             <button
-              type="submit"
-              disabled={!file || isUploading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:bg-blue-300"
+              type="button"
+              onClick={handleSubmit}
+              disabled={files.length === 0 || isUploading}
+              className={`px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors flex items-center justify-center gap-2 shadow-md
+                ${files.length === 0 || isUploading ? 'opacity-70 cursor-not-allowed' : 'opacity-100'}`}
             >
-              {isUploading ? "업로드 중..." : "업로드"}
+              {isUploading ? (
+                <>
+                  <FiLoader className="animate-spin" size={16} />
+                  <span>업로드 중...</span>
+                </>
+              ) : (
+                <span>업로드</span>
+              )}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );

@@ -6,7 +6,7 @@ import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { useState, memo, useCallback, useMemo } from "react";
+import { useState, memo, useCallback, useMemo, useEffect, useRef } from "react";
 import {
   FiEye,
   FiZoomIn,
@@ -19,7 +19,10 @@ import {
   FiExternalLink,
   FiUser,
   FiServer,
-  FiX
+  FiX,
+  FiClock,
+  FiInfo,
+  FiLink
 } from "react-icons/fi";
 
 const KOREAN_STOPWORDS = new Set([
@@ -57,7 +60,7 @@ const KOREAN_STOPWORDS = new Set([
   "알고싶어",
 ]);
 
-function ChatMessage({ message, searchTerm = "" }) {
+function ChatMessage({ message, searchTerm = "", isSearchMode }) {
   const isUser = message.role === "user";
   const [previewSource, setPreviewSource] = useState(null);
   const [previewContent, setPreviewContent] = useState(null);
@@ -68,6 +71,55 @@ function ChatMessage({ message, searchTerm = "" }) {
   const [feedbackSent, setFeedbackSent] = useState(false); // 피드백 전송 여부
   const [loadingContent, setLoadingContent] = useState(false);
   const [highlightKeywords, setHighlightKeywords] = useState(""); // 모달 하이라이트용 키워드
+  const [sourcesVisible, setSourcesVisible] = useState(false);
+  
+  // 메시지 시간을 참조로 저장
+  const messageTime = useMemo(() => {
+    // 메시지가 타임스탬프를 가지고 있으면 그것을 사용, 아니면 현재 시간 생성
+    return message.timestamp || new Date().getTime();
+  }, [message.timestamp]);
+
+  const formatMessageTime = (timestamp) => {
+    if (!timestamp) return '';
+    
+    // timestamp가 숫자 또는 문자열인 경우 처리
+    let dateObj;
+    if (typeof timestamp === 'number' || !isNaN(parseInt(timestamp))) {
+      dateObj = new Date(timestamp);
+    } else if (typeof timestamp === 'string') {
+      dateObj = new Date(timestamp);
+    } else {
+      return '';
+    }
+    
+    // 올바른 날짜가 아닌 경우 빈 문자열 반환
+    if (isNaN(dateObj.getTime())) return '';
+    
+    // 현재 시간과의 차이 계산
+    const now = new Date();
+    const diffMs = now - dateObj;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    
+    // 상대적 시간 표시
+    if (diffMins < 1) {
+      return '방금 전';
+    } else if (diffMins < 60) {
+      return `${diffMins}분 전`;
+    } else if (diffHours < 24) {
+      return `${diffHours}시간 전`;
+    } else if (diffDays < 7) {
+      return `${diffDays}일 전`;
+    } else {
+      // 7일 이상 지난 경우 날짜 표시
+      return dateObj.toLocaleDateString('ko-KR', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    }
+  };
 
   const handleClosePreview = useCallback(() => {
     setPreviewSource(null);
@@ -243,254 +295,329 @@ function ChatMessage({ message, searchTerm = "" }) {
     }
   }, [message.role, message.questionContext, message.content, searchTerm, extractKeywords]);
 
-  const renderSources = useCallback(() => {
-    if (!message.sources || message.sources.length === 0 || message.role === 'user') {
-      return null;
-    }
+  const toggleSourcesVisible = useCallback(() => {
+    setSourcesVisible((prevVisible) => !prevVisible);
+  }, []);
 
+  const renderPreviewModal = () => {
+    if (!previewSource) return null;
+    
     return (
-      <div className="sources-container mt-3 pt-2.5 border-t border-slate-200 dark:border-slate-700">
-        <p className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">참고 문서</p>
-        <div className="flex flex-wrap gap-2">
-          {message.sources.map((source, index) => (
-            <button
-              key={index}
-              className="text-xs py-1.5 px-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 
-                text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800/30 
-                transition-colors flex items-center gap-1.5 shadow-sm border border-blue-100 dark:border-blue-800/50"
-              onClick={() => handlePreviewSource(source)}
+      <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+          <div className="flex items-center justify-between p-4 border-b">
+            <h3 className="font-medium flex items-center">
+              <FiEye className="mr-2 text-orange-500" />
+              <span className="truncate max-w-md">{previewSource.title || previewSource.path}</span>
+              {previewSource.page && <span className="ml-2 text-gray-500">(페이지 {previewSource.page})</span>}
+            </h3>
+            <button 
+              onClick={handleClosePreview}
+              className="p-1 rounded-full hover:bg-gray-100"
             >
-              <span className="whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">{source.path}</span>
-              <FiExternalLink size={12} className="flex-shrink-0" />
+              <FiX size={20} />
             </button>
-          ))}
+          </div>
+          
+          <div className="flex-1 overflow-auto p-6">
+            {loadingContent ? (
+              <div className="flex justify-center items-center h-32">
+                <FiLoader className="animate-spin text-orange-500 mr-2" />
+                <span>내용을 불러오는 중...</span>
+              </div>
+            ) : previewContent ? (
+              <div className="prose max-w-none">
+                {previewContent}
+              </div>
+            ) : (
+              <div className="text-center text-gray-500 py-8">
+                미리보기를 불러올 수 없습니다.
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
-  }, [message.sources, message.role, handlePreviewSource]);
+  };
+
+  const CustomCodeBlock = ({ language, value }) => {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = () => {
+      navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    };
+
+    return (
+      <div className="relative group">
+        <div className="absolute right-2 top-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={handleCopy}
+            className="bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-md p-1.5 text-xs font-medium flex items-center shadow-md transition-colors"
+          >
+            {copied ? <FiCheck size={14} /> : <FiCopy size={14} />}
+            <span className="ml-1">{copied ? "복사됨" : "복사"}</span>
+          </button>
+        </div>
+        <SyntaxHighlighter
+          language={language}
+          style={oneDark}
+          wrapLines={true}
+          customStyle={{
+            margin: '0.5rem 0',
+            borderRadius: '0.5rem',
+            padding: '1rem',
+            fontSize: '0.9rem',
+            lineHeight: '1.5',
+          }}
+        >
+          {value}
+        </SyntaxHighlighter>
+      </div>
+    );
+  };
 
   return (
-    <div className={`flex items-start gap-4 py-6 group ${isUser ? "justify-end" : ""}`}>
-      {/* 사용자/봇 아바타 */}
-      {!isUser && (
-        <div className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center 
-          bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 text-white shadow-md">
-          <FiServer size={16} />
-        </div>
-      )}
-
-      {/* 메시지 내용 */}
-      <div className={`flex-1 flex flex-col overflow-hidden ${isUser ? "items-end" : "items-start"} max-w-3xl`}>
-        <div className={`chat-message relative ${isUser ? "user" : "assistant"} 
-          ${isUser ? "bg-blue-50 dark:bg-blue-900/30 border-blue-100 dark:border-blue-800/40" : 
-            "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"} 
-          border shadow-sm rounded-2xl`}>
-          <div className="chat-content prose dark:prose-invert max-w-none p-4">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm, remarkMath]}
-              rehypePlugins={[rehypeHighlight, rehypeKatex, rehypeRaw]}
-              components={{
-                code({ node, inline, className, children, ...props }) {
-                  const match = /language-(\w+)/.exec(className || "");
-                  return !inline && match ? (
-                    <div className="code-block relative group/code">
-                      <div className="absolute right-2 top-2 flex gap-1 opacity-0 group-hover/code:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(String(children).replace(/\n$/, ""));
-                            setCopied(true);
-                            setTimeout(() => setCopied(false), 2000);
-                          }}
-                          className="p-1.5 rounded-md bg-slate-700/70 text-white hover:bg-slate-600 transition-colors"
-                          title="코드 복사"
-                        >
-                          {copied ? <FiCheck size={14} /> : <FiCopy size={14} />}
-                        </button>
-                      </div>
-                      <SyntaxHighlighter
-                        style={oneDark}
-                        language={match[1]}
-                        PreTag="div"
-                        {...props}
-                        className="rounded-md"
-                      >
-                        {String(children).replace(/\n$/, "")}
-                      </SyntaxHighlighter>
-                    </div>
-                  ) : (
-                    <code className={className} {...props}>
-                      {children}
-                    </code>
-                  );
-                },
-                img({ src, alt, ...props }) {
-                  return (
-                    <img
-                      src={src}
-                      alt={alt}
-                      className="max-w-full h-auto rounded-md"
-                      {...props}
-                    />
-                  );
-                },
-                a({ node, ...props }) {
-                  return (
-                    <a
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-                      {...props}
-                    />
-                  );
-                },
-                ul({ node, ...props }) {
-                  return <ul className="list-disc pl-6 my-3" {...props} />;
-                },
-                ol({ node, ...props }) {
-                  return <ol className="list-decimal pl-6 my-3" {...props} />;
-                },
-                li({ node, ...props }) {
-                  return <li className="my-1" {...props} />;
-                },
-                blockquote({ node, ...props }) {
-                  return (
-                    <blockquote
-                      className="border-l-2 border-slate-300 dark:border-slate-700 pl-4 my-4 italic"
-                      {...props}
-                    />
-                  );
-                },
-                table({ node, ...props }) {
-                  return (
-                    <div className="overflow-x-auto my-3">
-                      <table className="border-collapse border border-slate-300 dark:border-slate-700 w-full text-sm" {...props} />
-                    </div>
-                  );
-                },
-                thead({ node, ...props }) {
-                  return <thead className="bg-slate-100 dark:bg-slate-800" {...props} />;
-                },
-                tbody({ node, ...props }) {
-                  return <tbody {...props} />;
-                },
-                tr({ node, ...props }) {
-                  return <tr className="border-b border-slate-300 dark:border-slate-700" {...props} />;
-                },
-                th({ node, ...props }) {
-                  return <th className="border border-slate-300 dark:border-slate-700 p-2 text-left font-medium" {...props} />;
-                },
-                td({ node, ...props }) {
-                  return <td className="border border-slate-300 dark:border-slate-700 p-2" {...props} />;
-                },
-              }}
-            >
-              {message.content}
-            </ReactMarkdown>
+    <div className={`relative my-2 px-4 animate-fade-in transition-opacity`}>
+      <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+        <div
+          className={`relative max-w-full w-full flex flex-col rounded-xl shadow-sm
+            ${isUser ? 'bg-indigo-600 text-white items-end' : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 items-start'}
+            ${isSearchMode ? 'border border-yellow-500' : ''}
+          `}
+        >
+          {/* 아바타와 시간 */}
+          <div className={`flex items-center w-full px-4 pt-3 pb-1 text-sm ${isUser ? 'justify-end' : 'justify-start'}`}>
+            <div className={`flex items-center ${isUser ? 'order-2' : 'order-1'}`}>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center
+                ${isUser ? 'bg-indigo-700 text-indigo-100' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}
+              `}>
+                {isUser ? (
+                  <FiUser size={14} />
+                ) : (
+                  <FiServer size={14} />
+                )}
+              </div>
+              <div className={`mx-2 font-medium text-sm 
+                ${isUser ? 'text-indigo-100' : 'text-gray-700 dark:text-gray-300'}`
+              }>
+                {isUser ? "사용자" : "AI 어시스턴트"}
+              </div>
+            </div>
+            
+            <div className={`text-xs opacity-70 ${isUser ? 'order-1 mr-2' : 'order-2 ml-2'}`}>
+              {formatMessageTime(messageTime)}
+            </div>
           </div>
           
-          {/* 출처 표시 */}
-          {renderSources()}
-        </div>
-        
-        {/* 피드백 버튼 (AI 응답만) */}
-        {!isUser && (
-          <div className="message-actions mt-2 flex justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={() => handleFeedback("up")}
-              className={`p-1.5 rounded-md text-sm transition-colors ${
-                feedback === "up"
-                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                  : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-              }`}
-              title="답변이 도움이 됨"
-            >
-              <FiThumbsUp size={14} />
-            </button>
-            <button
-              onClick={() => handleFeedback("down")}
-              className={`p-1.5 rounded-md text-sm transition-colors ${
-                feedback === "down"
-                  ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                  : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-              }`}
-              title="답변이 도움이 되지 않음"
-            >
-              <FiThumbsDown size={14} />
-            </button>
-            <button
-              onClick={handleCopy}
-              className={`p-1.5 rounded-md text-sm transition-colors ${
-                copied
-                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                  : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-              }`}
-              title="텍스트 복사"
-            >
-              {copied ? <FiCheck size={14} /> : <FiCopy size={14} />}
-            </button>
-          </div>
-        )}
-        
-        {/* 타임스탬프 (옵션) */}
-        <div className="text-xs text-slate-400 dark:text-slate-500 mt-1 px-2">
-          {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-        </div>
-      </div>
-      
-      {/* 사용자 아바타 - 오른쪽 정렬 */}
-      {isUser && (
-        <div className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center 
-          bg-gradient-to-br from-blue-600 to-indigo-600 dark:from-blue-500 dark:to-indigo-500 text-white shadow-md">
-          <FiUser size={16} />
-        </div>
-      )}
-
-      {/* 미리보기 모달 */}
-      {previewSource && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-xl w-full max-w-3xl h-[80vh] max-h-[800px] flex flex-col shadow-xl animate-fade-in">
-            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800 rounded-t-xl">
-              <div className="flex-1">
-                <h3 className="text-lg font-medium text-slate-800 dark:text-slate-200">{previewSource.path}</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">페이지: {previewSource.page} · 출처 ID: {previewSource.chunk_id}</p>
-              </div>
-              <button
-                onClick={handleClosePreview}
-                className="p-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
+          {/* 메시지 내용 */}
+          <div className="w-full px-4 py-3 overflow-hidden">
+            <div className="w-full prose max-w-none dark:prose-invert prose-sm font-sans">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeHighlight, rehypeKatex, rehypeRaw]}
+                components={{
+                  code({ node, inline, className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || "");
+                    const value = String(children).replace(/\n$/, "");
+                    
+                    if (!inline && match) {
+                      return (
+                        <CustomCodeBlock
+                          language={match[1]}
+                          value={value}
+                        />
+                      );
+                    }
+                    
+                    return inline ? (
+                      <code
+                        className="font-mono text-sm px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-700/60 text-gray-800 dark:text-gray-200"
+                        {...props}
+                      >
+                        {children}
+                      </code>
+                    ) : (
+                      <div className="bg-gray-800 rounded-lg overflow-hidden">
+                        <pre
+                          className="p-4 text-sm text-gray-200 overflow-auto"
+                          {...props}
+                        >
+                          {children}
+                        </pre>
+                      </div>
+                    );
+                  },
+                  img({ src, alt, ...props }) {
+                    return (
+                      <img
+                        src={src}
+                        alt={alt}
+                        className="max-w-full h-auto rounded-md"
+                        {...props}
+                      />
+                    );
+                  },
+                  a({ node, ...props }) {
+                    return (
+                      <a
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                        {...props}
+                      />
+                    );
+                  },
+                  ul({ node, ...props }) {
+                    return <ul className="list-disc pl-5 my-2.5" {...props} />;
+                  },
+                  ol({ node, ...props }) {
+                    return <ol className="list-decimal pl-5 my-2.5" {...props} />;
+                  },
+                  li({ node, ...props }) {
+                    return <li className="my-0.5" {...props} />;
+                  },
+                  blockquote({ node, ...props }) {
+                    return (
+                      <blockquote
+                        className="border-l-2 border-slate-300 dark:border-slate-700 pl-4 my-3 italic"
+                        {...props}
+                      />
+                    );
+                  },
+                  table({ node, ...props }) {
+                    return (
+                      <div className="overflow-x-auto my-3">
+                        <table className="border-collapse border border-slate-300 dark:border-slate-700 w-full text-sm" {...props} />
+                      </div>
+                    );
+                  },
+                  thead({ node, ...props }) {
+                    return <thead className="bg-slate-100 dark:bg-slate-800" {...props} />;
+                  },
+                  tbody({ node, ...props }) {
+                    return <tbody {...props} />;
+                  },
+                  tr({ node, ...props }) {
+                    return <tr className="border-b border-slate-300 dark:border-slate-700" {...props} />;
+                  },
+                  th({ node, ...props }) {
+                    return <th className="border border-slate-300 dark:border-slate-700 p-2 text-left font-medium" {...props} />;
+                  },
+                  td({ node, ...props }) {
+                    return <td className="border border-slate-300 dark:border-slate-700 p-2" {...props} />;
+                  },
+                }}
               >
-                <FiX size={20} />
-              </button>
+                {message.content}
+              </ReactMarkdown>
             </div>
-            <div className="flex-1 overflow-auto p-6 prose dark:prose-invert max-w-none custom-scrollbar">
-              {loadingContent ? (
-                <div className="flex justify-center items-center h-full">
-                  <div className="flex flex-col items-center gap-3">
-                    <FiLoader size={30} className="animate-spin text-blue-500 dark:text-blue-400" />
-                    <p className="text-slate-500 dark:text-slate-400">문서 내용을 불러오는 중...</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="relative">
-                  {highlightKeywords && highlightKeywords.length > 0 && (
-                    <div className="absolute top-0 right-0 p-2 bg-slate-100 dark:bg-slate-800 rounded-md shadow-md text-xs">
-                      <div className="font-medium text-slate-500 dark:text-slate-400 mb-1">검색 키워드:</div>
-                      <div className="flex flex-wrap gap-1">
-                        {highlightKeywords.map((kw, idx) => (
-                          <span key={idx} className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 
-                            text-blue-700 dark:text-blue-300 rounded-md">
-                            {kw}
-                          </span>
-                        ))}
+          </div>
+          
+          {/* 출처 정보 */}
+          {message.sources && message.sources.length > 0 && (
+            <div className={`w-full px-4 pb-3 ${isUser ? 'text-right' : 'text-left'}`}>
+              <div 
+                className={`inline-flex items-center text-xs rounded-full px-2 py-1 cursor-pointer 
+                  ${isUser 
+                    ? 'bg-indigo-700 text-indigo-100 hover:bg-indigo-800' 
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                onClick={() => setSourcesVisible(!sourcesVisible)}
+              >
+                <FiInfo size={12} className="mr-1" />
+                <span>
+                  {message.sources.length}개 출처 {sourcesVisible ? '숨기기' : '보기'}
+                </span>
+              </div>
+            </div>
+          )}
+          
+          {/* 출처 목록 */}
+          {sourcesVisible && message.sources && message.sources.length > 0 && (
+            <div className={`w-full px-4 pb-3 ${isUser ? 'text-right' : 'text-left'}`}>
+              <div className={`w-full p-3 rounded-lg text-xs my-1 overflow-auto max-h-60
+                ${isUser 
+                  ? 'bg-indigo-700/50 text-white' 
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                }`}>
+                <div className="font-medium mb-2">참고 출처:</div>
+                <div className="space-y-2">
+                  {message.sources.map((source, index) => (
+                    <div key={index} className="flex items-start">
+                      <div className="mr-1">{index + 1}.</div>
+                      <div>
+                        <div className="font-medium">{source.source || '문서'}</div>
+                        <div className="opacity-80 mt-0.5">
+                          {source.text || '내용 없음'}
+                        </div>
+                        {source.page && (
+                          <div className="mt-1">
+                            <button
+                              onClick={() => handlePreviewSource(source)}
+                              className={`inline-flex items-center text-xs rounded-full px-2 py-0.5
+                                ${isUser 
+                                  ? 'bg-indigo-800 text-indigo-100 hover:bg-indigo-900' 
+                                  : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'
+                                }`}
+                            >
+                              <FiLink size={10} className="mr-1" />
+                              {`페이지 ${source.page} 보기`}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  )}
-                  {previewContent}
+                  ))}
                 </div>
+              </div>
+            </div>
+          )}
+          
+          {/* 버튼 영역 */}
+          <div className={`w-full p-2 flex items-center ${isUser ? 'justify-start' : 'justify-end'}`}>
+            <div className="flex space-x-1">
+              {!isUser && (
+                <button
+                  onClick={handleCopy}
+                  className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  title={copied ? "복사됨" : "복사하기"}
+                >
+                  {copied ? <FiCheck size={14} /> : <FiCopy size={14} />}
+                </button>
+              )}
+              {!isUser && (
+                <>
+                  <button
+                    onClick={() => setFeedback("up")}
+                    className={`p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 
+                      ${feedback === "up" 
+                        ? "text-green-500" 
+                        : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"}`}
+                    title="도움이 됐어요"
+                  >
+                    <FiThumbsUp size={14} />
+                  </button>
+                  <button
+                    onClick={() => setFeedback("down")}
+                    className={`p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 
+                      ${feedback === "down" 
+                        ? "text-red-500" 
+                        : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"}`}
+                    title="도움이 되지 않았어요"
+                  >
+                    <FiThumbsDown size={14} />
+                  </button>
+                </>
               )}
             </div>
           </div>
         </div>
-      )}
+      </div>
+      
+      {/* 미리보기 모달 */}
+      {renderPreviewModal()}
     </div>
   );
 }

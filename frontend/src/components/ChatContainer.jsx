@@ -2,7 +2,7 @@ import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 // FiExternalLink 아이콘 추가
-import { FiLoader, FiArrowUp, FiType, FiList, FiX, FiExternalLink, FiTrash2 } from "react-icons/fi"; 
+import { FiLoader, FiArrowUp, FiType, FiList, FiX, FiExternalLink, FiTrash2, FiHardDrive, FiFile, FiFolder, FiSearch } from "react-icons/fi"; 
 import { FiAlertCircle } from "react-icons/fi";
 
 // 전역 스타일 (CSS-in-JS 방식으로 변경)
@@ -131,238 +131,285 @@ const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, fileName, isDeleting }
   );
 };
 
-// 파일 목록 모달 컴포넌트 개선
-const FileListModal = ({ isOpen, onClose, files, isLoading, error, onDeleteFile }) => {
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [fileToDelete, setFileToDelete] = useState(null);
+// 인덱싱된 파일 목록 컴포넌트 추가
+const IndexedFilesModal = ({ isOpen, onClose }) => {
+  const [files, setFiles] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [deleteAnimation, setDeleteAnimation] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   
   const modalRef = useRef(null);
+
+  // 파일 목록 가져오기
+  useEffect(() => {
+    if (isOpen) {
+      loadFiles();
+    }
+  }, [isOpen]);
 
   // 모달 바깥 클릭 시 닫기
   useEffect(() => {
     function handleClickOutside(event) {
       if (modalRef.current && !modalRef.current.contains(event.target)) {
-        if (!deleteConfirmOpen) { // 삭제 확인 모달이 열려있으면 닫지 않음
-          onClose();
-        }
+        onClose();
       }
     }
     
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
     }
-    
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isOpen, onClose, deleteConfirmOpen]);
+  }, [isOpen, onClose]);
 
   // 성공/에러 메시지 자동 제거
   useEffect(() => {
+    let timer;
     if (successMessage || deleteError) {
-      const timer = setTimeout(() => {
+      timer = setTimeout(() => {
         setSuccessMessage(null);
         setDeleteError(null);
       }, 3000);
-      return () => clearTimeout(timer);
     }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, [successMessage, deleteError]);
 
-  const handleDeleteClick = (filename) => {
-    setFileToDelete(filename);
-    setDeleteConfirmOpen(true);
+  const loadFiles = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('http://172.10.2.70:8000/api/indexed-files');
+      const data = await response.json();
+      
+      if (response.ok && data.status === 'success') {
+        setFiles(data.files || []);
+      } else {
+        throw new Error(data.message || '파일 목록을 불러오는데 실패했습니다.');
+      }
+    } catch (err) {
+      console.error('파일 목록 조회 오류:', err);
+      setError('파일 목록을 불러오는데 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const confirmDelete = async () => {
-    if (!fileToDelete) return;
-    
-    setIsDeleting(true);
-    setDeleteError(null);
-    
+  const handleDeleteClick = async (filename) => {
     try {
-      // 삭제 애니메이션 시작
-      setDeleteAnimation(fileToDelete);
+      setIsDeleting(true);
+      setDeleteAnimation(filename);
       
-      const response = await fetch(`http://172.10.2.70:8000/api/delete-file?filename=${encodeURIComponent(fileToDelete)}`, {
-        method: 'DELETE',
+      const response = await fetch(`http://172.10.2.70:8000/api/delete-file?filename=${encodeURIComponent(filename)}`, {
+        method: 'DELETE'
       });
       
       const data = await response.json();
       
-      if (response.ok) {
-        if (data.status === "success") {
-          setSuccessMessage(`"${cleanFilename(fileToDelete)}" 파일이 삭제되었습니다.`);
-          // 애니메이션 완료 후 목록에서 제거
-          setTimeout(() => {
-            onDeleteFile(fileToDelete); // 부모 컴포넌트에 삭제 알림
-            setDeleteAnimation(null);
-          }, 500); // 500ms는 애니메이션 지속 시간
-        } else if (data.status === "warning") {
-          // 경고 메시지도 성공으로 처리하되, 다른 메시지 표시
-          setSuccessMessage(`"${cleanFilename(fileToDelete)}" ${data.message}`);
-          // 애니메이션 완료 후 목록에서 제거
-          setTimeout(() => {
-            onDeleteFile(fileToDelete); // 부모 컴포넌트에 삭제 알림
-            setDeleteAnimation(null);
-          }, 500);
-        } else {
-          setDeleteError(data.message || '파일 삭제 중 알 수 없는 오류가 발생했습니다.');
+      if (response.ok && data.status === 'success') {
+        // 애니메이션 효과를 위해 약간의 지연 후 목록에서 제거
+        setTimeout(() => {
+          setFiles(prev => prev.filter(file => file !== filename));
+          setSuccessMessage(`${cleanFilename(filename)} 파일이 삭제되었습니다.`);
           setDeleteAnimation(null);
-        }
+        }, 300);
       } else {
-        setDeleteError(data.detail || '파일 삭제 실패');
-        setDeleteAnimation(null);
+        throw new Error(data.message || '파일 삭제 중 오류가 발생했습니다.');
       }
     } catch (err) {
-      setDeleteError(`오류 발생: ${err.message}`);
+      console.error('파일 삭제 오류:', err);
+      setDeleteError('파일 삭제에 실패했습니다. 다시 시도해주세요.');
       setDeleteAnimation(null);
     } finally {
       setIsDeleting(false);
-      setDeleteConfirmOpen(false);
     }
   };
+
+  const cleanFilename = (filename) => {
+    // UUID와 같은 접두사가 있다면 제거
+    const parts = filename.split('_');
+    if (parts.length > 1 && parts[0].length >= 20) {
+      return parts.slice(1).join('_');
+    }
+    return filename;
+  };
+
+  const getFileIcon = (filename) => {
+    const ext = filename.split('.').pop().toLowerCase();
+    
+    // 파일 확장자에 따라 아이콘 결정
+    switch (ext) {
+      case 'pdf':
+        return <div className="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400">PDF</div>;
+      case 'doc':
+      case 'docx':
+        return <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">DOC</div>;
+      case 'xls':
+      case 'xlsx':
+        return <div className="w-8 h-8 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400">XLS</div>;
+      case 'ppt':
+      case 'pptx':
+        return <div className="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400">PPT</div>;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+        return <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400">IMG</div>;
+      case 'txt':
+        return <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-400">TXT</div>;
+      default:
+        return <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-400">FILE</div>;
+    }
+  };
+
+  const handleFileClick = (prefixedFilename) => {
+    // 파일 뷰어 URL 생성
+    const viewerUrl = `http://172.10.2.70:8000/api/file-viewer/${encodeURIComponent(prefixedFilename)}`;
+    // 새 탭에서 열기
+    window.open(viewerUrl, '_blank');
+  };
+
+  // 검색어로 필터링된 파일 목록
+  const filteredFiles = searchQuery 
+    ? files.filter(file => cleanFilename(file).toLowerCase().includes(searchQuery.toLowerCase()))
+    : files;
 
   if (!isOpen) return null;
 
-  // 파일명에서 UUID 접두사 제거하는 함수
-  const cleanFilename = (filename) => {
-    if (typeof filename !== 'string') return filename;
-    const underscoreIndex = filename.indexOf('_');
-    if (underscoreIndex > -1 && underscoreIndex < filename.length - 1) {
-      return filename.substring(underscoreIndex + 1);
-    }
-    return filename; 
-  };
-
-  // 파일 클릭 시 새 탭에서 여는 핸들러 함수
-  const handleFileClick = (prefixedFilename) => {
-    const backendBaseUrl = 'http://172.10.2.70:8000';
-    const fileUrl = `${backendBaseUrl}/static/uploads/${encodeURIComponent(prefixedFilename)}`; 
-    window.open(fileUrl, '_blank', 'noopener,noreferrer'); 
-  };
-
   return (
-    <>
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fade-in"></div>
-      <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-        <div 
-          ref={modalRef}
-          className="bg-white dark:bg-gray-800 rounded-lg p-5 sm:p-6 max-w-lg w-full max-h-[80vh] shadow-2xl animate-slide-up flex flex-col"
-        > 
-        {/* 모달 헤더 */}
-          <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            인덱싱된 파일 목록
-          </h3>
-            <button 
-              onClick={onClose} 
-              className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-            <FiX size={20} /> 
+    <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div 
+        ref={modalRef}
+        className="bg-white dark:bg-gray-800 rounded-2xl max-w-2xl w-full max-h-[80vh] shadow-2xl overflow-hidden animate-slide-up"
+      >
+        {/* 헤더 */}
+        <div className="p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+          <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center">
+            <FiFolder className="mr-2 text-indigo-500" size={20} /> 
+            <span>인덱싱된 파일 목록</span>
+          </h2>
+          <button 
+            onClick={onClose}
+            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            <FiX className="text-gray-500 dark:text-gray-400" size={20} />
           </button>
         </div>
         
-          {/* 알림 메시지 영역 */}
-          {(successMessage || deleteError) && (
-            <div 
-              className={`mb-3 p-3 rounded-md text-sm animate-fade-in ${
-                successMessage 
-                  ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" 
-                  : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-              }`}
-            >
-              {successMessage || deleteError}
+        {/* 검색 바 */}
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="relative">
+            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+              <FiSearch className="text-gray-400" size={16} />
             </div>
-          )}
-          
-          {/* 스크롤 영역 */}
-          <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="파일 검색..."
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 text-gray-800 dark:text-gray-200"
+            />
+          </div>
+        </div>
+        
+        {/* 파일 목록 */}
+        <div className="overflow-y-auto custom-scrollbar" style={{ maxHeight: 'calc(80vh - 150px)' }}>
           {isLoading ? (
-            <div className="flex justify-center items-center py-8 text-gray-500">
-                <FiLoader className="animate-spin text-blue-500 mr-3" size={24} />
-                <span>목록 로딩 중...</span>
+            <div className="flex flex-col items-center justify-center py-12">
+              <FiLoader size={36} className="animate-spin text-indigo-500 mb-4" />
+              <p className="text-gray-500 dark:text-gray-400">파일 목록을 불러오는 중...</p>
             </div>
           ) : error ? (
-            <p className="text-red-500 text-center py-4 px-2">{error}</p>
-          ) : files && files.length > 0 ? (
-              <ul className="space-y-2">
-              {files.map((prefixedFilename, index) => {
-                const displayName = cleanFilename(prefixedFilename);
-                  const isDeleting = deleteAnimation === prefixedFilename;
-                  
-                return (
-                    <li 
-                      key={index} 
-                      className={`bg-white dark:bg-gray-700/30 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-all duration-300
-                        ${isDeleting ? 'animate-shrink-fade-out line-through' : ''}
-                      `}
-                    >
-                      <div className="flex items-center justify-between p-3">
-                    <button 
-                      onClick={() => handleFileClick(prefixedFilename)}
-                          className="flex-1 flex items-center text-left group focus:outline-none"
-                      title={`새 탭에서 ${displayName} 보기`}
-                          disabled={isDeleting}
-                        >
-                          <span className="truncate mr-2">{displayName}</span>
-                          <FiExternalLink className="text-gray-400 dark:text-gray-500 group-hover:text-blue-500 dark:group-hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteClick(prefixedFilename)}
-                          className={`ml-2 p-2 rounded-full focus:outline-none focus:ring-2 focus:ring-red-500/30 transition-colors
-                            ${isDeleting 
-                              ? 'bg-red-100 text-red-500 dark:bg-red-900/30 dark:text-red-400 cursor-not-allowed' 
-                              : 'text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700/80'
-                            }
-                          `}
-                          title="파일 삭제"
-                          disabled={isDeleting}
-                        >
-                          {isDeleting ? (
-                            <FiLoader className="animate-spin" size={16} />
-                          ) : (
-                            <FiTrash2 size={16} />
-                          )}
-                    </button>
-                      </div>
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="p-8 text-center">
+              <FiAlertCircle size={36} className="mx-auto text-red-500 mb-4" />
+              <p className="text-red-500 font-medium">{error}</p>
+              <button 
+                onClick={loadFiles}
+                className="mt-4 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition-colors"
+              >
+                다시 시도
+              </button>
+            </div>
+          ) : filteredFiles.length === 0 ? (
+            <div className="p-8 text-center">
+              {searchQuery ? (
+                <p className="text-gray-500 dark:text-gray-400">검색 결과가 없습니다.</p>
+              ) : (
+                <>
+                  <p className="text-gray-500 dark:text-gray-400 mb-2">인덱싱된 파일이 없습니다.</p>
+                  <p className="text-gray-400 dark:text-gray-500 text-sm">파일을 업로드하여 대화에 활용해보세요.</p>
+                </>
+              )}
+            </div>
           ) : (
-            <p className="text-gray-400 dark:text-gray-500 text-center py-8">
-              인덱싱된 파일이 없습니다.
-            </p>
+            <div className="grid grid-cols-1 divide-y divide-gray-200 dark:divide-gray-700">
+              {filteredFiles.map((filename) => (
+                <div 
+                  key={filename}
+                  className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-750 transition-all ${
+                    deleteAnimation === filename ? 'animate-shrink-fade-out' : ''
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div 
+                      className="flex items-center flex-1 cursor-pointer"
+                      onClick={() => handleFileClick(filename)}
+                    >
+                      {getFileIcon(filename)}
+                      <div className="ml-3 flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 dark:text-white truncate">
+                          {cleanFilename(filename)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => handleFileClick(filename)}
+                        className="p-2 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-full transition-colors"
+                        title="새 탭에서 보기"
+                      >
+                        <FiExternalLink size={16} />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteClick(filename)}
+                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full transition-colors"
+                        title="파일 삭제"
+                        disabled={isDeleting}
+                      >
+                        {isDeleting && deleteAnimation === filename ? (
+                          <FiLoader size={16} className="animate-spin" />
+                        ) : (
+                          <FiTrash2 size={16} />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
-
-          <div className="pt-4 mt-auto border-t border-gray-200 dark:border-gray-700 mt-3">
-          <button
-            onClick={onClose}
-            className="w-full sm:w-auto px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition self-end float-right"
-          >
-            닫기
-          </button>
-        </div>
+        
+        {/* 상태 메시지 */}
+        {(successMessage || deleteError) && (
+          <div className={`p-3 m-4 rounded-lg text-sm font-medium ${
+            successMessage 
+              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' 
+              : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+          }`}>
+            {successMessage || deleteError}
+          </div>
+        )}
       </div>
     </div>
-
-      {/* 삭제 확인 모달 */}
-      <DeleteConfirmModal
-        isOpen={deleteConfirmOpen}
-        onClose={() => setDeleteConfirmOpen(false)}
-        onConfirm={confirmDelete}
-        fileName={fileToDelete ? cleanFilename(fileToDelete) : ''}
-        isDeleting={isDeleting}
-      />
-    </>
   );
 };
-
 
 function ChatContainer({
   scrollLocked,
@@ -371,239 +418,212 @@ function ChatContainer({
   searchTerm,
   filteredMessages,
   onUpdateMessages,
+  isEmbedding,
+  onUploadSuccess
 }) {
-  // 글로벌 스타일 주입
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
+  const [userInput, setUserInput] = useState("");
+  const [category, setCategory] = useState("메뉴얼");
+  const containerRef = useRef(null);
+  const messagesEndRef = useRef(null);
+  const chatInputRef = useRef(null);
+  const [fileManagerOpen, setFileManagerOpen] = useState(false);
+
+  // 스타일 주입
   useEffect(() => {
     injectGlobalStyles();
   }, []);
 
-  // --- 상태 변수 선언 ---
-  const [localMessages, setLocalMessages] = useState(messages);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const messagesEndRef = useRef(null);
-  const chatContainerRef = useRef(null);
-  const [isSending, setIsSending] = useState(false);
-  const inputRef = useRef(null); 
-  const [showScrollTop, setShowScrollTop] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
-  const [isFileListModalOpen, setIsFileListModalOpen] = useState(false);
-  const [indexedFiles, setIndexedFiles] = useState([]);
-  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
-  const [fileListError, setFileListError] = useState(null);
+  const scrollToBottom = useCallback(() => {
+    if (!containerRef.current || scrollLocked) return;
 
-  // --- useEffect 및 핸들러 함수들 ---
-  useEffect(() => { if (inputRef.current) { inputRef.current.focus(); } }, []);
-  useEffect(() => { if (isTyping && messagesEndRef.current) { messagesEndRef.current.scrollIntoView({ behavior: "smooth" }); } }, [isTyping]);
-  useEffect(() => { setLocalMessages(messages); }, [messages, activeConversationId]);
-  useEffect(() => { if (!scrollLocked) { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); } }, [localMessages, scrollLocked]);
-  useEffect(() => { if (!searchTerm) { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); } }, [searchTerm]);
-  
-  const handleScroll = () => { 
-    const container = chatContainerRef.current; 
-    if (container) { 
-      const scrollTop = container.scrollTop; 
-      const scrollHeight = container.scrollHeight; 
-      const visibleHeight = container.clientHeight; 
-      setShowScrollTop(scrollTop < scrollHeight - visibleHeight - 100); 
-    } 
-  };
-  
-  useEffect(() => { 
-    const container = chatContainerRef.current; 
-    if (container) { 
-      container.addEventListener("scroll", handleScroll); 
-      handleScroll(); 
-      return () => container.removeEventListener("scroll", handleScroll); 
-    } 
+    // RAF를 사용한 부드러운 스크롤
+    requestAnimationFrame(() => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+    });
+  }, [scrollLocked]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      if (container.scrollTop < -200) {
+        setShowScrollToTop(true);
+      } else {
+        setShowScrollToTop(false);
+      }
+    };
+
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
   }, []);
-  
+
+  const handleSubmit = async (input, selectedCategory) => {
+    if (!input.trim()) return;
+
+    const newMessage = {
+      role: "user",
+      content: input,
+      timestamp: new Date().getTime(),
+    };
+    
+    // 메시지 목록에 사용자 메시지 추가
+    const updatedMessages = [...messages, newMessage];
+    onUpdateMessages(updatedMessages);
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch("http://172.10.2.70:8000/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question: input,
+          category: selectedCategory || "메뉴얼",
+          history: messages.slice(-10).map(m => ({
+            role: m.role,
+            content: m.content
+          })),
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || "응답을 가져오지 못했습니다.");
+      }
+      
+      // 응답 데이터 처리
+      const assistantMessage = {
+        role: "assistant",
+        content: data.answer || "응답을 불러오지 못했습니다.",
+        sources: data.sources || [],
+        timestamp: new Date().getTime(),
+      };
+      
+      // 메시지 목록에 어시스턴트 응답 추가
+      const finalMessages = [...updatedMessages, assistantMessage];
+      onUpdateMessages(finalMessages);
+      
+    } catch (err) {
+      console.error("채팅 요청 오류:", err);
+      setError("메시지를 보내는 중 오류가 발생했습니다. 다시 시도해주세요.");
+      
+      // 에러 메시지를 어시스턴트 응답으로 추가
+      const errorMessage = {
+        role: "assistant",
+        content: "죄송합니다. 요청을 처리하는 중 오류가 발생했습니다. 다시 시도해주세요.",
+        timestamp: new Date().getTime(),
+      };
+      onUpdateMessages([...updatedMessages, errorMessage]);
+    } finally {
+      setLoading(false);
+      setUserInput("");
+    }
+  };
+
   const scrollToTop = () => { 
-    chatContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" }); 
+    containerRef.current?.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    });
   };
+
+  // 렌더링할 메시지 결정
+  const displayMessages = searchTerm ? filteredMessages : messages;
   
-  const handleTyping = (typing) => { 
-    setIsTyping(typing); 
+  // 파일 관리 버튼 클릭 핸들러
+  const handleFileManager = () => {
+    setFileManagerOpen(true);
   };
-  
-  // handleSend 함수
-  const handleSend = async (msg) => { 
-    if (!activeConversationId || isSending) return; 
-    setIsSending(true); 
-    const newMessage = { 
-      role: "user", 
-      content: msg, 
-      reactions: {}, 
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9), 
-    }; 
-    const updatedMessagesWithUser = [...localMessages, newMessage]; 
-    setLocalMessages(updatedMessagesWithUser); 
-    onUpdateMessages(updatedMessagesWithUser); 
-    setIsLoading(true); 
-    setError(null); 
-    try { 
-      const response = await fetch("http://172.10.2.70:8000/api/chat", { 
-        method: "POST", 
-        headers: { 
-          "Content-Type": "application/json" 
-        }, 
-        body: JSON.stringify({ 
-          question: msg, 
-          category: "메뉴얼", 
-          history: updatedMessagesWithUser.slice(0, -1).map((m) => ({ 
-            role: m.role, 
-            content: m.content, 
-          })), 
-        }), 
-      }); 
-      if (!response.ok) { 
-        const errData = await response.json().catch(() => ({message: `HTTP error ${response.status}`})); 
-        throw new Error(errData.message || `FastAPI 호출 실패: ${response.status}`); 
-      } 
-      const data = await response.json(); 
-      const aiResponse = { 
-        role: "assistant", 
-        content: data.bot_response || "응답을 받아왔습니다.", 
-        sources: data.sources || [], 
-        questionContext: data.questionContext, 
-        reactions: {}, 
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9), 
-      }; 
-      const updatedMessagesWithAI = [...updatedMessagesWithUser, aiResponse]; 
-      setLocalMessages(updatedMessagesWithAI); 
-      onUpdateMessages(updatedMessagesWithAI); 
-    } catch (err) { 
-      setError(`응답을 가져오는 중 오류가 발생했습니다: ${err.message}.`); 
-      console.error(err); 
-    } finally { 
-      setIsLoading(false); 
-      setIsSending(false); 
-    } 
-  };
-
-  // 파일 목록 가져오기
-  const fetchIndexedFiles = useCallback(async () => { 
-    setIsLoadingFiles(true); 
-    setFileListError(null); 
-    setIndexedFiles([]); 
-    try { 
-      const response = await fetch("http://172.10.2.70:8000/api/indexed-files"); 
-      if (!response.ok) { 
-        const errData = await response.json().catch(() => ({ message: `HTTP ${response.status}` })); 
-        throw new Error(errData.detail || errData.message || `파일 목록 로드 실패: ${response.status}`); 
-      } 
-      const data = await response.json(); 
-      if (data.status === "success") { 
-        setIndexedFiles(data.files || []); 
-        setIsFileListModalOpen(true); 
-      } else { 
-        throw new Error(data.message || "파일 목록 로드 실패"); 
-      } 
-    } catch (err) { 
-      console.error("파일 목록 로드 오류:", err); 
-      setFileListError(`오류: ${err.message}`); 
-      setIsFileListModalOpen(true); 
-    } finally { 
-      setIsLoadingFiles(false); 
-    } 
-  }, []);
-
-  // 파일 삭제 후 목록 업데이트
-  const handleFileDeleted = useCallback((deletedFileName) => {
-    setIndexedFiles(prev => prev.filter(filename => filename !== deletedFileName));
-  }, []);
-
-  // memoizedMessages
-  const memoizedMessages = useMemo(() => { 
-    return (searchTerm ? filteredMessages : localMessages).map((msg, i) => ( 
-      <div 
-        key={msg.id || i} 
-        className="animate-fade-in-up opacity-0" 
-        style={{ 
-          animation: "fade-in-up 0.3s ease-out forwards", 
-          animationDelay: `${i * 0.1}s`, 
-        }}
-      > 
-        <ChatMessage message={msg} searchTerm={searchTerm || ""} /> 
-      </div> 
-    )); 
-  }, [localMessages, filteredMessages, searchTerm]);
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      {/* 파일 목록 보기 버튼 */}
-      <div className="p-2 px-6 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex justify-end"> 
-      <button
-      onClick={fetchIndexedFiles}
-      disabled={isLoadingFiles}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-800 font-medium rounded-xl shadow hover:bg-gray-200 hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-    >
-          {isLoadingFiles ? (
-            <FiLoader className="animate-spin h-5 w-5 text-gray-700 dark:text-gray-300" />
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h3.586A1 1 0 018 3.414l1.293 1.293a1 1 0 01.293.707V6h7a1 1 0 011 1v11a1 1 0 01-1 1H4a1 1 0 01-1-1V4z" />
-      </svg>
-          )}
-      인덱싱된 파일 보기
-    </button>
+    <div className="flex flex-col h-full relative">
+      {/* 헤더 */}
+      <div className="flex items-center justify-between py-3 px-6 border-b border-gray-800">
+        <div className="flex items-center">
+          <h2 className="text-base font-medium text-gray-200">
+            지식검색봇
+          </h2>
+        </div>
+        {/* 파일 관리 버튼 */}
+        <div className="flex gap-2">
+          <button
+            onClick={handleFileManager}
+            className="p-2 text-gray-400 hover:text-indigo-400 hover:bg-gray-800 rounded-full transition-colors"
+            title="파일 관리"
+            disabled={isEmbedding}
+          >
+            <FiHardDrive size={18} />
+          </button>
+        </div>
       </div>
 
-      {/* 채팅 메시지 목록 */}
+      {/* 메시지 목록 */}
       <div 
-        ref={chatContainerRef} 
-        className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-br from-transparent to-white/50 dark:from-transparent dark:to-gray-900/50 relative custom-scrollbar" 
-        onScroll={handleScroll}
+        ref={containerRef}
+        className="flex-1 overflow-y-auto custom-scrollbar py-4 bg-gradient-to-br from-gray-900 to-gray-850"
       >
-        {memoizedMessages}
-        {isLoading && (
-          <div className="flex justify-center items-center py-2">
-            <FiLoader className="animate-spin text-blue-500 dark:text-blue-400" size={20} />
-            <span className="ml-2 text-gray-600 dark:text-gray-400 text-sm">응답을 기다리는 중...</span>
-          </div>
+        <div className="flex flex-col space-y-1 px-2">
+          {displayMessages.map((msg, index) => (
+            <ChatMessage
+              key={`${activeConversationId}-${index}`}
+              message={msg}
+              searchTerm={searchTerm}
+              isSearchMode={!!searchTerm}
+            />
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
+        
+        {/* 스크롤 위로 이동 버튼 */}
+        {showScrollToTop && (
+          <button
+            className="absolute bottom-24 right-6 p-3 bg-indigo-600 text-white rounded-full shadow-lg opacity-80 hover:opacity-100 transition-opacity transform hover:scale-105"
+            onClick={scrollToTop}
+          >
+            <FiArrowUp size={20} />
+          </button>
         )}
-        {isTyping && !isLoading && !isSending && (
-          <div className="flex justify-center items-center py-2">
-            <FiType className="animate-pulse text-gray-500 dark:text-gray-400" size={20} />
-            <span className="ml-2 text-gray-600 dark:text-gray-400 text-sm">입력 중...</span>
-          </div>
-        )}
-        {error && (
-          <div className="flex justify-center items-center py-2 text-red-500 dark:text-red-400 text-sm">{error}</div>
-        )}
-        <div ref={messagesEndRef} />
       </div>
 
-      {/* 맨 위로 스크롤 버튼 */}
-      {showScrollTop && (
-        <button 
-          onClick={scrollToTop} 
-          className="fixed bottom-16 right-6 bg-blue-600 text-white rounded-full p-2 shadow-lg hover:bg-blue-700 transition z-20 animate-fade-in" 
-          title="맨 위로 이동"
-        >
-          <FiArrowUp size={20} />
-        </button>
-      )}
-      
-      {/* 채팅 입력 컴포넌트 */}
-      <div className="sticky bottom-0 z-10 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-        <ChatInput 
-          onSend={handleSend} 
-          disabled={isSending || isLoading} 
-          onTyping={handleTyping} 
-          ref={inputRef}
+      {/* 입력 영역 */}
+      <div className="p-4 border-t border-gray-800 bg-gray-900">
+        <ChatInput
+          ref={chatInputRef}
+          onSend={handleSubmit}
+          disabled={loading || isEmbedding}
+          onTyping={(isTyping) => {}}
+          onUploadSuccess={onUploadSuccess}
         />
+        
+        {/* 에러 표시 */}
+        {error && (
+          <div className="mt-2 text-red-500 text-sm px-2">
+            {error}
+          </div>
+        )}
       </div>
-
-      {/* 파일 목록 모달 */}
-      <FileListModal
-        isOpen={isFileListModalOpen}
-        onClose={() => setIsFileListModalOpen(false)}
-        files={indexedFiles}
-        isLoading={isLoadingFiles}
-        error={fileListError}
-        onDeleteFile={handleFileDeleted}
-      />
+      
+      {/* 인덱싱된 파일 관리 모달 */}
+      {fileManagerOpen && (
+        <IndexedFilesModal 
+          isOpen={fileManagerOpen}
+          onClose={() => setFileManagerOpen(false)}
+        />
+      )}
     </div>
   );
 }
