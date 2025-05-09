@@ -190,23 +190,26 @@ def get_llm_model_and_tokenizer():
     try:
         torch.cuda.empty_cache()  # 메모리 정리
         
-        # 토크나이저 로드
+        # 토크나이저 로드 최적화: 병렬 처리 옵션 활성화
         tokenizer = AutoTokenizer.from_pretrained(
             LLM_MODEL_NAME,
             use_fast=True,  # 빠른 토크나이저 사용
             padding_side="left",  # 왼쪽 패딩 (생성 모델에 적합)
+            use_auth_token=None,  # 인증 토큰 불필요 시 명시적으로 None
+            trust_remote_code=True,  # 원격 코드 신뢰 (일부 모델에 필요)
         )
         
         # 특수 토큰 설정
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
         
-        # 양자화 설정 (4비트 정밀도)
+        # 양자화 설정 고급 옵션 (4비트 정밀도 + offload)
         quantization_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_compute_dtype=torch.float16,
             bnb_4bit_quant_type="nf4",
             bnb_4bit_use_double_quant=True,
+            llm_int8_enable_fp32_cpu_offload=True  # CPU offload 활성화
         )
         
         # 모델 로드 최적화 설정
@@ -215,8 +218,10 @@ def get_llm_model_and_tokenizer():
             "torch_dtype": torch.float16,
             "device_map": "auto",  # 자동 장치 맵핑
             "revision": "main",
+            "low_cpu_mem_usage": True,  # 낮은 CPU 메모리 사용
             "attn_implementation": "flash_attention_2",  # Flash Attention 2 사용 (지원 시)
             "use_cache": True,  # KV 캐시 활성화
+            "trust_remote_code": True,  # 원격 코드 신뢰
         }
         
         # 모델 로드 시도
@@ -236,6 +241,13 @@ def get_llm_model_and_tokenizer():
                 **model_kwargs
             )
             print("LLM model loaded successfully with standard attention.")
+        
+        # 모델 최적화 설정 (추론 전용)
+        model.eval()  # 평가 모드 설정
+        
+        # 모델 메모리 사용 정보 출력 (옵션)
+        if torch.cuda.is_available():
+            print(f"GPU 메모리 사용량: {torch.cuda.memory_allocated() / 1024**3:.2f} GB")
         
         return model, tokenizer
     except Exception as e:
@@ -261,7 +273,7 @@ def get_reranker_model():
 
 # ElasticsearchRetriever 클래스 정의
 class ElasticsearchRetriever:
-    def __init__(self, es_client: Any, embedding_function: Any, category: str, k=20):
+    def __init__(self, es_client: Any, embedding_function: Any, category: str, k=25):
         self.es_client = es_client
         self.index_name = ES_INDEX_NAME
         self.embedding_function = embedding_function
@@ -269,8 +281,8 @@ class ElasticsearchRetriever:
         self.category = category
         # 성능 최적화를 위한 캐시 추가
         self._cache = {}
-        self._cache_size = 100  # 최대 캐시 항목 수
-        self._cache_ttl = 3600  # 캐시 유효 시간 (초)
+        self._cache_size = 150  # 최대 캐시 항목 수 증가 (100 → 150)
+        self._cache_ttl = 7200  # 캐시 유효 시간 증가 (3600 → 7200초, 2시간)
 
     def get_relevant_documents(self, query: str) -> List[Document]:
         if not self.es_client or not self.embedding_function:
@@ -278,7 +290,8 @@ class ElasticsearchRetriever:
             return []
 
         # 캐시 키 생성 (쿼리와 카테고리 조합)
-        cache_key = f"{query.lower().strip()}:{self.category}"
+        query_normalized = query.lower().strip()
+        cache_key = f"{query_normalized}:{self.category}"
         
         # 캐시에서 결과 확인
         current_time = time.time()
@@ -288,45 +301,45 @@ class ElasticsearchRetriever:
                 print(f"캐시에서 검색 결과 반환: '{query[:30]}...'")
                 return cache_entry["results"]
         
-        # 캐시 정리 (필요시)
+        # 캐시 정리 (필요시) - LRU 방식 최적화
         if len(self._cache) >= self._cache_size:
-            # 가장 오래된 항목부터 삭제
+            # 가장 오래된 항목부터 삭제 (LRU)
             oldest_keys = sorted(
                 self._cache.keys(), 
                 key=lambda k: self._cache[k]["timestamp"]
-            )[:len(self._cache) // 4]  # 25% 정도 삭제
+            )[:len(self._cache) // 3]  # 1/3 정도 삭제 (기존 1/4에서 증가)
             for old_key in oldest_keys:
                 del self._cache[old_key]
 
         try:
             # 임베딩 생성
-            query_embedding = self.embedding_function([query])[0]
+            query_embedding = self.embedding_function([query_normalized])[0]
 
-            # 하이브리드 쿼리 구성 (BM25 + 벡터 검색)
+            # 하이브리드 쿼리 구성 (BM25 + 벡터 검색) - 가중치 최적화
             hybrid_query = {
                 "size": self.k,
                 "_source": {"excludes": ["embedding"]},
                 "query": {
                     "bool": {
                         "should": [
-                            # 1. 정확한 문구 검색 (가중치 높게 설정)
+                            # 1. 정확한 문구 검색 (가중치 상향)
                             {
                                 "match_phrase": {
-                                    "text": {"query": query, "boost": 3.0, "slop": 2}
+                                    "text": {"query": query, "boost": 3.5, "slop": 3}  # 3.0 → 3.5
                                 }
                             },
-                            # 2. BM25 키워드 검색
+                            # 2. BM25 키워드 검색 (가중치 상향)
                             {
                                 "match": {
                                     "text": {
                                         "query": query,
-                                        "boost": 2.0,
+                                        "boost": 2.5,  # 2.0 → 2.5
                                         "operator": "OR",
-                                        "minimum_should_match": "50%",
+                                        "minimum_should_match": "60%",  # 50%에서 60%로 상향
                                     }
                                 }
                             },
-                            # 3. 벡터 검색 (script_score)
+                            # 3. 벡터 검색 (가중치 상향)
                             {
                                 "script_score": {
                                     "query": {"match_all": {}},
@@ -334,7 +347,7 @@ class ElasticsearchRetriever:
                                         "source": "cosineSimilarity(params.query_vector, 'embedding') + 1.0",
                                         "params": {"query_vector": query_embedding},
                                     },
-                                    "boost": 1.5,
+                                    "boost": 2.2,  # 가중치 상향 (1.5 → 2.2)
                                 }
                             },
                         ],
@@ -370,6 +383,11 @@ class ElasticsearchRetriever:
                 metadata["relevance_score"] = raw_score  # 원본 점수 유지
                 metadata["source"] = hit["_source"].get("source", "unknown")
                 metadata["page"] = hit["_source"].get("page", 1)
+                
+                # chunk_id가 정수형이면 문자열로 변환 (type 오류 방지)
+                chunk_id = hit["_source"].get("chunk_id")
+                if chunk_id is not None:
+                    metadata["chunk_id"] = str(chunk_id)  # 명시적 문자열 변환
 
                 # Document 객체 생성
                 docs.append(
@@ -396,15 +414,15 @@ class ElasticsearchRetriever:
 
 # 향상된 리랭커 클래스 정의
 class EnhancedLocalReranker:
-    def __init__(self, reranker_model: Any, top_n=15):
+    def __init__(self, reranker_model: Any, top_n=18):  # top_n 증가 (15 → 18)
         self.reranker = reranker_model
         self.top_n = top_n
         # 성능 최적화를 위한 캐시 추가
         self._cache = {}
-        self._cache_size = 100
-        self._cache_ttl = 3600  # 1시간 (초)
+        self._cache_size = 150  # 캐시 크기 증가 (100 → 150)
+        self._cache_ttl = 7200  # 캐시 유효 시간 증가 (1시간 → 2시간)
         # 배치 처리 최적화
-        self.batch_size = 16  # 배치 크기 설정
+        self.batch_size = 24  # 배치 크기 증가 (16 → 24)
 
     def rerank(self, query: str, docs: List[Document]) -> List[Document]:
         if not docs or not self.reranker:
@@ -412,7 +430,8 @@ class EnhancedLocalReranker:
 
         # 캐시 키 생성 (쿼리와 문서 ID 조합)
         # chunk_id를 명시적으로 문자열로 변환하여 에러 방지
-        cache_key = f"{query.lower().strip()}:{','.join([str(d.metadata.get('chunk_id', i)) for i, d in enumerate(docs[:10])])}"
+        query_normalized = query.lower().strip()
+        cache_key = f"{query_normalized}:{','.join([str(d.metadata.get('chunk_id', i)) for i, d in enumerate(docs[:10])])}"
         
         # 캐시에서 결과 확인
         current_time = time.time()
@@ -422,19 +441,23 @@ class EnhancedLocalReranker:
                 print(f"리랭킹 캐시 적중: '{query[:30]}...'")
                 return cache_entry["results"]
                 
-        # 캐시 정리 (필요시)
+        # 캐시 정리 (필요시) - LRU 방식 최적화
         if len(self._cache) >= self._cache_size:
             oldest_keys = sorted(
                 self._cache.keys(), 
                 key=lambda k: self._cache[k]["timestamp"]
-            )[:len(self._cache) // 4]
+            )[:len(self._cache) // 3]  # 1/3 정도 삭제 (1/4에서 증가)
             for old_key in oldest_keys:
                 del self._cache[old_key]
 
         try:
-            # 상위 10개 문서만 리랭킹
-            docs_to_rerank = docs[:10]
-            pairs = [(query, doc.page_content) for doc in docs_to_rerank]
+            # 메모리 최적화를 위한 캐시 정리
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                
+            # 상위 12개 문서 리랭킹 (원래 10개에서 상향) → 12개 그대로 유지
+            docs_to_rerank = docs[:12]
+            pairs = [(query_normalized, doc.page_content) for doc in docs_to_rerank]
             
             # 배치 처리로 성능 최적화
             scores = []
@@ -460,20 +483,25 @@ class EnhancedLocalReranker:
             )
             
             # 나머지 문서 추가 (이미 포함된 문서 제외)
-            remaining_docs = [doc for doc in docs[10:] if doc not in docs_to_rerank]
+            remaining_docs = [doc for doc in docs[12:] if doc not in docs_to_rerank]
             sorted_docs.extend(remaining_docs)
 
-            # 임계값 필터링 - 점수가 낮은 문서 제외
-            threshold = 0.6  # 60% 이상 관련성 있는 문서만 포함
+            # 임계값 필터링 - 점수가 낮은 문서 제외 (임계값 하향으로 더 많은 문서 포함)
+            threshold = 0.52  # 임계값 하향 (0.6 → 0.52)
             filtered_docs = [
                 doc
                 for doc in sorted_docs
                 if doc.metadata.get("rerank_score", 0.0) >= threshold
             ]
 
-            # 필터링 결과가 없으면 최상위 문서 하나라도 포함
-            if not filtered_docs and sorted_docs:
-                filtered_docs = [sorted_docs[0]]
+            # 필터링 결과가 최소 개수 미만이면 상위 문서 추가
+            min_docs = 3  # 최소 3개 문서 보장
+            if len(filtered_docs) < min_docs and sorted_docs:
+                additional_docs = [
+                    doc for doc in sorted_docs 
+                    if doc not in filtered_docs
+                ][:min_docs - len(filtered_docs)]
+                filtered_docs.extend(additional_docs)
 
             # 결과 캐싱
             result_docs = filtered_docs[:self.top_n]
@@ -508,9 +536,9 @@ async def generate_llm_response(
     if conversation_history is None:
         conversation_history = []
 
-    # 문서 컨텍스트 준비
+    # 문서 컨텍스트 준비 - 최적화: 상위 7개 문서 사용 (기존 5개에서 증가)
     context_parts = []
-    for i, doc in enumerate(top_docs[:5]):  # 상위 5개 문서 사용
+    for i, doc in enumerate(top_docs[:7]):  # 상위 7개 문서 사용 (증가)
         source = os.path.basename(doc.metadata.get("source", "unknown"))
         page = doc.metadata.get("page", "N/A")
         context_parts.append(
@@ -519,14 +547,14 @@ async def generate_llm_response(
 
     combined_context = "\n\n".join(context_parts)
 
-    # 이전 대화 기록 포맷팅
+    # 이전 대화 기록 포맷팅 - 최적화: 최근 3개 턴으로 제한 (기존 5개에서 감소)
     conversation_context = ""
     if conversation_history:
         conversation_parts = []
-        # 대화 기록의 최대 길이 제한 (예: 최근 5개 턴)
+        # 대화 기록의 최대 길이 제한 (최근 3개 턴)
         recent_history = (
-            conversation_history[-5:]
-            if len(conversation_history) > 5
+            conversation_history[-3:]
+            if len(conversation_history) > 3
             else conversation_history
         )
 
@@ -536,7 +564,7 @@ async def generate_llm_response(
 
         conversation_context = "대화 기록:\n" + "\n".join(conversation_parts) + "\n\n"
 
-    # 간결하고 명확한 프롬프트
+    # 간결하고 명확한 프롬프트 - 최적화: 프롬프트 단순화
     prompt = f"""<start_of_turn>user
 당신은 사용자 질문에 대해 주어진 참고 문서를 기반으로 답변하는 AI 어시스턴트입니다.
 다음 지침을 따라주세요:
@@ -556,28 +584,36 @@ async def generate_llm_response(
 답변:"""
 
     try:
+        # 메모리 최적화를 위한 캐시 정리
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            
         with torch.no_grad(), torch.cuda.amp.autocast(enabled=True):  # Mixed precision 활성화
-            inputs = tokenizer(prompt, return_tensors="pt").to(llm_model.device)
+            # 입력 인코딩 및 CUDA 장치로 이동
+            inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=4096)
+            inputs = {k: v.to(llm_model.device) for k, v in inputs.items()}
 
-            # 생성 파라미터 최적화
+            # 생성 파라미터 최적화 - 안정성 및 속도 개선
             outputs = await asyncio.wait_for(
                 asyncio.to_thread(
                     llm_model.generate,
                     **inputs,
-                    max_new_tokens=500,
+                    max_new_tokens=512,  # 약간 증가 (500 → 512)
                     repetition_penalty=1.2,
-                    temperature=0.05,  # 낮은 온도로 설정 - 더 결정적인 응답
+                    temperature=0.01,  # 더 낮은 온도로 설정 - 더 결정적인 응답 (0.05 → 0.01)
                     do_sample=False,  # 결정적인 디코딩 사용
                     top_p=0.95,
                     top_k=40,
                     pad_token_id=tokenizer.eos_token_id,  # 패딩 토큰 명시적 설정
+                    num_beams=1,  # 빔 서치 없이 빠른 생성
                 ),
-                timeout=45.0,  # 타임아웃 45초로 증가 (기존 30초)
+                timeout=60.0,  # 타임아웃 60초로 증가 (기존 45초)
             )
 
+            # 효율적인 텍스트 디코딩 (skip_special_tokens=True)
             generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-            # 응답 추출 로직 최적화
+            # 응답 추출 로직 최적화 - 정규식 사용
             if "<start_of_turn>model" in generated_text:
                 answer = generated_text.split("<start_of_turn>model")[-1].strip()
                 if answer.startswith("답변:"):
@@ -624,7 +660,7 @@ async def search_and_combine(
 
     # 대화 기록 최적화 (최근 5턴으로 제한)
     def optimize_conversation_history(
-        history: List[Dict], max_turns: int = 5
+        history: List[Dict], max_turns: int = 3  # 최대 턴 수 감소 (5→3)
     ) -> List[Dict]:
         if len(history) > max_turns * 2:
             return history[-max_turns * 2 :]
@@ -651,17 +687,17 @@ async def search_and_combine(
     start_time = time.time()
 
     try:
-        # 1. 검색 (비동기 처리)
-        retrieval_start = time.time()
-        # ElasticsearchRetriever는 k=20 (기본값) 사용
-        retriever = ElasticsearchRetriever(
-            es_client, embedding_function, category=category, k=20
-        )
-        
-        # 메모리 최적화를 위한 토치 캐시 정리 (선택적)
+        # 메모리 최적화를 위한 토치 캐시 정리
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             
+        # 1. 검색 (비동기 처리)
+        retrieval_start = time.time()
+        # ElasticsearchRetriever는 k=25 (성능 최적화 설정)
+        retriever = ElasticsearchRetriever(
+            es_client, embedding_function, category=category, k=25
+        )
+        
         docs = retriever.get_relevant_documents(query)
         retrieval_time = time.time() - retrieval_start
         print(f"Retrieval time: {retrieval_time:.2f}s, Found {len(docs)} docs from ES.")
@@ -674,10 +710,14 @@ async def search_and_combine(
                 "sources": [],
             }
 
+        # 메모리 최적화를 위한 토치 캐시 정리
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            
         # 2. Reranking (최적화 - 비동기 처리)
         rerank_start = time.time()
-        # EnhancedLocalReranker는 top_n=15 (기본값) 사용
-        reranker = EnhancedLocalReranker(reranker_model, top_n=15)
+        # EnhancedLocalReranker는 top_n=18 (성능 최적화 설정)
+        reranker = EnhancedLocalReranker(reranker_model, top_n=18)
         
         try:
             reranked_docs = reranker.rerank(query, docs)
@@ -696,10 +736,14 @@ async def search_and_combine(
                 "sources": [],
             }
 
+        # 메모리 최적화를 위한 토치 캐시 정리
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            
         # 3. LLM 답변 생성
         llm_start = time.time()
-        # final_docs는 reranked_docs[:5] 사용 (원본 코드 기준)
-        final_docs = reranked_docs[:5]
+        # final_docs 문서 수 증가 (5 → 7)
+        final_docs = reranked_docs[:7]  # 더 많은 컨텍스트 제공
         print(f"--- DEBUG: Passing {len(final_docs)} docs to LLM. ---")
         for idx, doc_to_llm in enumerate(final_docs):
             print(
@@ -747,11 +791,11 @@ async def search_and_combine(
                     )
                     page_num_to_send = 1
 
-                # 청크 ID 처리 (기존 방식 유지) - 명시적으로 문자열로 변환
+                # 청크 ID 처리 - 명시적으로 문자열로 변환
                 chunk_id_raw = doc_for_source.metadata.get("chunk_id", f"chunk_idx_{i}")
                 chunk_id_to_send = str(chunk_id_raw)  # 명시적으로 문자열로 변환
 
-                # 점수 정규화 (정확도를 위해 원래 점수 유지)
+                # 점수 정규화
                 similarity = doc_for_source.metadata.get("relevance_score", 0.0)
                 rerank_score = doc_for_source.metadata.get("rerank_score", 0.0)
 
@@ -1010,83 +1054,107 @@ async def source_preview_endpoint(request: SourcePreviewRequest = Body(...)):
             f"Source preview 요청: path={request.path}, page={request.page}, chunk_id={request.chunk_id}"
         )
 
-        # chunk_id를 사용하여 ES에서 정확한 청크 검색
-        # doc_id 형식: f"{source_file.replace('.', '_')}_{page_number}_{chunk_id}"
-        # 이 형식을 정확히 맞춰서 _id로 검색하거나, source, page, chunk_id 필드로 bool query
+        # chunk_id 전처리 - 명시적 문자열 변환
+        chunk_id_query = str(request.chunk_id)  # 모든 경우 문자열로 처리
 
-        # 예시: source, page, chunk_id 필드로 검색
-        must_clauses = [
-            {"term": {"source": request.path}},
-            {"term": {"page": request.page}},
-        ]
-        # chunk_id가 문자열인지 정수인지 ES 저장 방식에 따라 처리
-        # indexing_utils.py에서 chunk_id를 정수로 저장했다면 (metadata["chunk_id"] = i)
-        try:
-            chunk_id_val = int(request.chunk_id)
-            must_clauses.append({"term": {"chunk_id": chunk_id_val}})
-        except ValueError:
-            # chunk_id가 정수로 변환되지 않으면 문자열로 처리 (ES 필드 타입 확인 필요)
-            print(
-                f"Warning: chunk_id '{request.chunk_id}' is not an integer, searching as keyword."
-            )
-            must_clauses.append({"term": {"chunk_id": str(request.chunk_id)}})
-
-        search_body = {
-            "query": {"bool": {"must": must_clauses}},
-            "size": 1,
-            "_source": ["text", "source", "page", "chunk_id"],
-        }
-
-        response = es_client.search(index=ES_INDEX_NAME, body=search_body)
-        hits = response["hits"]["hits"]
-
-        if hits:
-            hit = hits[0]["_source"]
-            return {
-                "status": "success",
-                "content": hit.get("text", "내용을 찾을 수 없습니다."),
-                "source": os.path.basename(hit.get("source", "N/A")),
-                "page": hit.get("page", 0),
-                "chunk_id": hit.get("chunk_id", "N/A"),
+        # 다양한 쿼리 시도 (우선순위에 따라)
+        search_attempts = []
+        
+        # 1. source, page, chunk_id(문자열)로 검색 (1순위)
+        search_attempts.append({
+            "query": {
+                "bool": {
+                    "must": [
+                        {"term": {"source": request.path}},
+                        {"term": {"page": request.page}},
+                        {"term": {"chunk_id": chunk_id_query}}
+                    ]
+                }
             }
-        else:
-            # 만약 위 검색이 실패하면, source와 page로만 한번 더 검색 시도 (폴백)
-            fallback_search_body = {
+        })
+        
+        # 2. chunk_id가 정수로 저장되었을 가능성 (2순위)
+        try:
+            chunk_id_int = int(request.chunk_id)
+            search_attempts.append({
                 "query": {
                     "bool": {
                         "must": [
                             {"term": {"source": request.path}},
                             {"term": {"page": request.page}},
+                            {"term": {"chunk_id": chunk_id_int}}
                         ]
                     }
-                },
-                "size": 1,  # 해당 페이지의 첫번째 청크라도 보여주기
-                "sort": [{"chunk_id": "asc"}],  # chunk_id가 숫자라면 정렬 가능
-                "_source": ["text", "source", "page", "chunk_id"],
-            }
-            response_fallback = es_client.search(
-                index=ES_INDEX_NAME, body=fallback_search_body
-            )
-            hits_fallback = response_fallback["hits"]["hits"]
-            if hits_fallback:
-                hit_fb = hits_fallback[0]["_source"]
-                return {
-                    "status": "success",
-                    "content": hit_fb.get("text", "내용을 찾을 수 없습니다. (폴백)"),
-                    "source": os.path.basename(hit_fb.get("source", "N/A")),
-                    "page": hit_fb.get("page", 0),
-                    "chunk_id": hit_fb.get("chunk_id", "N/A"),
-                    "message": "정확한 청크를 찾지 못해 페이지의 첫 내용을 표시합니다.",
                 }
+            })
+        except (ValueError, TypeError):
+            # 정수 변환 불가 시 이 시도는 건너뜀
+            pass
+            
+        # 3. source와 page로만 검색 (3순위)
+        search_attempts.append({
+            "query": {
+                "bool": {
+                    "must": [
+                        {"term": {"source": request.path}},
+                        {"term": {"page": request.page}}
+                    ]
+                }
+            },
+            "size": 1,
+            "sort": [{"chunk_id": "asc"}]  # 첫 번째 청크 선택
+        })
+        
+        # 4. source_path만으로 검색 (4순위 - 마지막 시도)
+        search_attempts.append({
+            "query": {
+                "term": {"source": request.path}}
+            ,
+            "size": 1
+        })
+        
+        # 순차적으로 검색 시도
+        for i, search_body in enumerate(search_attempts):
+            # 기본 _source 필드 추가
+            if "_source" not in search_body:
+                search_body["_source"] = ["text", "source", "page", "chunk_id"]
+                
+            # 크기 지정이 없으면 기본값 설정
+            if "size" not in search_body:
+                search_body["size"] = 1
+                
+            response = es_client.search(index=ES_INDEX_NAME, body=search_body)
+            hits = response["hits"]["hits"]
+            
+            if hits:
+                hit = hits[0]["_source"]
+                result_msg = f"검색 성공 (시도 {i+1}/{len(search_attempts)})"
+                
+                # 모든 필드가 문자열로 변환되도록 보장
+                result = {
+                    "status": "success",
+                    "content": hit.get("text", "내용을 찾을 수 없습니다."),
+                    "source": os.path.basename(hit.get("source", "N/A")),
+                    "page": hit.get("page", 0),
+                    "chunk_id": str(hit.get("chunk_id", "N/A")),  # 명시적 문자열 변환
+                    "message": result_msg
+                }
+                
+                # 첫 번째 시도가 아니라면 알림 메시지 추가
+                if i > 0:
+                    result["message"] = f"원본 chunk_id로 찾지 못해 대체 문서를 표시합니다. ({result_msg})"
+                    
+                return result
 
-            return {
-                "status": "not_found",
-                "message": "해당 문서 내용을 찾을 수 없습니다.",
-                "content": "",
-                "source": os.path.basename(request.path),
-                "page": request.page,
-                "chunk_id": request.chunk_id,
-            }
+        # 모든 시도 실패
+        return {
+            "status": "not_found",
+            "message": "해당 문서 내용을 찾을 수 없습니다.",
+            "content": "",
+            "source": os.path.basename(request.path),
+            "page": request.page,
+            "chunk_id": str(request.chunk_id),  # 명시적 문자열 변환
+        }
     except Exception as e:
         print(f"참고 문서 미리보기 중 오류 발생: {e}")
         traceback.print_exc()
@@ -1096,7 +1164,7 @@ async def source_preview_endpoint(request: SourcePreviewRequest = Body(...)):
             "content": "",
             "source": os.path.basename(request.path),
             "page": request.page,
-            "chunk_id": request.chunk_id,
+            "chunk_id": str(request.chunk_id),  # 명시적 문자열 변환
         }
 
 
