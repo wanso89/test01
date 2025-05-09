@@ -1,16 +1,18 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
-import { FiLoader, FiSend, FiPaperclip, FiX, FiCheck, FiImage, FiMessageSquare, FiFile } from 'react-icons/fi';
+import { FiLoader, FiSend, FiPaperclip, FiX, FiCheck, FiImage, FiMessageSquare, FiFile, FiSmile } from 'react-icons/fi';
 import FileUpload from './FileUpload';
 
-const ChatInput = forwardRef(({ onSend, disabled, onTyping }, ref) => {
+const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess }, ref) => {
   const [message, setMessage] = useState('');
   const [showFileUploadModal, setShowFileUploadModal] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [files, setFiles] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('메뉴얼'); // 기본 카테고리
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
   const categories = ['메뉴얼', '장애보고서', '기술문서', '기타'];
   const typingTimerRef = useRef(null);
+  const [isFocused, setIsFocused] = useState(false);
 
   useImperativeHandle(ref, () => ({
     focus: () => {
@@ -74,7 +76,8 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping }, ref) => {
 
   const handleSend = () => {
     if (message.trim() || files.length > 0) {
-      onSend(message, files);
+      // 선택된 카테고리 전달 (문자열 확인)
+      onSend(message, selectedCategory || '메뉴얼');
       setMessage('');
       setFiles([]);
       if (textareaRef.current) {
@@ -104,10 +107,20 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping }, ref) => {
     setShowFileUploadModal(false);
   };
 
-  const handleFileUpload = async (uploadedFiles) => {
+  const handleFileUpload = async (uploadedFiles, category) => {
     try {
       if (uploadedFiles && uploadedFiles.length > 0) {
         addFiles(uploadedFiles);
+      }
+      
+      // 카테고리가 전달된 경우 업데이트
+      if (category && typeof category === 'string') {
+        setSelectedCategory(category);
+      }
+      
+      // 업로드 성공 콜백 호출
+      if (onUploadSuccess) {
+        onUploadSuccess(uploadedFiles);
       }
     } catch (error) {
       console.error('파일 업로드 오류:', error);
@@ -115,21 +128,45 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping }, ref) => {
     }
   };
 
+  const handleCategoryChange = (category) => {
+    setSelectedCategory(category);
+  };
+
   return (
-    <div className="p-3 md:p-4">
-      <div className="chat-input mx-auto max-w-4xl">
+    <div className="p-3 md:p-4 animate-float-in">
+      <div className={`chat-input mx-auto max-w-4xl transition-all duration-300 ${isFocused ? 'shadow-md' : ''}`}>
+        {/* 카테고리 선택 영역 추가 */}
+        <div className="mb-2 flex justify-start">
+          <div className="inline-flex text-xs bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
+            {categories.map((category) => (
+              <button
+                key={category}
+                onClick={() => handleCategoryChange(category)}
+                className={`px-3 py-1 transition-colors ${
+                  selectedCategory === category 
+                    ? 'bg-indigo-500 text-white' 
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+        </div>
+        
         {files.length > 0 && (
-          <div className="flex flex-wrap gap-2 p-2 border-b border-gray-700">
+          <div className="flex flex-wrap gap-2 p-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
             {files.map((file, index) => (
               <div 
                 key={index} 
-                className="flex items-center gap-1.5 py-1 px-2 bg-indigo-900/50 text-indigo-300 rounded-full text-sm"
+                className="flex items-center gap-1.5 py-1 px-2.5 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-full text-sm animate-fade-in-fast shadow-sm"
               >
                 <FiFile size={14} />
-                <span className="truncate max-w-[140px]">{file.name}</span>
+                <span className="truncate max-w-[150px] font-medium">{file.name}</span>
                 <button 
                   onClick={() => removeFile(index)}
-                  className="p-0.5 hover:bg-indigo-800 rounded-full"
+                  className="p-0.5 hover:bg-indigo-200 dark:hover:bg-indigo-800 rounded-full transition-colors"
+                  title="파일 제거"
                 >
                   <FiX size={14} />
                 </button>
@@ -138,10 +175,10 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping }, ref) => {
           </div>
         )}
         
-        <div className="flex items-end gap-2 p-2">
+        <div className="flex items-end gap-2 p-2.5">
           <button
             onClick={handleFileButtonClick}
-            className={`p-2.5 rounded-full text-indigo-400 hover:bg-gray-800 transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`p-2.5 rounded-full text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             disabled={disabled || isUploading}
             title="파일 첨부"
           >
@@ -152,28 +189,37 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping }, ref) => {
             )}
           </button>
 
-          <textarea
-            ref={textareaRef}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="메시지를 입력하세요..."
-            className="flex-1 resize-none outline-none bg-transparent text-gray-200 py-2 min-h-[44px] max-h-[150px]"
-            disabled={disabled}
-            rows={1}
-          />
+          <div className="flex-1 relative">
+            <textarea
+              ref={textareaRef}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              placeholder="메시지를 입력하세요..."
+              className="w-full resize-none outline-none bg-transparent text-gray-800 dark:text-gray-200 py-2 min-h-[44px] max-h-[150px] placeholder:text-gray-400 dark:placeholder:text-gray-500"
+              disabled={disabled}
+              rows={1}
+            />
+            {message.length === 0 && (
+              <div className="absolute right-0 bottom-2 text-xs text-gray-400 dark:text-gray-500 pointer-events-none pr-2">
+                Enter 키로 전송
+              </div>
+            )}
+          </div>
 
           <button
             onClick={handleSend}
-            className={`p-2 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 transition-colors ${
+            className={`p-2.5 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 transition-colors ${
               (disabled || (!message.trim() && files.length === 0))
                 ? 'opacity-50 cursor-not-allowed'
-                : 'shadow-sm'
+                : 'shadow-md hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0 active:shadow-md'
             }`}
             disabled={disabled || (!message.trim() && files.length === 0)}
             title="메시지 보내기"
           >
-            <FiSend size={20} />
+            <FiSend size={20} className={message.trim() ? 'animate-appear' : ''} />
           </button>
         </div>
       </div>
@@ -183,6 +229,7 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping }, ref) => {
           onClose={handleModalClose} 
           categories={categories}
           onUploadSuccess={handleFileUpload}
+          initialCategory={selectedCategory}
         />
       )}
 

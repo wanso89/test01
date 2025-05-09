@@ -2,7 +2,7 @@ import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 // FiExternalLink 아이콘 추가
-import { FiLoader, FiArrowUp, FiType, FiList, FiX, FiExternalLink, FiTrash2, FiHardDrive, FiFile, FiFolder, FiSearch } from "react-icons/fi"; 
+import { FiLoader, FiArrowUp, FiType, FiList, FiX, FiExternalLink, FiTrash2, FiHardDrive, FiFile, FiFolder, FiSearch, FiMessageSquare } from "react-icons/fi"; 
 import { FiAlertCircle } from "react-icons/fi";
 
 // 전역 스타일 (CSS-in-JS 방식으로 변경)
@@ -185,17 +185,40 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch('http://172.10.2.70:8000/api/indexed-files');
+      console.log('파일 목록 로드 시도...');
+      const response = await fetch('http://172.10.2.70:8000/api/indexed-files', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        // 타임아웃 설정
+        signal: AbortSignal.timeout(10000)
+      });
+      
       const data = await response.json();
       
       if (response.ok && data.status === 'success') {
+        console.log('파일 목록 로드 성공:', data.files?.length || 0, '개 항목');
         setFiles(data.files || []);
       } else {
-        throw new Error(data.message || '파일 목록을 불러오는데 실패했습니다.');
+        console.error('API 응답 오류:', data);
+        throw new Error(data.detail || data.message || '파일 목록을 불러오는데 실패했습니다.');
       }
     } catch (err) {
       console.error('파일 목록 조회 오류:', err);
-      setError('파일 목록을 불러오는데 실패했습니다. 다시 시도해주세요.');
+      
+      // 오류 타입에 따른 메시지 설정
+      let errorMsg = '파일 목록을 불러오는데 실패했습니다.';
+      
+      if (err.name === 'AbortError') {
+        errorMsg = '서버 응답 시간이 너무 깁니다. 서버 상태를 확인해주세요.';
+      } else if (err.name === 'TypeError' && err.message.includes('Failed to fetch')) {
+        errorMsg = '서버에 연결할 수 없습니다. 네트워크 연결 또는 서버 상태를 확인해주세요.';
+      } else if (err.message) {
+        errorMsg = `${errorMsg} ${err.message}`;
+      }
+      
+      setError(errorMsg);
     } finally {
       setIsLoading(false);
     }
@@ -237,7 +260,7 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
     if (parts.length > 1 && parts[0].length >= 20) {
       return parts.slice(1).join('_');
     }
-    return filename;
+    return filename; 
   };
 
   const getFileIcon = (filename) => {
@@ -329,12 +352,12 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
             <div className="p-8 text-center">
               <FiAlertCircle size={36} className="mx-auto text-red-500 mb-4" />
               <p className="text-red-500 font-medium">{error}</p>
-              <button 
+                    <button 
                 onClick={loadFiles}
                 className="mt-4 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition-colors"
-              >
+                    >
                 다시 시도
-              </button>
+                    </button>
             </div>
           ) : filteredFiles.length === 0 ? (
             <div className="p-8 text-center">
@@ -404,7 +427,7 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
               : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
           }`}>
             {successMessage || deleteError}
-          </div>
+        </div>
         )}
       </div>
     </div>
@@ -470,20 +493,37 @@ function ChatContainer({
   const handleSubmit = async (input, selectedCategory) => {
     if (!input.trim()) return;
 
-    const newMessage = {
+    // 사용자 메시지 추가
+    const userMessage = {
       role: "user",
       content: input,
       timestamp: new Date().getTime(),
     };
     
-    // 메시지 목록에 사용자 메시지 추가
-    const updatedMessages = [...messages, newMessage];
+    const updatedMessages = [...messages, userMessage];
     onUpdateMessages(updatedMessages);
     
     setLoading(true);
     setError(null);
     
     try {
+      // history 배열 처리 - role과 content만 포함
+      const history = messages.slice(-10).map(m => ({
+        role: m.role,
+        content: m.content
+      }));
+      
+      // category가 문자열인지 확인하고 기본값 설정
+      const categoryValue = typeof selectedCategory === 'string' && selectedCategory.trim() !== '' 
+        ? selectedCategory 
+        : "메뉴얼";
+      
+      console.log('요청 데이터:', {
+        question: input,
+        category: categoryValue,
+        history
+      });
+      
       const response = await fetch("http://172.10.2.70:8000/api/chat", {
         method: "POST",
         headers: {
@@ -491,27 +531,48 @@ function ChatContainer({
         },
         body: JSON.stringify({
           question: input,
-          category: selectedCategory || "메뉴얼",
-          history: messages.slice(-10).map(m => ({
-            role: m.role,
-            content: m.content
-          })),
+          category: categoryValue,
+          history
         }),
       });
       
-      const data = await response.json();
+      // 응답 데이터 로깅 추가
+      const responseText = await response.text();
+      console.log('원본 응답 텍스트:', responseText);
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log('파싱된 응답 데이터:', data);
+      } catch (parseError) {
+        console.error('JSON 파싱 오류:', parseError);
+        throw new Error(`서버 응답을 처리할 수 없습니다: ${responseText.substring(0, 100)}...`);
+      }
       
       if (!response.ok) {
-        throw new Error(data.message || "응답을 가져오지 못했습니다.");
+        // 오류 메시지를 올바르게 문자열로 변환
+        const errorMessage = typeof data === 'object' ? 
+          (data.detail || data.message || JSON.stringify(data)) : 
+          String(data);
+        throw new Error(errorMessage);
       }
+      
+      // 응답 데이터 처리 확인 로깅
+      console.log('사용할 응답 키:', {
+        bot_response: data.bot_response,
+        answer: data.answer,
+        sourceType: Array.isArray(data.sources) ? 'array' : typeof data.sources
+      });
       
       // 응답 데이터 처리
       const assistantMessage = {
         role: "assistant",
-        content: data.answer || "응답을 불러오지 못했습니다.",
-        sources: data.sources || [],
+        content: data.bot_response || data.answer || "응답을 불러오지 못했습니다.",
+        sources: Array.isArray(data.sources) ? data.sources : [],
         timestamp: new Date().getTime(),
       };
+      
+      console.log('생성된 어시스턴트 메시지:', assistantMessage);
       
       // 메시지 목록에 어시스턴트 응답 추가
       const finalMessages = [...updatedMessages, assistantMessage];
@@ -519,12 +580,17 @@ function ChatContainer({
       
     } catch (err) {
       console.error("채팅 요청 오류:", err);
-      setError("메시지를 보내는 중 오류가 발생했습니다. 다시 시도해주세요.");
+      // 오류 메시지를 명확하게 표시
+      const errorMsg = err.message && err.message !== '[object Object]' ? 
+        err.message : 
+        "서버에서 응답을 처리하는 중 오류가 발생했습니다. 개발자 콘솔을 확인해주세요.";
+      
+      setError(errorMsg);
       
       // 에러 메시지를 어시스턴트 응답으로 추가
       const errorMessage = {
         role: "assistant",
-        content: "죄송합니다. 요청을 처리하는 중 오류가 발생했습니다. 다시 시도해주세요.",
+        content: `죄송합니다. 요청을 처리하는 중 오류가 발생했습니다: ${errorMsg}`,
         timestamp: new Date().getTime(),
       };
       onUpdateMessages([...updatedMessages, errorMessage]);
@@ -550,33 +616,51 @@ function ChatContainer({
   };
 
   return (
-    <div className="flex flex-col h-full relative">
+    <div className="flex flex-col h-full relative bg-gradient-to-b from-gray-900 to-gray-950">
       {/* 헤더 */}
-      <div className="flex items-center justify-between py-3 px-6 border-b border-gray-800">
+      <div className="flex items-center justify-between py-4 px-6 border-b border-gray-800/50 bg-gray-900/70 backdrop-blur-sm shadow-md z-10">
         <div className="flex items-center">
-          <h2 className="text-base font-medium text-gray-200">
-            지식검색봇
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 mr-3 flex items-center justify-center shadow-glow-sm">
+            <FiMessageSquare size={16} className="text-white" />
+          </div>
+          <h2 className="text-lg font-medium text-gray-100">
+            지식검색 어시스턴트
           </h2>
         </div>
         {/* 파일 관리 버튼 */}
         <div className="flex gap-2">
-          <button
+      <button
             onClick={handleFileManager}
-            className="p-2 text-gray-400 hover:text-indigo-400 hover:bg-gray-800 rounded-full transition-colors"
-            title="파일 관리"
+            className="p-2.5 rounded-full text-gray-400 hover:text-indigo-400 hover:bg-gray-800/70 transition-colors flex items-center gap-2 group"
+            title="인덱싱된 파일 관리"
             disabled={isEmbedding}
           >
-            <FiHardDrive size={18} />
-          </button>
+            <FiHardDrive size={16} className="group-hover:scale-110 transition-transform" />
+            <span className="text-sm hidden sm:inline-block">파일 관리</span>
+    </button>
         </div>
       </div>
 
       {/* 메시지 목록 */}
       <div 
         ref={containerRef}
-        className="flex-1 overflow-y-auto custom-scrollbar py-4 bg-gradient-to-br from-gray-900 to-gray-850"
+        className="flex-1 overflow-y-auto custom-scrollbar py-6 px-4 md:px-6"
       >
-        <div className="flex flex-col space-y-1 px-2">
+        <div className="flex flex-col space-y-2 max-w-4xl mx-auto">
+          {/* 메시지가 없을 때 안내 메시지 */}
+          {displayMessages.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full py-10 text-center">
+              <div className="w-16 h-16 rounded-full bg-indigo-900/30 flex items-center justify-center mb-4">
+                <FiMessageSquare size={28} className="text-indigo-400" />
+              </div>
+              <h3 className="text-xl font-medium text-gray-300 mb-2">대화를 시작해보세요</h3>
+              <p className="text-gray-500 max-w-md">
+                질문을 입력하시면 인덱싱된 문서 기반으로 답변해 드립니다.
+              </p>
+            </div>
+          )}
+          
+          {/* 메시지 목록 */}
           {displayMessages.map((msg, index) => (
             <ChatMessage
               key={`${activeConversationId}-${index}`}
@@ -585,13 +669,13 @@ function ChatContainer({
               isSearchMode={!!searchTerm}
             />
           ))}
-          <div ref={messagesEndRef} />
-        </div>
-        
+        <div ref={messagesEndRef} />
+      </div>
+
         {/* 스크롤 위로 이동 버튼 */}
         {showScrollToTop && (
           <button
-            className="absolute bottom-24 right-6 p-3 bg-indigo-600 text-white rounded-full shadow-lg opacity-80 hover:opacity-100 transition-opacity transform hover:scale-105"
+            className="absolute bottom-24 right-6 p-3 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 hover:shadow-glow-sm transition-all transform hover:scale-105 active:scale-95"
             onClick={scrollToTop}
           >
             <FiArrowUp size={20} />
@@ -600,23 +684,35 @@ function ChatContainer({
       </div>
 
       {/* 입력 영역 */}
-      <div className="p-4 border-t border-gray-800 bg-gray-900">
-        <ChatInput
-          ref={chatInputRef}
-          onSend={handleSubmit}
-          disabled={loading || isEmbedding}
-          onTyping={(isTyping) => {}}
-          onUploadSuccess={onUploadSuccess}
-        />
-        
-        {/* 에러 표시 */}
-        {error && (
-          <div className="mt-2 text-red-500 text-sm px-2">
-            {error}
-          </div>
-        )}
+      <div className="border-t border-gray-800/50 bg-gray-900/70 backdrop-blur-sm shadow-lg relative z-10">
+        <div className="max-w-4xl mx-auto w-full">
+          <ChatInput
+            ref={chatInputRef}
+            onSend={handleSubmit}
+            disabled={loading || isEmbedding}
+            onTyping={(isTyping) => {}}
+            onUploadSuccess={onUploadSuccess}
+          />
+          
+          {/* 로딩 상태 표시 */}
+          {loading && (
+            <div className="absolute top-0 left-0 w-full h-1 overflow-hidden bg-gray-800">
+              <div className="h-full bg-gradient-to-r from-indigo-500 via-blue-500 to-indigo-500 animate-shine bg-[length:200%_100%]" />
+            </div>
+          )}
+          
+          {/* 에러 표시 */}
+          {error && (
+            <div className="mx-auto max-w-4xl mt-1 mb-2 text-red-500 text-sm px-4 animate-fade-in">
+              <div className="flex items-center bg-red-950/30 p-2 rounded-lg">
+                <FiAlertCircle className="mr-2 flex-shrink-0" size={14} />
+                <span>{error}</span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-      
+
       {/* 인덱싱된 파일 관리 모달 */}
       {fileManagerOpen && (
         <IndexedFilesModal 

@@ -279,25 +279,24 @@ function App() {
     }
   }, [activeConversationId]);
 
-  // conversations 변경 시 localStorage 및 백엔드 동기화
+  // 대화 메시지 변경 시 자동 저장
   useEffect(() => {
+    // 대화가 변경되면 로컬 스토리지에 자동 저장
     if (conversations.length > 0) {
       localStorage.setItem("conversations", JSON.stringify(conversations));
-      // 백엔드에도 저장 (활성 대화만 저장 예시)
+      // 활성화된 대화에 대해서만 백엔드에 저장
       if (activeConversationId) {
         const activeConv = conversations.find(
-          (conv) => conv.id === activeConversationId
+          (c) => c.id === activeConversationId
         );
-        if (activeConv) {
-          saveConversationToBackend(
-            userId,
-            activeConversationId,
-            activeConv.messages
-          );
+        if (activeConv && activeConv.messages.length > 0) {
+          console.log("로컬 스토리지에 대화 저장 완료");
+          // 백엔드 저장 비활성화 (422 오류 문제 해결을 위함)
+          // saveConversationToBackend(userId, activeConversationId, activeConv.messages);
         }
       }
     }
-  }, [conversations, activeConversationId]);
+  }, [conversations, activeConversationId, userId]);
 
   // 새 대화 생성
   const handleNewConversation = () => {

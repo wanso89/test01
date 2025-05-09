@@ -1,9 +1,9 @@
 import { useState, useRef } from "react";
-import { FiLoader, FiX, FiPaperclip, FiCheck, FiFolder, FiFile } from 'react-icons/fi';
+import { FiLoader, FiX, FiPaperclip, FiCheck, FiFolder, FiFile, FiUploadCloud } from 'react-icons/fi';
 
-function FileUpload({ onClose, categories, onUploadSuccess }) {
+function FileUpload({ onClose, categories, onUploadSuccess, initialCategory }) {
   const [files, setFiles] = useState([]);
-  const [category, setCategory] = useState(categories[0] || "메뉴얼");
+  const [category, setCategory] = useState(initialCategory || categories[0] || "메뉴얼");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
   const [dragActive, setDragActive] = useState(false);
@@ -70,13 +70,16 @@ function FileUpload({ onClose, categories, onUploadSuccess }) {
         if (successCount === files.length) {
           setUploadStatus(`${files.length}개 파일 업로드 성공!`);
           if (onUploadSuccess) {
-            onUploadSuccess(files);
+            onUploadSuccess(files, category);
           }
           setTimeout(() => {
             onClose();
           }, 2000);
         } else if (successCount > 0) {
           setUploadStatus(`${successCount}/${files.length} 파일 업로드 성공`);
+          if (onUploadSuccess) {
+            onUploadSuccess(files.slice(0, successCount), category);
+          }
         } else {
           setUploadStatus(`업로드 실패: ${data.results[0].message || '알 수 없는 오류'}`);
         }
@@ -102,18 +105,21 @@ function FileUpload({ onClose, categories, onUploadSuccess }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md shadow-2xl animate-slide-up overflow-hidden relative">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md shadow-card-elevated animate-message-pop overflow-hidden relative">
         {/* 배경 장식 */}
-        <div className="absolute -right-20 -top-20 w-40 h-40 bg-indigo-400/10 rounded-full blur-2xl"></div>
-        <div className="absolute -left-20 -bottom-20 w-40 h-40 bg-purple-400/10 rounded-full blur-2xl"></div>
+        <div className="absolute -right-20 -top-20 w-64 h-64 bg-gradient-to-br from-indigo-500/20 to-purple-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute -left-20 -bottom-20 w-64 h-64 bg-gradient-to-tr from-blue-500/10 to-indigo-500/20 rounded-full blur-3xl"></div>
         
         <div className="relative z-10">
           <div className="flex justify-between items-center mb-5">
-            <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">파일 업로드</h2>
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 flex items-center">
+              <FiUploadCloud className="mr-2 text-indigo-500" size={20} />
+              <span>파일 업로드</span>
+            </h2>
             <button 
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-full p-2 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-full p-2 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
               aria-label="닫기"
               disabled={isUploading}
             >
@@ -131,7 +137,7 @@ function FileUpload({ onClose, categories, onUploadSuccess }) {
                   onClick={() => setCategory(cat)}
                   className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
                     category === cat 
-                      ? 'bg-indigo-600 text-white shadow-md' 
+                      ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md' 
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                   disabled={isUploading}
@@ -150,8 +156,11 @@ function FileUpload({ onClose, categories, onUploadSuccess }) {
           <div className="mb-6">
             <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">파일 선택</label>
             <div 
-              className={`drop-area border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600
-                ${dragActive ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-gray-300 dark:border-gray-500'}`}
+              className={`drop-area rounded-xl p-6 text-center cursor-pointer transition-all
+                ${dragActive 
+                  ? 'border-2 border-dashed border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' 
+                  : 'border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700'
+                } ${isUploading ? 'opacity-75 pointer-events-none' : ''}`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
@@ -164,12 +173,14 @@ function FileUpload({ onClose, categories, onUploadSuccess }) {
                       {files.length}개 파일 선택됨
                     </span>
                   </div>
-                  <div className="max-h-40 overflow-y-auto">
+                  <div className="max-h-40 overflow-y-auto custom-scrollbar">
                     {files.map((file, index) => (
-                      <div key={index} className="flex items-center justify-between bg-white dark:bg-gray-700 rounded-lg p-2 mb-1 shadow-sm group">
+                      <div key={index} className="flex items-center justify-between bg-white dark:bg-gray-700 rounded-lg p-2 mb-1.5 shadow-sm group hover:bg-gray-50 dark:hover:bg-gray-650 transition-colors">
                         <div className="flex items-center">
-                          <FiFile className="text-indigo-500 mr-2 flex-shrink-0" size={14} />
-                          <span className="text-gray-800 dark:text-gray-200 text-xs truncate max-w-[160px]">
+                          <div className="w-7 h-7 rounded-md bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center mr-2 flex-shrink-0">
+                            <FiFile className="text-indigo-600 dark:text-indigo-400" size={14} />
+                          </div>
+                          <span className="text-gray-800 dark:text-gray-200 text-xs truncate max-w-[160px] font-medium">
                             {file.name}
                           </span>
                         </div>
@@ -183,7 +194,7 @@ function FileUpload({ onClose, categories, onUploadSuccess }) {
                                 e.stopPropagation();
                                 removeFile(index);
                               }} 
-                              className="opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
+                              className="opacity-0 group-hover:opacity-100 p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
                             >
                               <FiX size={14} className="text-gray-500 dark:text-gray-400" />
                             </button>
@@ -194,9 +205,9 @@ function FileUpload({ onClose, categories, onUploadSuccess }) {
                   </div>
                 </div>
               ) : (
-                <div className="text-gray-500 dark:text-gray-400 py-5">
-                  <div className="mx-auto w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/20 flex items-center justify-center mb-3">
-                    <FiPaperclip className="text-indigo-500" size={24} />
+                <div className="text-gray-500 dark:text-gray-400 py-6">
+                  <div className="mx-auto w-14 h-14 rounded-full bg-indigo-100 dark:bg-indigo-900/20 flex items-center justify-center mb-3 shadow-glow-sm">
+                    <FiUploadCloud className="text-indigo-500" size={28} />
                   </div>
                   <p className="text-sm font-medium mb-1">파일을 여기에 드래그하세요</p>
                   <p className="text-xs text-gray-500 dark:text-gray-500">또는 클릭하여 여러 파일 선택</p>
@@ -215,20 +226,20 @@ function FileUpload({ onClose, categories, onUploadSuccess }) {
           
           {isUploading && (
             <div className="mb-4">
-              <div className="h-1.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+                  className="h-full bg-gradient-to-r from-indigo-600 to-blue-500 rounded-full transition-all duration-300 animate-pulse"
                   style={{ width: `${uploadProgress}%` }}
                 ></div>
               </div>
-              <p className="text-xs text-center mt-1.5 text-gray-500 dark:text-gray-400">
-                업로드 중... 이 과정은 파일 크기에 따라 수 분이 소요될 수 있습니다.
+              <p className="text-xs text-center mt-2 text-gray-500 dark:text-gray-400">
+                업로드 중... 파일 크기에 따라 다소 시간이 소요될 수 있습니다.
               </p>
             </div>
           )}
           
           {uploadStatus && !isUploading && (
-            <div className={`mt-2 text-sm p-3 rounded-lg transition-all ${
+            <div className={`mt-2 text-sm p-3 rounded-lg transition-all animate-fade-in ${
               uploadStatus.includes('성공') 
                 ? 'text-green-700 bg-green-100 dark:bg-green-900/20 dark:text-green-400' 
                 : uploadStatus.includes('실패') || uploadStatus.includes('오류')
@@ -243,7 +254,7 @@ function FileUpload({ onClose, categories, onUploadSuccess }) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-colors font-medium"
+              className="px-4 py-2.5 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-colors font-medium"
               disabled={isUploading}
             >
               취소
@@ -251,17 +262,23 @@ function FileUpload({ onClose, categories, onUploadSuccess }) {
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={files.length === 0 || isUploading}
-              className={`px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors flex items-center justify-center gap-2 shadow-md
-                ${files.length === 0 || isUploading ? 'opacity-70 cursor-not-allowed' : 'opacity-100'}`}
+              className={`px-4 py-2.5 rounded-xl text-white shadow-md font-medium transition-colors ${
+                isUploading 
+                  ? 'bg-indigo-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 shadow-glow-sm'
+              }`}
+              disabled={isUploading || files.length === 0}
             >
               {isUploading ? (
-                <>
-                  <FiLoader className="animate-spin" size={16} />
+                <div className="flex items-center">
+                  <FiLoader className="animate-spin mr-2" size={16} />
                   <span>업로드 중...</span>
-                </>
+                </div>
               ) : (
-                <span>업로드</span>
+                <div className="flex items-center">
+                  <FiUploadCloud className="mr-1.5" size={16} />
+                  <span>업로드</span>
+                </div>
               )}
             </button>
           </div>

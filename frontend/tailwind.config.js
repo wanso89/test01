@@ -38,13 +38,13 @@ export default {
         },
         chat: {
           light: {
-            user: '#3b82f6', // Blue-500 (변경됨)
-            assistant: '#10b981', // Emerald-500 (변경됨)
+            user: '#4f46e5', // Indigo-600
+            assistant: '#ffffff', // White
             bg: '#f8fafc', // 배경색 (slate-50)
           },
           dark: {
-            user: '#60a5fa', // Blue-400 (변경됨)
-            assistant: '#34d399', // Emerald-400 (변경됨)
+            user: '#4f46e5', // Indigo-600 
+            assistant: '#1e293b', // Slate-800
             bg: '#0f172a', // 배경색 (slate-900)
           }
         },
@@ -155,6 +155,12 @@ export default {
         'blob': 'blob 7s infinite',
         'progress-bar': 'progress-bar 2s linear infinite',
         'pulsate': 'pulsate 2s ease-in-out infinite',
+        'fade-in-fast': 'fade-in 0.15s ease-out forwards',
+        'chat-pulse': 'chat-pulse 2s ease-in-out infinite',
+        'shine': 'shine 2s linear infinite',
+        'appear': 'appear 0.2s ease-out forwards',
+        'message-pop': 'message-pop 0.3s cubic-bezier(0.18, 1.25, 0.4, 1) forwards',
+        'float-in': 'float-in 0.4s ease-out forwards',
       },
       keyframes: {
         typing: {
@@ -219,12 +225,40 @@ export default {
           '0%, 100%': { opacity: 1 },
           '50%': { opacity: 0.5 },
         },
+        'chat-pulse': {
+          '0%, 100%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(1.03)' },
+        },
+        'shine': {
+          '0%': { backgroundPosition: '-100%' },
+          '100%': { backgroundPosition: '200%' },
+        },
+        'appear': {
+          '0%': { opacity: '0', transform: 'scale(0.96)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        'message-pop': {
+          '0%': { opacity: '0', transform: 'scale(0.8) translateY(10px)' },
+          '70%': { opacity: '1', transform: 'scale(1.03) translateY(-2px)' },
+          '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
+        },
+        'float-in': {
+          '0%': { opacity: '0', transform: 'translateY(8px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
       },
       boxShadow: {
         'chat': '0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.05)',
         'chat-dark': '0 1px 3px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.15)',
-        'message': '0 2px 5px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04)',
-        'message-hover': '0 4px 8px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06)',
+        'message': '0 4px 10px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.05)',
+        'message-hover': '0 8px 15px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.06)',
+        'message-dark': '0 4px 10px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.1)',
+        'message-hover-dark': '0 8px 15px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2)',
+        'bubble': '0 2px 5px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.03)',
+        'bubble-hover': '0 4px 8px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.06)',
+        'avatar': '0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.1)',
+        'glow': '0 0 15px rgba(79, 70, 229, 0.3), 0 0 5px rgba(79, 70, 229, 0.1)',
+        'glow-sm': '0 0 10px rgba(99, 102, 241, 0.2)',
         'card': '0 1px 2px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.15)',
         'card-hover': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
         'subtle': '0 1px 2px 0 rgb(0 0 0 / 0.1)',
@@ -233,6 +267,7 @@ export default {
         'soft-xl': '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.06)',
         'soft-2xl': '0 25px 50px -12px rgba(0, 0, 0, 0.15)',
         'colored-lg': '0 10px 15px -3px rgba(var(--tw-shadow-color), 0.3), 0 4px 6px -4px rgba(var(--tw-shadow-color), 0.2)',
+        'card-elevated': '0 8px 20px rgba(0, 0, 0, 0.08), 0 3px 8px rgba(0, 0, 0, 0.05)',
       },
       borderRadius: {
         'xl': '0.75rem',

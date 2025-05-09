@@ -185,8 +185,8 @@ function Sidebar({
                   />
                 ))}
               </div>
-            </div>
-          )}
+                  </div>
+                )}
 
           {/* 최근 대화 목록 */}
           <div>
@@ -343,16 +343,16 @@ function ConversationItem({ conversation, isActive, onClick, onRename, onDelete,
               >
                 <FiEdit2 size={14} />
               </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
                   onDelete(); // 확인 창 없이 바로 삭제
-                }}
+                      }}
                 className={`p-1 rounded-lg ${isActive ? 'text-white hover:bg-white/20' : 'text-gray-400 hover:bg-gray-700'} transition-colors`}
-                title="대화 삭제"
-              >
-                <FiTrash2 size={14} />
-              </button>
+                      title="대화 삭제"
+                    >
+                      <FiTrash2 size={14} />
+                    </button>
             </div>
           </>
         )}
