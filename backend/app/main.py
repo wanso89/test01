@@ -189,21 +189,54 @@ def get_llm_model_and_tokenizer():
     print("Loading LLM model and tokenizer...")
     try:
         torch.cuda.empty_cache()  # 메모리 정리
-        tokenizer = AutoTokenizer.from_pretrained(LLM_MODEL_NAME)
+        
+        # 토크나이저 로드
+        tokenizer = AutoTokenizer.from_pretrained(
+            LLM_MODEL_NAME,
+            use_fast=True,  # 빠른 토크나이저 사용
+            padding_side="left",  # 왼쪽 패딩 (생성 모델에 적합)
+        )
+        
+        # 특수 토큰 설정
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        
+        # 양자화 설정 (4비트 정밀도)
         quantization_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_compute_dtype=torch.float16,
             bnb_4bit_quant_type="nf4",
             bnb_4bit_use_double_quant=True,
         )
-        model = AutoModelForCausalLM.from_pretrained(
-            LLM_MODEL_NAME,
-            quantization_config=quantization_config,
-            torch_dtype=torch.float16,
-            device_map="auto",
-            revision="main",
-        )
-        print("LLM model and tokenizer loaded successfully.")
+        
+        # 모델 로드 최적화 설정
+        model_kwargs = {
+            "quantization_config": quantization_config,
+            "torch_dtype": torch.float16,
+            "device_map": "auto",  # 자동 장치 맵핑
+            "revision": "main",
+            "attn_implementation": "flash_attention_2",  # Flash Attention 2 사용 (지원 시)
+            "use_cache": True,  # KV 캐시 활성화
+        }
+        
+        # 모델 로드 시도
+        try:
+            # 먼저 Flash Attention으로 로드 시도
+            model = AutoModelForCausalLM.from_pretrained(
+                LLM_MODEL_NAME,
+                **model_kwargs
+            )
+            print("LLM model loaded successfully with Flash Attention.")
+        except Exception as flash_att_error:
+            print(f"Flash Attention 로드 실패, 표준 방식으로 재시도: {flash_att_error}")
+            # Flash Attention 실패 시 일반 방식으로 로드
+            model_kwargs.pop("attn_implementation", None)
+            model = AutoModelForCausalLM.from_pretrained(
+                LLM_MODEL_NAME,
+                **model_kwargs
+            )
+            print("LLM model loaded successfully with standard attention.")
+        
         return model, tokenizer
     except Exception as e:
         print(f"LLM 모델 또는 토크나이저 로딩 중 오류 발생: {e}")
@@ -234,23 +267,49 @@ class ElasticsearchRetriever:
         self.embedding_function = embedding_function
         self.k = k
         self.category = category
+        # 성능 최적화를 위한 캐시 추가
+        self._cache = {}
+        self._cache_size = 100  # 최대 캐시 항목 수
+        self._cache_ttl = 3600  # 캐시 유효 시간 (초)
 
     def get_relevant_documents(self, query: str) -> List[Document]:
         if not self.es_client or not self.embedding_function:
             print("Elasticsearch 클라이언트 또는 임베딩 함수가 초기화되지 않았습니다.")
             return []
 
+        # 캐시 키 생성 (쿼리와 카테고리 조합)
+        cache_key = f"{query.lower().strip()}:{self.category}"
+        
+        # 캐시에서 결과 확인
+        current_time = time.time()
+        if cache_key in self._cache:
+            cache_entry = self._cache[cache_key]
+            if current_time - cache_entry["timestamp"] < self._cache_ttl:
+                print(f"캐시에서 검색 결과 반환: '{query[:30]}...'")
+                return cache_entry["results"]
+        
+        # 캐시 정리 (필요시)
+        if len(self._cache) >= self._cache_size:
+            # 가장 오래된 항목부터 삭제
+            oldest_keys = sorted(
+                self._cache.keys(), 
+                key=lambda k: self._cache[k]["timestamp"]
+            )[:len(self._cache) // 4]  # 25% 정도 삭제
+            for old_key in oldest_keys:
+                del self._cache[old_key]
+
         try:
             # 임베딩 생성
             query_embedding = self.embedding_function([query])[0]
 
+            # 하이브리드 쿼리 구성 (BM25 + 벡터 검색)
             hybrid_query = {
                 "size": self.k,
                 "_source": {"excludes": ["embedding"]},
                 "query": {
                     "bool": {
                         "should": [
-                            # 1. 정확한 문구 검색
+                            # 1. 정확한 문구 검색 (가중치 높게 설정)
                             {
                                 "match_phrase": {
                                     "text": {"query": query, "boost": 3.0, "slop": 2}
@@ -285,8 +344,12 @@ class ElasticsearchRetriever:
                 },
             }
 
-            # 검색 실행
-            response = self.es_client.search(index=self.index_name, body=hybrid_query)
+            # 검색 실행 (타임아웃 설정)
+            response = self.es_client.search(
+                index=self.index_name, 
+                body=hybrid_query,
+                request_timeout=30  # 30초 타임아웃
+            )
 
             # 결과 처리
             docs = []
@@ -304,7 +367,7 @@ class ElasticsearchRetriever:
                     max(raw_score / 10, 0), 1
                 )  # 10으로 나누어 0~1 범위로 조정
 
-                metadata["relevance_score"] = hit["_score"]
+                metadata["relevance_score"] = raw_score  # 원본 점수 유지
                 metadata["source"] = hit["_source"].get("source", "unknown")
                 metadata["page"] = hit["_source"].get("page", 1)
 
@@ -316,6 +379,13 @@ class ElasticsearchRetriever:
                 )
 
             print(f"검색 완료: {len(docs)} 문서 검색됨")
+            
+            # 결과를 캐시에 저장
+            self._cache[cache_key] = {
+                "results": docs,
+                "timestamp": current_time
+            }
+            
             return docs
 
         except Exception as e:
@@ -329,20 +399,58 @@ class EnhancedLocalReranker:
     def __init__(self, reranker_model: Any, top_n=15):
         self.reranker = reranker_model
         self.top_n = top_n
+        # 성능 최적화를 위한 캐시 추가
+        self._cache = {}
+        self._cache_size = 100
+        self._cache_ttl = 3600  # 1시간 (초)
+        # 배치 처리 최적화
+        self.batch_size = 16  # 배치 크기 설정
 
     def rerank(self, query: str, docs: List[Document]) -> List[Document]:
         if not docs or not self.reranker:
             return []
 
+        # 캐시 키 생성 (쿼리와 문서 ID 조합)
+        # chunk_id를 명시적으로 문자열로 변환하여 에러 방지
+        cache_key = f"{query.lower().strip()}:{','.join([str(d.metadata.get('chunk_id', i)) for i, d in enumerate(docs[:10])])}"
+        
+        # 캐시에서 결과 확인
+        current_time = time.time()
+        if cache_key in self._cache:
+            cache_entry = self._cache[cache_key]
+            if current_time - cache_entry["timestamp"] < self._cache_ttl:
+                print(f"리랭킹 캐시 적중: '{query[:30]}...'")
+                return cache_entry["results"]
+                
+        # 캐시 정리 (필요시)
+        if len(self._cache) >= self._cache_size:
+            oldest_keys = sorted(
+                self._cache.keys(), 
+                key=lambda k: self._cache[k]["timestamp"]
+            )[:len(self._cache) // 4]
+            for old_key in oldest_keys:
+                del self._cache[old_key]
+
         try:
             # 상위 10개 문서만 리랭킹
             docs_to_rerank = docs[:10]
             pairs = [(query, doc.page_content) for doc in docs_to_rerank]
-            scores = self.reranker.predict(pairs)
+            
+            # 배치 처리로 성능 최적화
+            scores = []
+            for i in range(0, len(pairs), self.batch_size):
+                batch_pairs = pairs[i:i + self.batch_size]
+                # torch CUDA 설정으로 성능 최적화
+                with torch.no_grad(), torch.cuda.amp.autocast(enabled=True):
+                    batch_scores = self.reranker.predict(batch_pairs)
+                    scores.extend(batch_scores)
 
+            # 메타데이터에 점수 추가 및 정규화
             for doc, score in zip(docs_to_rerank, scores):
+                # 점수 범위를 0~1로 정규화 (-1~1 범위에서)
                 normalized_score = min(max((score + 1) / 2, 0), 1)
                 doc.metadata["rerank_score"] = float(normalized_score)
+                doc.metadata["raw_rerank_score"] = float(score)  # 원본 점수도 저장
 
             # 리랭킹된 문서와 나머지 문서 결합
             sorted_docs = sorted(
@@ -350,19 +458,32 @@ class EnhancedLocalReranker:
                 key=lambda x: x.metadata.get("rerank_score", 0.0),
                 reverse=True,
             )
-            sorted_docs.extend([doc for doc in docs[10:] if doc not in docs_to_rerank])
+            
+            # 나머지 문서 추가 (이미 포함된 문서 제외)
+            remaining_docs = [doc for doc in docs[10:] if doc not in docs_to_rerank]
+            sorted_docs.extend(remaining_docs)
 
-            threshold = 0.6
+            # 임계값 필터링 - 점수가 낮은 문서 제외
+            threshold = 0.6  # 60% 이상 관련성 있는 문서만 포함
             filtered_docs = [
                 doc
                 for doc in sorted_docs
                 if doc.metadata.get("rerank_score", 0.0) >= threshold
             ]
 
+            # 필터링 결과가 없으면 최상위 문서 하나라도 포함
             if not filtered_docs and sorted_docs:
                 filtered_docs = [sorted_docs[0]]
 
-            return filtered_docs[: self.top_n]
+            # 결과 캐싱
+            result_docs = filtered_docs[:self.top_n]
+            self._cache[cache_key] = {
+                "results": result_docs,
+                "timestamp": current_time
+            }
+            
+            return result_docs
+            
         except Exception as e:
             print(f"Reranking 중 오류 발생: {e}")
             traceback.print_exc()
@@ -416,7 +537,6 @@ async def generate_llm_response(
         conversation_context = "대화 기록:\n" + "\n".join(conversation_parts) + "\n\n"
 
     # 간결하고 명확한 프롬프트
-    # 3. 답변에는 어떤 문서를 참고했는지 **정확한 출처(예: [문서 1](출처: 파일명, 페이지: 번호, 조항: 제3조))** 또는 **(출처: 파일명, 페이지: 번호, 섹션: 주요 내용)**과 같이 명시해야 합니다.
     prompt = f"""<start_of_turn>user
 당신은 사용자 질문에 대해 주어진 참고 문서를 기반으로 답변하는 AI 어시스턴트입니다.
 다음 지침을 따라주세요:
@@ -436,7 +556,7 @@ async def generate_llm_response(
 답변:"""
 
     try:
-        with torch.no_grad():
+        with torch.no_grad(), torch.cuda.amp.autocast(enabled=True):  # Mixed precision 활성화
             inputs = tokenizer(prompt, return_tensors="pt").to(llm_model.device)
 
             # 생성 파라미터 최적화
@@ -446,32 +566,44 @@ async def generate_llm_response(
                     **inputs,
                     max_new_tokens=500,
                     repetition_penalty=1.2,
-                    temperature=0.05,
-                    do_sample=False,
+                    temperature=0.05,  # 낮은 온도로 설정 - 더 결정적인 응답
+                    do_sample=False,  # 결정적인 디코딩 사용
                     top_p=0.95,
                     top_k=40,
+                    pad_token_id=tokenizer.eos_token_id,  # 패딩 토큰 명시적 설정
                 ),
-                timeout=30.0,  # 30초 타임아웃
+                timeout=45.0,  # 타임아웃 45초로 증가 (기존 30초)
             )
 
             generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-            # 응답 추출
-            if "답변:" in generated_text:
+            # 응답 추출 로직 최적화
+            if "<start_of_turn>model" in generated_text:
+                answer = generated_text.split("<start_of_turn>model")[-1].strip()
+                if answer.startswith("답변:"):
+                    answer = answer[3:].strip()  # "답변:" 제거
+            elif "답변:" in generated_text:
                 answer = generated_text.split("답변:")[-1].strip()
             else:
-                answer = (
-                    generated_text.replace(prompt.split("<start_of_turn>model")[0], "")
-                    .strip()
-                    .removeprefix("<start_of_turn>model")
-                    .removeprefix("답변:")
-                    .strip()
-                )  # 프롬프트 제거 강화
+                # 프롬프트에 응답 추가 부분 제거
+                prompt_parts = prompt.split("<start_of_turn>model")[0]
+                if prompt_parts in generated_text:
+                    answer = generated_text.replace(prompt_parts, "").strip()
+                else:
+                    answer = generated_text
+
+            # 빈 응답 처리
+            if not answer.strip():
+                answer = "죄송합니다, 답변을 생성하는 데 문제가 발생했습니다. 다시 질문해 주세요."
+                
             return answer
+    except asyncio.TimeoutError:
+        print(f"LLM 답변 생성 시간 초과 (질문: {question[:50]}...)")
+        return "답변 생성 시간이 초과되었습니다. 더 짧은 질문으로 다시 시도해 주세요."
     except Exception as e:
         print(f"LLM 답변 생성 중 오류 발생: {e}")
         traceback.print_exc()
-        return "답변 생성 중 오류가 발생했습니다."
+        return "답변 생성 중 오류가 발생했습니다. 다시 시도해 주세요."
 
 
 # 검색 및 결합 함수
@@ -490,6 +622,7 @@ async def search_and_combine(
     if conversation_history is None:
         conversation_history = []
 
+    # 대화 기록 최적화 (최근 5턴으로 제한)
     def optimize_conversation_history(
         history: List[Dict], max_turns: int = 5
     ) -> List[Dict]:
@@ -500,6 +633,7 @@ async def search_and_combine(
     if conversation_history:
         conversation_history = optimize_conversation_history(conversation_history)
 
+    # 기본 유효성 검사
     if query is None:
         return {"answer": "질문을 입력해주세요.", "sources": []}
 
@@ -514,112 +648,146 @@ async def search_and_combine(
     print(f"--- DEBUG: search_and_combine ---")
     print(f"Processed query: '{query}'")
 
-    # query_hash = hashlib.md5(f"{query.lower()}:{category}".encode()).hexdigest() # 캐싱용, 현재는 사용 안함
     start_time = time.time()
 
-    # 1. 검색
-    retrieval_start = time.time()
-    # ElasticsearchRetriever는 k=20 (기본값) 사용
-    retriever = ElasticsearchRetriever(
-        es_client, embedding_function, category=category, k=20
-    )
-    docs = retriever.get_relevant_documents(query)
-    retrieval_time = time.time() - retrieval_start
-    print(f"Retrieval time: {retrieval_time:.2f}s, Found {len(docs)} docs from ES.")
-
-    # 2. Reranking
-    rerank_start = time.time()
-    # EnhancedLocalReranker는 top_n=15 (기본값) 사용
-    reranker = EnhancedLocalReranker(reranker_model, top_n=15)
-    reranked_docs = reranker.rerank(query, docs)
-    rerank_time = time.time() - rerank_start
-    print(f"Reranking time: {rerank_time:.2f}s, Reranked to {len(reranked_docs)} docs.")
-
-    if not reranked_docs:
-        print("--- DEBUG: No documents after reranking. ---")
-        return {
-            "answer": "검색된 관련 문서가 없습니다. 다른 질문을 시도해 보세요.",
-            "sources": [],
-        }
-
-    # 3. LLM 답변 생성
-    llm_start = time.time()
-    # final_docs는 reranked_docs[:5] 사용 (원본 코드 기준)
-    final_docs = reranked_docs[:5]
-    print(f"--- DEBUG: Passing {len(final_docs)} docs to LLM. ---")
-    for idx, doc_to_llm in enumerate(final_docs):
-        print(
-            f"  Doc for LLM {idx+1} - Source: {doc_to_llm.metadata.get('source')}, Page: {doc_to_llm.metadata.get('page')}, ChunkID: {doc_to_llm.metadata.get('chunk_id')}"
+    try:
+        # 1. 검색 (비동기 처리)
+        retrieval_start = time.time()
+        # ElasticsearchRetriever는 k=20 (기본값) 사용
+        retriever = ElasticsearchRetriever(
+            es_client, embedding_function, category=category, k=20
         )
+        
+        # 메모리 최적화를 위한 토치 캐시 정리 (선택적)
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            
+        docs = retriever.get_relevant_documents(query)
+        retrieval_time = time.time() - retrieval_start
+        print(f"Retrieval time: {retrieval_time:.2f}s, Found {len(docs)} docs from ES.")
 
-    answer = await generate_llm_response(
-        llm_model,
-        tokenizer,
-        query,
-        final_docs,
-        conversation_history=conversation_history,
-    )
-    llm_time = time.time() - llm_start
-    print(f"LLM generation time: {llm_time:.2f}s")
+        # 검색 결과가 없을 경우 조기 반환
+        if not docs:
+            print("--- DEBUG: No documents found from retrieval. ---")
+            return {
+                "answer": "검색된 관련 문서가 없습니다. 다른 질문을 시도해 보세요.",
+                "sources": [],
+            }
 
-    # --- 출처 정보 생성 ---
-    sources = []
-    print(
-        f"--- DEBUG: Creating sources for frontend from {len(final_docs)} final_docs ---"
-    )
-    for i, doc_for_source in enumerate(final_docs):
-        source_path = os.path.basename(doc_for_source.metadata.get("source", "unknown"))
+        # 2. Reranking (최적화 - 비동기 처리)
+        rerank_start = time.time()
+        # EnhancedLocalReranker는 top_n=15 (기본값) 사용
+        reranker = EnhancedLocalReranker(reranker_model, top_n=15)
+        
+        try:
+            reranked_docs = reranker.rerank(query, docs)
+            rerank_time = time.time() - rerank_start
+            print(f"Reranking time: {rerank_time:.2f}s, Reranked to {len(reranked_docs)} docs.")
+        except Exception as rerank_error:
+            print(f"Reranking 중 오류 발생, 원본 문서 사용: {rerank_error}")
+            traceback.print_exc()
+            # 리랭킹 실패 시 원본 문서 사용
+            reranked_docs = docs[:15]  # 상위 15개만 사용
 
-        page_num_from_meta = doc_for_source.metadata.get("page")
-        page_num_to_send = 1  # 기본값
-        if page_num_from_meta is not None:
+        if not reranked_docs:
+            print("--- DEBUG: No documents after reranking. ---")
+            return {
+                "answer": "검색된 관련 문서가 없습니다. 다른 질문을 시도해 보세요.",
+                "sources": [],
+            }
+
+        # 3. LLM 답변 생성
+        llm_start = time.time()
+        # final_docs는 reranked_docs[:5] 사용 (원본 코드 기준)
+        final_docs = reranked_docs[:5]
+        print(f"--- DEBUG: Passing {len(final_docs)} docs to LLM. ---")
+        for idx, doc_to_llm in enumerate(final_docs):
+            print(
+                f"  Doc for LLM {idx+1} - Source: {doc_to_llm.metadata.get('source')}, Page: {doc_to_llm.metadata.get('page')}, ChunkID: {doc_to_llm.metadata.get('chunk_id')}"
+            )
+
+        answer = await generate_llm_response(
+            llm_model,
+            tokenizer,
+            query,
+            final_docs,
+            conversation_history=conversation_history,
+        )
+        llm_time = time.time() - llm_start
+        print(f"LLM generation time: {llm_time:.2f}s")
+
+        # --- 출처 정보 생성 ---
+        sources = []
+        print(
+            f"--- DEBUG: Creating sources for frontend from {len(final_docs)} final_docs ---"
+        )
+        for i, doc_for_source in enumerate(final_docs):
             try:
-                page_num_to_send = int(page_num_from_meta)
-                if page_num_to_send <= 0:
+                source_path = os.path.basename(doc_for_source.metadata.get("source", "unknown"))
+
+                # 페이지 번호 처리 (기존 방식 유지)
+                page_num_from_meta = doc_for_source.metadata.get("page")
+                page_num_to_send = 1  # 기본값
+                if page_num_from_meta is not None:
+                    try:
+                        page_num_to_send = int(page_num_from_meta)
+                        if page_num_to_send <= 0:
+                            print(
+                                f"  WARNING (sources creation): Invalid page number {page_num_from_meta} for {source_path}. Defaulting to 1."
+                            )
+                            page_num_to_send = 1
+                    except ValueError:
+                        print(
+                            f"  WARNING (sources creation): Page number {page_num_from_meta} is not an int for {source_path}. Defaulting to 1."
+                        )
+                        page_num_to_send = 1
+                else:
                     print(
-                        f"  WARNING (sources creation): Invalid page number {page_num_from_meta} for {source_path}. Defaulting to 1."
+                        f"  WARNING (sources creation): 'page' key not found in metadata for {source_path}. Defaulting to page 1."
                     )
                     page_num_to_send = 1
-            except ValueError:
-                print(
-                    f"  WARNING (sources creation): Page number {page_num_from_meta} is not an int for {source_path}. Defaulting to 1."
-                )
-                page_num_to_send = 1
-        else:
-            print(
-                f"  WARNING (sources creation): 'page' key not found in metadata for {source_path}. Defaulting to page 1."
-            )
-            page_num_to_send = 1
 
-        chunk_id_to_send = doc_for_source.metadata.get(
-            "chunk_id", f"chunk_idx_{i}"
-        )  # chunk_id가 없으면 임시 ID
+                # 청크 ID 처리 (기존 방식 유지) - 명시적으로 문자열로 변환
+                chunk_id_raw = doc_for_source.metadata.get("chunk_id", f"chunk_idx_{i}")
+                chunk_id_to_send = str(chunk_id_raw)  # 명시적으로 문자열로 변환
 
+                # 점수 정규화 (정확도를 위해 원래 점수 유지)
+                similarity = doc_for_source.metadata.get("relevance_score", 0.0)
+                rerank_score = doc_for_source.metadata.get("rerank_score", 0.0)
+
+                # 소스 정보 생성
+                current_source_info = {
+                    "path": source_path,
+                    "page": page_num_to_send,
+                    "chunk_id": chunk_id_to_send,
+                    "content_full": doc_for_source.page_content,
+                    "similarity": similarity,
+                    "rerank_score": rerank_score,
+                    "rank": i + 1,
+                }
+                sources.append(current_source_info)
+            except Exception as source_error:
+                print(f"소스 정보 생성 중 오류 발생 (문서 {i+1}): {source_error}")
+                # 에러 발생해도 계속 진행
+
+        total_time = time.time() - start_time
         print(
-            f"  Source entry {i+1}: path='{source_path}', page='{page_num_to_send}', chunk_id='{chunk_id_to_send}'"
+            f"Total search_and_combine time: {total_time:.2f}s, Returning {len(sources)} sources."
         )
 
-        current_source_info = {
-            "path": source_path,
-            "page": page_num_to_send,
-            "chunk_id": chunk_id_to_send,
-            "content_full": doc_for_source.page_content,  # !!!!! 청크의 전체 내용 !!!!!
-            "similarity": doc_for_source.metadata.get("relevance_score", 0.0),
-            "rerank_score": doc_for_source.metadata.get("rerank_score", 0.0),
-            "rank": i + 1,
+        return {
+            "answer": answer,
+            "sources": sources,
         }
-        sources.append(current_source_info)  # !!!!! sources 리스트에 추가 !!!!!
-    # --- 출처 정보 생성 끝 ---
-
-    total_time = time.time() - start_time
-    print(
-        f"Total search_and_combine time: {total_time:.2f}s, Returning {len(sources)} sources."
-    )
-
-    return {
-        "answer": answer,
-        "sources": sources,
-    }
+    
+    except Exception as e:
+        print(f"search_and_combine 중 예외 발생: {str(e)}")
+        traceback.print_exc()
+        return {
+            "answer": "검색 및 답변 생성 중 오류가 발생했습니다. 다시 시도해 주세요.",
+            "sources": [],
+            "error": str(e),
+        }
 
 
 # 모델 초기화
