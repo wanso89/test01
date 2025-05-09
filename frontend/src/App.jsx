@@ -90,16 +90,15 @@ function App() {
 
   // 테마 변경 함수
   const toggleTheme = useCallback(() => {
-    setTheme((prevTheme) => {
-      const newTheme = prevTheme === "dark" ? "light" : "dark";
-      localStorage.setItem("theme", newTheme);
-      document.documentElement.classList.toggle("dark", newTheme === "dark");
-      return newTheme;
-    });
+    // 다크모드만 유지하도록 수정
+    setTheme("dark");
+    localStorage.setItem("theme", "dark");
+    document.documentElement.classList.add("dark");
   }, []);
   
   // 테마 적용
   useEffect(() => {
+    // 항상 다크모드 적용
     document.documentElement.classList.add("dark");
   }, [theme]);
 
@@ -163,7 +162,7 @@ function App() {
     }
   }, []);
 
-  // 초기 설정 로드 (로컬 스토리지 또는 백엔드)
+  // 초기 설정 로드 (로컬 스토리지 또는 백엔드) 수정
   useEffect(() => {
     // 다크모드로 항상 설정
     const savedTheme = "dark";
@@ -212,6 +211,10 @@ function App() {
       setTimeout(() => {
         setIsEmbedding(false);
         setEmbeddingStatus(null);
+        setEmbeddedFiles([]);
+        
+        // ChatInput 컴포넌트가 사용하는 파일 상태 초기화는 
+        // ChatInput 컴포넌트 내부에서 처리하도록 함
       }, 3000);
     }, 5000);
   };

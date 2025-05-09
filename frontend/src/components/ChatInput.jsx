@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, forwardRef, useImperativeHandle, useCallba
 import { FiLoader, FiSend, FiPaperclip, FiX, FiCheck, FiImage, FiMessageSquare, FiFile, FiSmile } from 'react-icons/fi';
 import FileUpload from './FileUpload';
 
-const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess }, ref) => {
+const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isEmbedding }, ref) => {
   const [message, setMessage] = useState('');
   const [showFileUploadModal, setShowFileUploadModal] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -67,6 +67,14 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess }, r
     };
   }, [onTyping]);
 
+  // 임베딩 상태 변화 감지하여 파일 목록 초기화
+  useEffect(() => {
+    // 임베딩이 끝난 경우(false로 변경된 경우) 파일 목록 초기화
+    if (isEmbedding === false) {
+      setFiles([]);
+    }
+  }, [isEmbedding]);
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -109,10 +117,6 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess }, r
 
   const handleFileUpload = async (uploadedFiles, category) => {
     try {
-      if (uploadedFiles && uploadedFiles.length > 0) {
-        addFiles(uploadedFiles);
-      }
-      
       // 카테고리가 전달된 경우 업데이트
       if (category && typeof category === 'string') {
         setSelectedCategory(category);
@@ -122,6 +126,9 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess }, r
       if (onUploadSuccess) {
         onUploadSuccess(uploadedFiles);
       }
+      
+      // 파일 목록 초기화
+      setFiles([]);
     } catch (error) {
       console.error('파일 업로드 오류:', error);
       alert('파일 업로드 중 오류가 발생했습니다.');

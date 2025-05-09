@@ -33,7 +33,7 @@ const LoadingIndicator = ({ active }) => {
   
   return (
     <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex flex-col items-center justify-center z-[60] animate-fade-in">
-      <div className="relative flex flex-col items-center p-10 rounded-2xl bg-gray-800/40 backdrop-blur-lg shadow-2xl border border-gray-700/30">
+      <div className="relative flex flex-col items-center p-10 rounded-2xl bg-gray-800/40 backdrop-blur-lg shadow-2xl">
         {/* 메인 로딩 원형 */}
         <div className="w-24 h-24 rounded-full border-4 border-indigo-500/20 relative flex items-center justify-center">
           <div className="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
@@ -689,7 +689,7 @@ function ChatContainer({
       <LoadingIndicator active={loading} />
       
       {/* 헤더 */}
-      <div className="flex items-center justify-between py-4 px-6 bg-gray-900 shadow-sm z-10">
+      <div className="flex items-center justify-between py-4 px-6 bg-gray-900 z-10">
         <div className="flex items-center">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 mr-3 flex items-center justify-center shadow-glow-sm">
             <FiMessageSquare size={16} className="text-white" />
@@ -755,7 +755,7 @@ function ChatContainer({
       </div>
 
       {/* 입력 영역 */}
-      <div className="bg-gray-900 shadow-sm relative z-10">
+      <div className="bg-gray-900 relative z-10">
         <div className="max-w-4xl mx-auto w-full">
           <ChatInput
             ref={chatInputRef}
@@ -763,6 +763,7 @@ function ChatContainer({
             disabled={loading || isEmbedding}
             onTyping={(isTyping) => {}}
             onUploadSuccess={onUploadSuccess}
+            isEmbedding={isEmbedding}
           />
           
           {/* 로딩 상태 표시 */}

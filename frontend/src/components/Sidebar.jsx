@@ -256,7 +256,7 @@ function Sidebar({
         </div>
       </div>
 
-      {/* 푸터 - 수정된 부분 (다크모드, 도움말 제거) */}
+      {/* 푸터 - 다크모드 버튼과 도움말 제거 */}
       <div className="p-3 bg-gray-900">
         <div className="flex flex-col space-y-3">
           {/* 버전 정보만 남김 */}
