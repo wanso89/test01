@@ -2,7 +2,7 @@ import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 // FiExternalLink 아이콘 추가
-import { FiLoader, FiArrowUp, FiType, FiList, FiX, FiExternalLink, FiTrash2, FiHardDrive, FiFile, FiFolder, FiSearch, FiMessageSquare, FiBookmark, FiUploadCloud } from "react-icons/fi"; 
+import { FiLoader, FiArrowUp, FiList, FiX, FiExternalLink, FiTrash2, FiHardDrive, FiFile, FiFolder, FiSearch, FiMessageSquare, FiBookmark, FiUploadCloud } from "react-icons/fi"; 
 import { FiAlertCircle } from "react-icons/fi";
 
 // 로딩 인디케이터 컴포넌트 추가
@@ -769,6 +769,116 @@ function ChatContainer({
   useEffect(() => {
     injectGlobalStyles();
   }, []);
+  
+  // 메시지 배열 변경 시 스크롤 강제 이동
+  useEffect(() => {
+    // 메시지가 변경되면 (새 메시지 추가, 메시지 로드 등) 스크롤 강제 이동
+    if (!messages.length) return;
+    
+    // 스크롤 함수
+    const scrollToBottomForced = () => {
+      // 컨테이너 직접 스크롤
+      if (containerRef.current) {
+        const scrollHeight = containerRef.current.scrollHeight;
+        containerRef.current.scrollTop = scrollHeight;
+      }
+      
+      // messagesEndRef 스크롤
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+      }
+    };
+    
+    // 즉시 실행
+    scrollToBottomForced();
+    
+    // 약간의 지연 후 다시 실행 (렌더링 완료 보장)
+    setTimeout(scrollToBottomForced, 100);
+    setTimeout(scrollToBottomForced, 500);
+    setTimeout(scrollToBottomForced, 1000);
+    
+  }, [messages]); // messages 배열이 변경될 때마다 실행
+
+  // 채팅 스크롤 이벤트 리스너 추가 - 대화창 전환 시 스크롤 자동 이동
+  useEffect(() => {
+    const handleChatScroll = () => {
+      // 스크롤을 최신 메시지로 강제 이동 - 여러 방법 조합
+      
+      // 1. 컨테이너의 scrollTop 직접 조작 (가장 강력한 방법)
+      if (containerRef.current) {
+        const scrollHeight = containerRef.current.scrollHeight;
+        containerRef.current.scrollTop = scrollHeight;
+      }
+      
+      // 2. messagesEndRef를 이용한 scrollIntoView
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+      }
+      
+      // 3. 시간차를 두고 여러 번 스크롤 시도 (지연시간 다르게)
+      const scrollAttempts = [10, 50, 100, 300, 500, 800];
+      
+      scrollAttempts.forEach(delay => {
+        setTimeout(() => {
+          // 컨테이너 직접 스크롤
+          if (containerRef.current) {
+            const scrollHeight = containerRef.current.scrollHeight;
+            containerRef.current.scrollTop = scrollHeight;
+          }
+          
+          // messagesEndRef 스크롤
+          if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+          }
+        }, delay);
+      });
+    };
+    
+    // chatScrollToBottom 이벤트 리스너 등록
+    window.addEventListener('chatScrollToBottom', handleChatScroll);
+    
+    // 컴포넌트 마운트 시 자동 스크롤
+    handleChatScroll();
+    
+    return () => {
+      window.removeEventListener('chatScrollToBottom', handleChatScroll);
+    };
+  }, [messages.length]); // messages.length가 변경될 때마다 실행되도록 의존성 배열 설정
+
+  // activeConversationId가 변경될 때마다 자동 스크롤
+  useEffect(() => {
+    if (!activeConversationId) return;
+    
+    // 대화 ID가 변경되면 강제 스크롤 실행
+    const forceScrollToBottom = () => {
+      // 컨테이너 직접 스크롤
+      if (containerRef.current) {
+        const scrollHeight = containerRef.current.scrollHeight;
+        containerRef.current.scrollTop = scrollHeight;
+      }
+      
+      // messagesEndRef 스크롤
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+      }
+    };
+    
+    // 즉시 실행
+    forceScrollToBottom();
+    
+    // 타이핑 애니메이션이 끝날 때까지 지속적으로 스크롤 이벤트 트리거 (약 10초간)
+    // 초기 1초 동안은 짧은 간격으로 스크롤
+    for (let i = 1; i <= 10; i++) {
+      setTimeout(forceScrollToBottom, i * 100); // 100ms 간격으로 1초간 실행
+    }
+    
+    // 그 후 10초까지 긴 간격으로 스크롤 지속
+    const longDelays = [1500, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000];
+    longDelays.forEach(delay => {
+      setTimeout(forceScrollToBottom, delay);
+    });
+    
+  }, [activeConversationId]);
 
   // 임베딩 완료 후 파일 목록 자동 새로고침
   useEffect(() => {
@@ -854,12 +964,30 @@ function ChatContainer({
   const scrollToBottom = useCallback(() => {
     if (!containerRef.current || scrollLocked) return;
 
-    // RAF를 사용한 부드러운 스크롤
-    requestAnimationFrame(() => {
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    // 스크롤을 최하단으로 이동하기 위한 다양한 방법 조합
+    
+    // 1. 컨테이너의 scrollTop 직접 조작
+    if (containerRef.current) {
+      const scrollHeight = containerRef.current.scrollHeight;
+      containerRef.current.scrollTop = scrollHeight;
+    }
+    
+    // 2. messagesEndRef를 이용한 scrollIntoView
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+    }
+    
+    // 3. 약간의 지연 후 한번 더 스크롤 시도
+    setTimeout(() => {
+      if (containerRef.current) {
+        const scrollHeight = containerRef.current.scrollHeight;
+        containerRef.current.scrollTop = scrollHeight;
       }
-    });
+      
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+      }
+    }, 100);
   }, [scrollLocked]);
 
   useEffect(() => {

@@ -35,7 +35,12 @@ import {
   FiMoreHorizontal,
   FiImage,
   FiMaximize2,
-  FiMinimize2
+  FiMinimize2,
+  FiSend,
+  FiSmile,
+  FiAlertCircle,
+  FiFrown,
+  FiHelpCircle
 } from "react-icons/fi";
 
 const KOREAN_STOPWORDS = new Set([
@@ -74,7 +79,7 @@ const KOREAN_STOPWORDS = new Set([
 ]);
 
 // 타이핑 효과 애니메이션 컴포넌트
-const TypeWriter = ({ text, speed = 15, onComplete }) => {
+const TypeWriter = ({ text, speed = 2, onComplete }) => {
   const [displayText, setDisplayText] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
@@ -84,11 +89,20 @@ const TypeWriter = ({ text, speed = 15, onComplete }) => {
       const timeout = setTimeout(() => {
         setDisplayText(prev => prev + text[currentIndex]);
         setCurrentIndex(prev => prev + 1);
+        
+        // 주기적으로 스크롤 이벤트 발생 (타이핑 중에도 스크롤 유지)
+        if (currentIndex % 50 === 0) {
+          window.dispatchEvent(new CustomEvent('chatScrollToBottom'));
+        }
       }, speed);
       
       return () => clearTimeout(timeout);
     } else if (!isComplete) {
       setIsComplete(true);
+      
+      // 타이핑 완료 시 스크롤 이벤트 발생
+      window.dispatchEvent(new CustomEvent('chatScrollToBottom'));
+      
       if (onComplete) onComplete();
     }
   }, [text, currentIndex, speed, isComplete, onComplete]);
@@ -220,6 +234,270 @@ const ImagePreview = ({ src, alt }) => {
   );
 };
 
+// 피드백 모달 컴포넌트
+const FeedbackModal = ({ isOpen, onClose, messageContent, onSubmit, feedbackType }) => {
+  const [reasons, setReasons] = useState([]);
+  const [comment, setComment] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [rating, setRating] = useState(0);
+  
+  const modalRef = useRef(null);
+  
+  // 좋아요/싫어요에 따른 피드백 이유 옵션
+  const reasonOptions = feedbackType === 'up'
+    ? [
+        '정확한 정보를 제공함',
+        '이해하기 쉽게 설명됨',
+        '필요한 정보를 모두 담고 있음',
+        '잘 정리되어 있음',
+        '유용한 예시나 코드가 포함됨'
+      ]
+    : [
+        '부정확한 정보가 포함됨',
+        '이해하기 어려움',
+        '너무 장황함',
+        '질문에 제대로 답변하지 않음',
+        '필요한 정보가 누락됨'
+      ];
+  
+  // 모달 외부 클릭 시 닫기
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const handleClickOutside = (e) => {
+      if (modalRef.current && !modalRef.current.contains(e.target)) {
+        onClose();
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen, onClose]);
+  
+  // 모달 열릴 때마다 상태 초기화
+  useEffect(() => {
+    if (isOpen) {
+      setReasons([]);
+      setComment('');
+      setRating(0);
+      setIsSubmitting(false);
+    }
+  }, [isOpen, feedbackType]);
+  
+  // 이유 토글 핸들러
+  const toggleReason = (reason) => {
+    setReasons(prev => 
+      prev.includes(reason)
+        ? prev.filter(r => r !== reason)
+        : [...prev, reason]
+    );
+  };
+  
+  // 제출 핸들러
+  const handleSubmit = async () => {
+    if (isSubmitting) return;
+    
+    setIsSubmitting(true);
+    try {
+      // 피드백 데이터 준비
+      const feedbackData = {
+        feedbackType,
+        reasons,
+        comment: comment.trim(),
+        rating,
+        content: messageContent
+      };
+      
+      await onSubmit(feedbackData);
+      onClose();
+    } catch (error) {
+      console.error('피드백 제출 중 오류 발생:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div 
+        ref={modalRef}
+        className="bg-gray-800 rounded-xl max-w-md w-full shadow-2xl border border-gray-700/50 overflow-hidden animate-slide-up"
+      >
+        <div className="p-4 border-b border-gray-700/50 flex items-center">
+          <div className={`mr-2 p-2 rounded-full ${
+            feedbackType === 'up' 
+              ? 'bg-green-900/30 text-green-400' 
+              : 'bg-red-900/30 text-red-400'
+          }`}>
+            {feedbackType === 'up' 
+              ? <FiThumbsUp size={18} /> 
+              : <FiThumbsDown size={18} />
+            }
+          </div>
+          <h3 className="text-lg font-medium text-gray-100">
+            {feedbackType === 'up' ? '긍정적인 피드백' : '부정적인 피드백'}
+          </h3>
+          <button
+            onClick={onClose}
+            className="ml-auto p-2 text-gray-400 hover:text-gray-200 rounded-full hover:bg-gray-700/50"
+          >
+            <FiX size={20} />
+          </button>
+        </div>
+        
+        <div className="p-5 max-h-[70vh] overflow-y-auto">
+          {/* 피드백 이유 선택 */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              {feedbackType === 'up' ? '좋았던 점' : '개선이 필요한 점'}
+            </label>
+            <div className="space-y-2">
+              {reasonOptions.map((reason, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => toggleReason(reason)}
+                  className={`w-full text-left px-3 py-2 rounded-lg border text-sm transition-colors flex items-center ${
+                    reasons.includes(reason)
+                      ? feedbackType === 'up'
+                        ? 'bg-green-900/20 border-green-500/30 text-green-300'
+                        : 'bg-red-900/20 border-red-500/30 text-red-300'
+                      : 'bg-gray-700/50 border-gray-600 text-gray-300 hover:bg-gray-700'
+                  }`}
+                >
+                  <div className={`w-4 h-4 mr-2 rounded-full border flex-shrink-0 ${
+                    reasons.includes(reason)
+                      ? feedbackType === 'up'
+                        ? 'bg-green-500 border-green-500'
+                        : 'bg-red-500 border-red-500'
+                      : 'border-gray-500'
+                  }`}>
+                    {reasons.includes(reason) && (
+                      <FiCheck 
+                        size={12} 
+                        className="text-gray-900 m-auto" 
+                      />
+                    )}
+                  </div>
+                  <span>{reason}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          {/* 별점 */}
+          {feedbackType === 'up' && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                평가
+              </label>
+              <div className="flex items-center space-x-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    onClick={() => setRating(star)}
+                    className={`p-1 transition-all ${
+                      star <= rating
+                        ? 'text-yellow-400 scale-110'
+                        : 'text-gray-500 hover:text-gray-400'
+                    }`}
+                  >
+                    <FiStar 
+                      size={24} 
+                      className={star <= rating ? 'fill-current' : ''}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* 추가 코멘트 */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              추가 코멘트 (선택사항)
+            </label>
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="의견이 있으시면 자유롭게 작성해주세요..."
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg resize-none h-24 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-200 placeholder-gray-500"
+            />
+          </div>
+        </div>
+        
+        <div className="p-4 border-t border-gray-700/50 flex justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
+          >
+            취소
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className={`px-4 py-2 rounded-lg flex items-center ${
+              feedbackType === 'up'
+                ? 'bg-green-600 hover:bg-green-700 text-white'
+                : 'bg-red-600 hover:bg-red-700 text-white'
+            } transition-colors`}
+          >
+            {isSubmitting ? (
+              <>
+                <FiLoader className="animate-spin mr-2" size={16} />
+                전송 중...
+              </>
+            ) : (
+              <>
+                <FiSend className="mr-2" size={16} />
+                피드백 전송
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 피드백 결과 토스트 컴포넌트
+const FeedbackToast = ({ isVisible, message, type, onClose }) => {
+  useEffect(() => {
+    if (isVisible) {
+      const timer = setTimeout(() => {
+        onClose();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [isVisible, onClose]);
+  
+  if (!isVisible) return null;
+  
+  return (
+    <div className="fixed bottom-4 right-4 z-50 animate-fade-in">
+      <div className={`p-3 rounded-lg shadow-lg flex items-center ${
+        type === 'success'
+          ? 'bg-green-600 text-white'
+          : 'bg-red-600 text-white'
+      }`}>
+        {type === 'success' ? (
+          <FiCheck className="mr-2" size={18} />
+        ) : (
+          <FiAlertCircle className="mr-2" size={18} />
+        )}
+        <span>{message}</span>
+        <button
+          onClick={onClose}
+          className="ml-2 p-1 rounded-full hover:bg-black/10"
+        >
+          <FiX size={16} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
 function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, nextMessage, onAskFollowUp }) {
   const isUser = message.role === "user";
   const [previewSource, setPreviewSource] = useState(null);
@@ -232,12 +510,17 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
   const [loadingContent, setLoadingContent] = useState(false);
   const [highlightKeywords, setHighlightKeywords] = useState(""); // 모달 하이라이트용 키워드
   const [sourcesVisible, setSourcesVisible] = useState(false);
-  const [isTypingComplete, setIsTypingComplete] = useState(false);
-  const [showTypeWriter, setShowTypeWriter] = useState(!isUser);
+  const [isTypingComplete, setIsTypingComplete] = useState(true); // 기본값 true로 설정
+  const [showTypeWriter, setShowTypeWriter] = useState(false); // 타이핑 효과 비활성화 (기본값 false)
   const contentRef = useRef(null);
   const [bookmarked, setBookmarked] = useState(false);
   const [showFollowUpOptions, setShowFollowUpOptions] = useState(false);
   const [showImagePreview, setShowImagePreview] = useState(false);
+  // 피드백 모달 상태 추가
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [currentFeedbackType, setCurrentFeedbackType] = useState(null);
+  // 토스트 알림 상태 추가
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
   
   // 제목 추출 및 목차 생성
   const headings = useMemo(() => {
@@ -260,17 +543,15 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     }
   };
   
-  // 일정 시간 후 타이핑 효과 끝나도록 처리
+  // 메시지가 변경될 때마다 스크롤 이벤트 발생
   useEffect(() => {
-    if (!isUser) {
-      const timer = setTimeout(() => {
-        setIsTypingComplete(true);
-        setShowTypeWriter(false);
-      }, 8000); // 8초 후에는 타이핑 효과 종료 (긴 메시지 경우 대비)
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isUser]);
+    // 메시지가 렌더링된 후 스크롤 이벤트 발생
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('chatScrollToBottom'));
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [message.content]);
   
   // 같은 화자의 연속 메시지인지 확인
   const isPrevSameSender = useMemo(() => {
@@ -386,37 +667,72 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
 
   const handleFeedback = useCallback(
     async (type) => {
-      setFeedback((current) => (current === type ? null : type));
-      if (!feedbackSent) {
-        try {
-          const response = await fetch("http://172.10.2.70:8000/api/feedback", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              messageId: Date.now().toString(),
-              feedbackType: type,
-              rating: star,
-              content: message.content,
-            }),
-          });
-          if (!response.ok) {
-            throw new Error(
-              `피드백 전송 실패: ${response.status} ${response.statusText}`
-            );
-          }
-          setFeedbackSent(true);
-          alert("피드백이 전송되었습니다. 감사합니다!");
-        } catch (err) {
-          console.error("피드백 전송 중 오류 발생:", err);
-          alert("피드백 전송에 실패했습니다. 다시 시도해주세요.");
-        }
+      // 이미 피드백을 보냈다면 토스트 메시지 표시
+      if (feedbackSent) {
+        setToast({
+          visible: true,
+          message: '이미 피드백을 제출하셨습니다',
+          type: 'info'
+        });
+        return;
       }
+      
+      // 피드백 버튼 상태 변경
+      setFeedback((current) => (current === type ? null : type));
+      
+      // 피드백 모달 열기
+      setCurrentFeedbackType(type);
+      setShowFeedbackModal(true);
     },
-    [feedbackSent, message.content, star]
+    [feedbackSent]
   );
-
+  
+  // 피드백 제출 처리
+  const handleSubmitFeedback = async (feedbackData) => {
+    try {
+      const response = await fetch("http://172.10.2.70:8000/api/feedback", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messageId: Date.now().toString(),
+          feedbackType: feedbackData.feedbackType,
+          rating: feedbackData.rating,
+          content: message.content,
+          reasons: feedbackData.reasons,
+          comment: feedbackData.comment
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`피드백 전송 실패: ${response.status} ${response.statusText}`);
+      }
+      
+      // 피드백 전송 성공
+      setFeedbackSent(true);
+      setToast({
+        visible: true,
+        message: '피드백이 제출되었습니다. 감사합니다!',
+        type: 'success'
+      });
+      return true;
+    } catch (err) {
+      console.error("피드백 전송 중 오류 발생:", err);
+      setToast({
+        visible: true,
+        message: '피드백 전송에 실패했습니다. 다시 시도해주세요.',
+        type: 'error'
+      });
+      throw err;
+    }
+  };
+  
+  // 토스트 닫기 핸들러
+  const handleCloseToast = () => {
+    setToast(prev => ({ ...prev, visible: false }));
+  };
+  
   const handleStar = useCallback((n) => {
     setStar((current) => (current === n ? 0 : n));
   }, []);
@@ -869,7 +1185,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
                 {!isUser && showTypeWriter ? (
                   <TypeWriter 
                     text={message.content} 
-                    speed={5} 
+                    speed={1} 
                     onComplete={() => {
                       setIsTypingComplete(true);
                       setShowTypeWriter(false);
@@ -1084,6 +1400,23 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
           </div>
         </div>
       )}
+
+      {/* 피드백 모달 */}
+      <FeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        messageContent={message.content}
+        feedbackType={currentFeedbackType}
+        onSubmit={handleSubmitFeedback}
+      />
+      
+      {/* 피드백 결과 토스트 */}
+      <FeedbackToast
+        isVisible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onClose={handleCloseToast}
+      />
     </>
   );
 }

@@ -16,7 +16,12 @@ from elasticsearch import Elasticsearch
 from app.utils.indexing_utils import process_and_index_file, ES_INDEX_NAME, check_file_exists, format_file_size
 from fastapi.responses import FileResponse, StreamingResponse
 import mimetypes  # 파일 타입 감지용
+from collections import Counter  # 피드백 통계용
 
+# 검색 개선 모듈 import
+from app.utils.search_enhancer import EnhancedSearchPipeline
+# 피드백 분석 모듈 import
+from app.utils.feedback_analyzer import FeedbackAnalyzer, SearchQualityOptimizer
 
 # 모델 임포트
 import torch
@@ -283,6 +288,8 @@ class ElasticsearchRetriever:
         self._cache = {}
         self._cache_size = 150  # 최대 캐시 항목 수 증가 (100 → 150)
         self._cache_ttl = 7200  # 캐시 유효 시간 증가 (3600 → 7200초, 2시간)
+        # 피드백 기반 검색 최적화 도구 초기화
+        self.search_optimizer = SearchQualityOptimizer()
 
     def get_relevant_documents(self, query: str) -> List[Document]:
         if not self.es_client or not self.embedding_function:
@@ -356,6 +363,18 @@ class ElasticsearchRetriever:
                     }
                 },
             }
+            
+            # 피드백 기반 쿼리 최적화 적용
+            try:
+                optimized_query = self.search_optimizer.apply_optimizations_to_query(
+                    query_normalized, hybrid_query
+                )
+                if optimized_query != hybrid_query:
+                    print(f"피드백 기반 쿼리 최적화 적용됨: '{query[:30]}...'")
+                    hybrid_query = optimized_query
+            except Exception as optimize_error:
+                print(f"쿼리 최적화 적용 중 오류: {optimize_error}")
+                # 최적화 오류 시 원본 쿼리 사용
 
             # 검색 실행 (타임아웃 설정)
             response = self.es_client.search(
@@ -397,17 +416,16 @@ class ElasticsearchRetriever:
                 )
 
             print(f"검색 완료: {len(docs)} 문서 검색됨")
-            
-            # 결과를 캐시에 저장
+
+            # 결과 캐싱
             self._cache[cache_key] = {
                 "results": docs,
-                "timestamp": current_time
+                "timestamp": current_time,
             }
             
             return docs
-
         except Exception as e:
-            print(f"Elasticsearch 검색 오류: {e}")
+            print(f"Elasticsearch 검색 중 오류 발생: {e}")
             traceback.print_exc()
             return []
 
@@ -685,6 +703,9 @@ async def search_and_combine(
     print(f"Processed query: '{query}'")
 
     start_time = time.time()
+    
+    # 검색 개선 파이프라인 초기화
+    search_pipeline = EnhancedSearchPipeline()
 
     try:
         # 메모리 최적화를 위한 토치 캐시 정리
@@ -714,6 +735,25 @@ async def search_and_combine(
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             
+        # 1.5. 검색 개선 파이프라인 적용 (쿼리 확장, 점수 보정, 컨텍스트 리랭킹)
+        enhance_start = time.time()
+        # 검색 개선 파이프라인 실행
+        try:
+            query_info, enhanced_docs = search_pipeline.process(query, docs)
+            
+            if enhanced_docs:
+                docs = enhanced_docs
+                print(f"Enhanced search with query variants: {', '.join(query_info['variants'])}")
+            else:
+                print("Enhanced search returned no results, using original docs")
+        except Exception as enhance_error:
+            print(f"검색 개선 적용 중 오류 발생: {enhance_error}")
+            traceback.print_exc()
+            # 개선 실패 시 원본 문서 사용
+        
+        enhance_time = time.time() - enhance_start
+        print(f"Search enhancement time: {enhance_time:.2f}s")
+            
         # 2. Reranking (최적화 - 비동기 처리)
         rerank_start = time.time()
         # EnhancedLocalReranker는 top_n=18 (성능 최적화 설정)
@@ -729,108 +769,100 @@ async def search_and_combine(
             # 리랭킹 실패 시 원본 문서 사용
             reranked_docs = docs[:15]  # 상위 15개만 사용
 
-        if not reranked_docs:
-            print("--- DEBUG: No documents after reranking. ---")
-            return {
-                "answer": "검색된 관련 문서가 없습니다. 다른 질문을 시도해 보세요.",
-                "sources": [],
-            }
+        # 최종 토큰 수 제한
+        # 컨텍스트 크기를 최대 3,500 토큰으로 제한
+        max_tokens = 3500
+        token_count = 0
+        final_docs = []
 
-        # 메모리 최적화를 위한 토치 캐시 정리
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            
-        # 3. LLM 답변 생성
+        for doc in reranked_docs:
+            if not doc.page_content:
+                continue
+
+            # 입력에 대해 예상 토큰 수 계산 (한국어 토큰화는 복잡하므로 근사치 사용)
+            approx_tokens = len(doc.page_content) / 3
+            if token_count + approx_tokens > max_tokens:
+                break
+
+            token_count += approx_tokens
+            final_docs.append(doc)
+
+        # LLM 입력 형식으로 변환
+        # 리랭킹 결과 문서들을 하나의 컨텍스트로 결합
+        context_chunks = []
+        source_metadata = []
+
+        for i, doc in enumerate(final_docs):
+            # 소스 정보 URL 인코딩
+            source_path = doc.metadata.get("source", "unknown")
+            page_num = doc.metadata.get("page", 1)
+            chunk_id = doc.metadata.get("chunk_id", i)
+
+            # 텍스트에서 불필요한 공백과 개행 정리
+            chunk_text = doc.page_content.strip()
+            chunk_text = " ".join(chunk_text.split())
+
+            if chunk_text:
+                context_chunks.append(f"[문서 {i+1}] {chunk_text}")
+                source_metadata.append({
+                    "path": source_path,
+                    "page": page_num,
+                    "chunk_id": chunk_id,
+                    "score": doc.metadata.get("relevance_score", 0),
+                })
+
+        full_context = "\n\n".join(context_chunks)
+        print(f"Combined context length: {len(full_context)} characters.")
+
+        # LLM으로 답변 생성
         llm_start = time.time()
-        # final_docs 문서 수 증가 (5 → 7)
-        final_docs = reranked_docs[:7]  # 더 많은 컨텍스트 제공
-        print(f"--- DEBUG: Passing {len(final_docs)} docs to LLM. ---")
-        for idx, doc_to_llm in enumerate(final_docs):
-            print(
-                f"  Doc for LLM {idx+1} - Source: {doc_to_llm.metadata.get('source')}, Page: {doc_to_llm.metadata.get('page')}, ChunkID: {doc_to_llm.metadata.get('chunk_id')}"
-            )
-
         answer = await generate_llm_response(
-            llm_model,
-            tokenizer,
-            query,
-            final_docs,
-            conversation_history=conversation_history,
+            llm_model, tokenizer, query, final_docs, 0.2, conversation_history
         )
+        
+        # 소스 텍스트가 LLM 출력에 직접 인용된 경우를 확인
+        cited_sources = []
+        for i, meta in enumerate(source_metadata):
+            cited = False
+            source_text = context_chunks[i] if i < len(context_chunks) else ""
+            
+            # 소스 텍스트의 일부 (최소 30자 이상)가 답변에 포함되어 있는지 확인
+            if len(source_text) > 50:
+                for j in range(0, len(source_text) - 30, 10):
+                    snippet = source_text[j:j+30]
+                    if snippet in answer:
+                        cited = True
+                        break
+            
+            if cited:
+                meta["is_cited"] = True
+                cited_sources.append(meta)
+            else:
+                meta["is_cited"] = False
+
         llm_time = time.time() - llm_start
         print(f"LLM generation time: {llm_time:.2f}s")
 
-        # --- 출처 정보 생성 ---
-        sources = []
-        print(
-            f"--- DEBUG: Creating sources for frontend from {len(final_docs)} final_docs ---"
-        )
-        for i, doc_for_source in enumerate(final_docs):
-            try:
-                source_path = os.path.basename(doc_for_source.metadata.get("source", "unknown"))
-
-                # 페이지 번호 처리 (기존 방식 유지)
-                page_num_from_meta = doc_for_source.metadata.get("page")
-                page_num_to_send = 1  # 기본값
-                if page_num_from_meta is not None:
-                    try:
-                        page_num_to_send = int(page_num_from_meta)
-                        if page_num_to_send <= 0:
-                            print(
-                                f"  WARNING (sources creation): Invalid page number {page_num_from_meta} for {source_path}. Defaulting to 1."
-                            )
-                            page_num_to_send = 1
-                    except ValueError:
-                        print(
-                            f"  WARNING (sources creation): Page number {page_num_from_meta} is not an int for {source_path}. Defaulting to 1."
-                        )
-                        page_num_to_send = 1
-                else:
-                    print(
-                        f"  WARNING (sources creation): 'page' key not found in metadata for {source_path}. Defaulting to page 1."
-                    )
-                    page_num_to_send = 1
-
-                # 청크 ID 처리 - 명시적으로 문자열로 변환
-                chunk_id_raw = doc_for_source.metadata.get("chunk_id", f"chunk_idx_{i}")
-                chunk_id_to_send = str(chunk_id_raw)  # 명시적으로 문자열로 변환
-
-                # 점수 정규화
-                similarity = doc_for_source.metadata.get("relevance_score", 0.0)
-                rerank_score = doc_for_source.metadata.get("rerank_score", 0.0)
-
-                # 소스 정보 생성
-                current_source_info = {
-                    "path": source_path,
-                    "page": page_num_to_send,
-                    "chunk_id": chunk_id_to_send,
-                    "content_full": doc_for_source.page_content,
-                    "similarity": similarity,
-                    "rerank_score": rerank_score,
-                    "rank": i + 1,
-                }
-                sources.append(current_source_info)
-            except Exception as source_error:
-                print(f"소스 정보 생성 중 오류 발생 (문서 {i+1}): {source_error}")
-                # 에러 발생해도 계속 진행
-
-        total_time = time.time() - start_time
-        print(
-            f"Total search_and_combine time: {total_time:.2f}s, Returning {len(sources)} sources."
-        )
-
+        # 최종 응답 생성
         return {
             "answer": answer,
-            "sources": sources,
+            "sources": source_metadata,
+            "cited_sources": cited_sources,
+            "processing_time": {
+                "retrieval": round(retrieval_time, 2),
+                "enhancement": round(enhance_time, 2),
+                "reranking": round(rerank_time, 2),
+                "llm_generation": round(llm_time, 2),
+                "total": round(time.time() - start_time, 2),
+            },
         }
-    
+
     except Exception as e:
-        print(f"search_and_combine 중 예외 발생: {str(e)}")
+        print(f"검색 및 응답 생성 중 오류 발생: {e}")
         traceback.print_exc()
         return {
-            "answer": "검색 및 답변 생성 중 오류가 발생했습니다. 다시 시도해 주세요.",
+            "answer": f"요청을 처리하는 중 오류가 발생했습니다: {str(e)}",
             "sources": [],
-            "error": str(e),
         }
 
 
@@ -1648,4 +1680,95 @@ async def save_feedback_endpoint(request: FeedbackRequest = Body(...)):
         traceback.print_exc()
         raise HTTPException(
             status_code=500, detail=f"피드백 저장 중 오류 발생: {str(e)}"
+        )
+
+
+# 피드백 분석 및 검색 품질 개선 API 추가
+@app.get("/api/feedback/stats")
+async def get_feedback_statistics():
+    """
+    피드백 데이터 통계를 반환하는 API 엔드포인트
+    """
+    try:
+        analyzer = FeedbackAnalyzer()
+        stats = analyzer.get_feedback_stats()
+        
+        return {
+            "status": "success",
+            "statistics": stats
+        }
+    except Exception as e:
+        print(f"피드백 통계 조회 중 오류 발생: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500, detail=f"피드백 통계 조회 중 오류 발생: {str(e)}"
+        )
+
+@app.get("/api/feedback/trends")
+async def get_feedback_trends(days: int = 30):
+    """
+    최근 N일간의 피드백 추세를 분석하는 API 엔드포인트
+    """
+    try:
+        analyzer = FeedbackAnalyzer()
+        trends = analyzer.analyze_feedback_trends(days=days)
+        
+        return {
+            "status": "success",
+            "trends": trends
+        }
+    except Exception as e:
+        print(f"피드백 추세 분석 중 오류 발생: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500, detail=f"피드백 추세 분석 중 오류 발생: {str(e)}"
+        )
+
+@app.get("/api/feedback/documents")
+async def get_document_quality_scores():
+    """
+    피드백을 기반으로 한 문서 품질 점수를 반환하는 API 엔드포인트
+    """
+    try:
+        analyzer = FeedbackAnalyzer()
+        scores = analyzer.calculate_document_quality_scores()
+        
+        # 단순 출력용으로 점수 정렬
+        sorted_scores = sorted(
+            [{"document": doc, "score": score} for doc, score in scores.items()],
+            key=lambda x: x["score"],
+            reverse=True
+        )
+        
+        return {
+            "status": "success",
+            "document_scores": sorted_scores,
+            "count": len(sorted_scores)
+        }
+    except Exception as e:
+        print(f"문서 품질 점수 조회 중 오류 발생: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500, detail=f"문서 품질 점수 조회 중 오류 발생: {str(e)}"
+        )
+
+@app.get("/api/feedback/frequently-asked")
+async def get_frequently_asked_questions(min_count: int = 3):
+    """
+    자주 묻는 질문 패턴을 반환하는 API 엔드포인트
+    """
+    try:
+        analyzer = FeedbackAnalyzer()
+        questions = analyzer.extract_frequent_questions(min_count=min_count)
+        
+        return {
+            "status": "success",
+            "questions": questions,
+            "count": len(questions)
+        }
+    except Exception as e:
+        print(f"자주 묻는 질문 조회 중 오류 발생: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500, detail=f"자주 묻는 질문 조회 중 오류 발생: {str(e)}"
         )

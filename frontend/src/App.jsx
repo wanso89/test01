@@ -415,6 +415,26 @@ function App() {
     if (window.innerWidth < 768) {
       setSidebarOpen(false);
     }
+    
+    // 대화창 전환 시 스크롤을 최신 메시지로 강력하게 이동시키기 위한 다중 이벤트 발생
+    
+    // 1. 즉시 이벤트 발생
+    window.dispatchEvent(new CustomEvent('chatScrollToBottom'));
+    
+    // 2. 약간의 지연 후 이벤트 발생 (DOM 업데이트 기다림)
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('chatScrollToBottom'));
+    }, 50);
+    
+    // 3. 대화 내용 로드 완료 후 이벤트 발생 (비동기 작업 완료 대기)
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('chatScrollToBottom'));
+    }, 300);
+    
+    // 4. 렌더링 완료 보장을 위한 추가 이벤트
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('chatScrollToBottom'));
+    }, 800);
   };
 
   // 대화 삭제
