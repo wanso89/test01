@@ -2,7 +2,7 @@ import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 // FiExternalLink 아이콘 추가
-import { FiLoader, FiArrowUp, FiType, FiList, FiX, FiExternalLink, FiTrash2, FiHardDrive, FiFile, FiFolder, FiSearch, FiMessageSquare } from "react-icons/fi"; 
+import { FiLoader, FiArrowUp, FiType, FiList, FiX, FiExternalLink, FiTrash2, FiHardDrive, FiFile, FiFolder, FiSearch, FiMessageSquare, FiBookmark, FiUploadCloud } from "react-icons/fi"; 
 import { FiAlertCircle } from "react-icons/fi";
 
 // 로딩 인디케이터 컴포넌트 추가
@@ -211,6 +211,21 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
     if (isOpen) {
       loadFiles();
     }
+  }, [isOpen]);
+  
+  // 외부에서 파일 목록 강제 새로고침 이벤트 처리
+  useEffect(() => {
+    const handleForceRefresh = () => {
+      if (isOpen) {
+        loadFiles();
+      }
+    };
+    
+    window.addEventListener('forceRefreshFiles', handleForceRefresh);
+    
+    return () => {
+      window.removeEventListener('forceRefreshFiles', handleForceRefresh);
+    };
   }, [isOpen]);
 
   // 모달 바깥 클릭 시 닫기
@@ -496,6 +511,234 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
   );
 };
 
+// 북마크 모달 컴포넌트 추가
+const BookmarkModal = ({ isOpen, onClose }) => {
+  const [bookmarks, setBookmarks] = useState([]);
+  const modalRef = useRef(null);
+  
+  // 북마크 로드
+  useEffect(() => {
+    if (isOpen) {
+      const savedBookmarks = JSON.parse(localStorage.getItem('chat_bookmarks') || '[]');
+      setBookmarks(savedBookmarks.sort((a, b) => b.timestamp - a.timestamp)); // 최신순 정렬
+    }
+  }, [isOpen]);
+  
+  // 모달 바깥 클릭 시 닫기
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (modalRef.current && !modalRef.current.contains(event.target)) {
+        onClose();
+      }
+    }
+    
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }
+  }, [isOpen, onClose]);
+  
+  // 북마크 삭제
+  const handleRemoveBookmark = (id) => {
+    const updatedBookmarks = bookmarks.filter(bookmark => bookmark.id !== id);
+    localStorage.setItem('chat_bookmarks', JSON.stringify(updatedBookmarks));
+    setBookmarks(updatedBookmarks);
+  };
+  
+  // 북마크 포맷
+  const formatTimestamp = (timestamp) => {
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+  
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div
+        ref={modalRef}
+        className="bg-gray-800 rounded-xl w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-xl border border-gray-700/50 animate-slide-up"
+      >
+        <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+          <h2 className="text-lg font-medium text-gray-100 flex items-center">
+            <FiBookmark className="mr-2 text-yellow-500" size={18} />
+            북마크된 메시지
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-full hover:bg-gray-700 text-gray-400 hover:text-gray-300 transition-colors"
+          >
+            <FiX size={20} />
+          </button>
+        </div>
+        
+        <div className="overflow-y-auto custom-scrollbar" style={{ maxHeight: 'calc(80vh - 70px)' }}>
+          {bookmarks.length === 0 ? (
+            <div className="p-8 text-center text-gray-400">
+              <FiBookmark size={36} className="mx-auto mb-4 opacity-50" />
+              <p>북마크된 메시지가 없습니다.</p>
+              <p className="text-sm mt-2 text-gray-500">대화 중 중요한 내용을 북마크해보세요.</p>
+            </div>
+          ) : (
+            <div className="p-4 space-y-3">
+              {bookmarks.map((bookmark) => (
+                <div 
+                  key={bookmark.id}
+                  className="p-4 rounded-lg border border-gray-700/50 bg-gray-750 hover:bg-gray-700 transition-colors group"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center mr-2 ${
+                        bookmark.role === 'assistant' 
+                          ? 'bg-indigo-600/30 text-indigo-400' 
+                          : 'bg-blue-600/30 text-blue-400'
+                      }`}>
+                        {bookmark.role === 'assistant' ? 
+                          <FiMessageSquare size={12} /> : 
+                          <FiType size={12} />}
+                      </div>
+                      <span className="text-sm text-gray-400">
+                        {bookmark.role === 'assistant' ? '어시스턴트' : '사용자'} • {formatTimestamp(bookmark.timestamp)}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveBookmark(bookmark.id)}
+                      className="p-1 rounded-full text-gray-500 hover:text-red-400 hover:bg-red-900/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="북마크 제거"
+                    >
+                      <FiX size={16} />
+                    </button>
+                  </div>
+                  <div className="pl-8 pr-2 py-1 text-gray-200 text-sm border-l-2 border-gray-600">
+                    {/* 내용 길이가 길 경우 잘라서 표시 */}
+                    {bookmark.content.length > 300
+                      ? `${bookmark.content.substring(0, 300)}...`
+                      : bookmark.content}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 새 대화 시작 모달 컴포넌트 추가
+const NewChatModal = ({ isOpen, onClose, onStart }) => {
+  const [topic, setTopic] = useState('');
+  const [category, setCategory] = useState('메뉴얼');
+  const modalRef = useRef(null);
+  
+  const categories = ['메뉴얼', '장애보고서', '기술문서', '기타'];
+  
+  // 모달 바깥 클릭 시 닫기
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (modalRef.current && !modalRef.current.contains(event.target)) {
+        onClose();
+      }
+    }
+    
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }
+  }, [isOpen, onClose]);
+  
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onStart(topic, category);
+    setTopic('');
+    onClose();
+  };
+  
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div
+        ref={modalRef}
+        className="bg-gray-800 rounded-xl w-full max-w-md overflow-hidden shadow-xl border border-gray-700/50 animate-slide-up"
+      >
+        <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+          <h2 className="text-lg font-medium text-gray-100 flex items-center">
+            <FiMessageSquare className="mr-2 text-indigo-500" size={18} />
+            새 대화 시작
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-full hover:bg-gray-700 text-gray-400 hover:text-gray-300 transition-colors"
+          >
+            <FiX size={20} />
+          </button>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1.5">주제 (선택사항)</label>
+            <input
+              type="text"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="대화 주제를 입력하세요"
+              className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <p className="mt-1 text-xs text-gray-500">주제를 설정하면 더 명확한 컨텍스트로 대화를 시작할 수 있습니다.</p>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1.5">카테고리</label>
+            <div className="flex flex-wrap gap-2">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategory(cat)}
+                  className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                    category === cat
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          <div className="pt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 mr-2"
+            >
+              취소
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+            >
+              대화 시작
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 function ChatContainer({
   scrollLocked,
   activeConversationId,
@@ -504,7 +747,10 @@ function ChatContainer({
   filteredMessages,
   onUpdateMessages,
   isEmbedding,
-  onUploadSuccess
+  onUploadSuccess,
+  onNewConversation,
+  fileManagerOpen,
+  setFileManagerOpen
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -514,11 +760,95 @@ function ChatContainer({
   const containerRef = useRef(null);
   const messagesEndRef = useRef(null);
   const chatInputRef = useRef(null);
-  const [fileManagerOpen, setFileManagerOpen] = useState(false);
+  const [bookmarkModalOpen, setBookmarkModalOpen] = useState(false);
+  const [newChatModalOpen, setNewChatModalOpen] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const dropZoneRef = useRef(null);
 
   // 스타일 주입
   useEffect(() => {
     injectGlobalStyles();
+  }, []);
+
+  // 임베딩 완료 후 파일 목록 자동 새로고침
+  useEffect(() => {
+    if (!isEmbedding) {
+      // 임베딩이 끝나면 파일 목록 갱신 (isEmbedding이 true에서 false로 변경될 때)
+      const refreshTimeout = setTimeout(() => {
+        if (fileManagerOpen) {
+          // 이미 열려있으면 목록만 새로고침 (모달 내부의 loadFiles 함수 호출)
+          const refreshEvent = new CustomEvent('forceRefreshFiles');
+          window.dispatchEvent(refreshEvent);
+        }
+      }, 1000); // 서버에서 인덱싱 완료 후 약간의 지연시간을 두고 새로고침
+      
+      return () => clearTimeout(refreshTimeout);
+    }
+  }, [isEmbedding, fileManagerOpen]);
+
+  // 드래그 앤 드롭 이벤트 핸들러 설정
+  useEffect(() => {
+    const handleDragOver = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDraggingFile(true);
+    };
+    
+    const handleDragEnter = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDraggingFile(true);
+    };
+    
+    const handleDragLeave = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // 부모 요소 밖으로 나갔을 때만 드래그 상태 해제
+      const rect = dropZoneRef.current.getBoundingClientRect();
+      if (
+        e.clientX <= rect.left ||
+        e.clientX >= rect.right ||
+        e.clientY <= rect.top ||
+        e.clientY >= rect.bottom
+      ) {
+        setIsDraggingFile(false);
+      }
+    };
+    
+    const handleDrop = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDraggingFile(false);
+      
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        // 파일 업로드 모달 열기
+        const droppedFiles = Array.from(e.dataTransfer.files);
+        
+        // ChatInput 컴포넌트 참조를 통해 메서드 호출
+        if (chatInputRef.current && typeof chatInputRef.current.handleDroppedFiles === 'function') {
+          console.log('Calling handleDroppedFiles with:', droppedFiles.length, 'files');
+          chatInputRef.current.handleDroppedFiles(droppedFiles);
+        } else {
+          console.error('chatInputRef.current.handleDroppedFiles is not a function or chatInputRef is null');
+        }
+      }
+    };
+    
+    const dropZone = dropZoneRef.current;
+    if (dropZone) {
+      dropZone.addEventListener('dragover', handleDragOver);
+      dropZone.addEventListener('dragenter', handleDragEnter);
+      dropZone.addEventListener('dragleave', handleDragLeave);
+      dropZone.addEventListener('drop', handleDrop);
+      
+      return () => {
+        dropZone.removeEventListener('dragover', handleDragOver);
+        dropZone.removeEventListener('dragenter', handleDragEnter);
+        dropZone.removeEventListener('dragleave', handleDragLeave);
+        dropZone.removeEventListener('drop', handleDrop);
+      };
+    }
   }, []);
 
   const scrollToBottom = useCallback(() => {
@@ -683,10 +1013,49 @@ function ChatContainer({
     setFileManagerOpen(true);
   };
 
+  // 후속 질문 핸들러
+  const handleAskFollowUp = (question) => {
+    if (!question || !chatInputRef.current) return;
+    
+    // 채팅 입력창에 질문 설정 후 자동 포커스
+    chatInputRef.current.clear();
+    setTimeout(() => {
+      if (chatInputRef.current) {
+        chatInputRef.current.setMessage(question);
+        chatInputRef.current.focus();
+      }
+    }, 50);
+  };
+  
+  // 북마크 버튼 핸들러
+  const handleBookmarkClick = () => {
+    setBookmarkModalOpen(true);
+  };
+  
+  // 새 대화 시작 핸들러
+  const handleStartNewChat = (topic, category) => {
+    if (onNewConversation) {
+      onNewConversation(topic, category);
+    }
+  };
+
   return (
-    <div className="flex flex-col h-full relative bg-gray-900">
+    <div className="flex flex-col h-full relative bg-gray-900" ref={dropZoneRef}>
       {/* 로딩 인디케이터 추가 */}
       <LoadingIndicator active={loading} />
+      
+      {/* 파일 드래그 오버레이 */}
+      {isDraggingFile && (
+        <div className="absolute inset-0 bg-indigo-900/50 backdrop-blur-sm z-50 flex items-center justify-center border-2 border-dashed border-indigo-400 animate-pulse">
+          <div className="bg-gray-800/80 backdrop-blur-md p-8 rounded-2xl text-center shadow-2xl">
+            <div className="w-20 h-20 bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FiUploadCloud size={40} className="text-indigo-400" />
+            </div>
+            <h3 className="text-xl font-bold text-white mb-1">파일을 이곳에 놓으세요</h3>
+            <p className="text-gray-300">파일을 업로드하여 대화에 활용하세요</p>
+          </div>
+        </div>
+      )}
       
       {/* 헤더 */}
       <div className="flex items-center justify-between py-4 px-6 bg-gray-900 z-10">
@@ -698,8 +1067,25 @@ function ChatContainer({
             지식검색 어시스턴트
           </h2>
         </div>
-        {/* 파일 관리 버튼 */}
+        {/* 헤더 버튼 그룹 */}
         <div className="flex gap-2">
+          <button
+            onClick={() => setNewChatModalOpen(true)}
+            className="p-2.5 rounded-full text-gray-400 hover:text-indigo-400 hover:bg-gray-800/70 transition-colors flex items-center gap-2 group"
+            title="새 대화 시작"
+            disabled={isEmbedding}
+          >
+            <FiMessageSquare size={16} className="group-hover:scale-110 transition-transform" />
+            <span className="text-sm hidden sm:inline-block">새 대화</span>
+          </button>
+          <button
+            onClick={handleBookmarkClick}
+            className="p-2.5 rounded-full text-gray-400 hover:text-yellow-500 hover:bg-gray-800/70 transition-colors flex items-center gap-2 group"
+            title="북마크 보기"
+          >
+            <FiBookmark size={16} className="group-hover:scale-110 transition-transform" />
+            <span className="text-sm hidden sm:inline-block">북마크</span>
+          </button>
           <button
             onClick={handleFileManager}
             className="p-2.5 rounded-full text-gray-400 hover:text-indigo-400 hover:bg-gray-800/70 transition-colors flex items-center gap-2 group"
@@ -738,6 +1124,9 @@ function ChatContainer({
               message={msg}
               searchTerm={searchTerm}
               isSearchMode={!!searchTerm}
+              prevMessage={index > 0 ? displayMessages[index - 1] : null}
+              nextMessage={index < displayMessages.length - 1 ? displayMessages[index + 1] : null}
+              onAskFollowUp={handleAskFollowUp}
             />
           ))}
         <div ref={messagesEndRef} />
@@ -790,6 +1179,23 @@ function ChatContainer({
         <IndexedFilesModal 
           isOpen={fileManagerOpen}
           onClose={() => setFileManagerOpen(false)}
+        />
+      )}
+      
+      {/* 북마크 모달 */}
+      {bookmarkModalOpen && (
+        <BookmarkModal
+          isOpen={bookmarkModalOpen}
+          onClose={() => setBookmarkModalOpen(false)}
+        />
+      )}
+      
+      {/* 새 대화 시작 모달 */}
+      {newChatModalOpen && (
+        <NewChatModal
+          isOpen={newChatModalOpen}
+          onClose={() => setNewChatModalOpen(false)}
+          onStart={handleStartNewChat}
         />
       )}
     </div>

@@ -1,8 +1,8 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { FiLoader, FiX, FiPaperclip, FiCheck, FiFolder, FiFile, FiUploadCloud } from 'react-icons/fi';
 import ReactDOM from 'react-dom';
 
-function FileUpload({ onClose, categories, onUploadSuccess, initialCategory, containerSelector }) {
+function FileUpload({ onClose, categories, onUploadSuccess, initialCategory, initialFiles = [], containerSelector }) {
   const [files, setFiles] = useState([]);
   const [category, setCategory] = useState(initialCategory || categories[0] || "메뉴얼");
   const [isUploading, setIsUploading] = useState(false);
@@ -11,6 +11,13 @@ function FileUpload({ onClose, categories, onUploadSuccess, initialCategory, con
   const [uploadProgress, setUploadProgress] = useState(0);
   
   const fileInputRef = useRef(null);
+
+  // initialFiles가 전달된 경우 상태를 초기화
+  useEffect(() => {
+    if (initialFiles && initialFiles.length > 0) {
+      setFiles(initialFiles);
+    }
+  }, [initialFiles]);
 
   const handleDragOver = (e) => {
     e.preventDefault();

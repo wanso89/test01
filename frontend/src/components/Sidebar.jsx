@@ -82,7 +82,7 @@ function Sidebar({
   // 타이틀 편집 시작
   const handleTitleDoubleClick = (conv) => {
     setEditingId(conv.id);
-    setEditTitle(conv.title);
+    setEditTitle(typeof conv.title === 'string' ? conv.title : '');
   };
 
   // 타이틀 변경 이벤트
@@ -117,15 +117,17 @@ function Sidebar({
   // 대화 검색 필터링
   const filteredConversations = useMemo(() => {
     return conversations
-      .filter((conv) =>
-        conv.title.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      .filter((conv) => {
+        // title이 문자열이 아닌 경우에 대한 안전한 처리
+        const title = typeof conv.title === 'string' ? conv.title : '';
+        return title.toLowerCase().includes(searchQuery.toLowerCase());
+      })
       .sort((a, b) => {
         // 고정된 대화 우선
         if (a.pinned && !b.pinned) return -1;
         if (!a.pinned && b.pinned) return 1;
         // 그 다음 최신순
-        return new Date(b.timestamp) - new Date(a.timestamp);
+        return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
       });
   }, [conversations, searchQuery]);
 
@@ -142,12 +144,17 @@ function Sidebar({
               쓰리에스소프트
             </h1>
           </div>
-          <button
-            onClick={onNewConversation}
-            className="p-2 bg-gradient-to-r from-indigo-100/10 to-indigo-50/10 rounded-xl text-indigo-400 hover:from-indigo-200/20 hover:to-indigo-100/20 transition-all duration-300 shadow-sm hover:shadow transform hover:scale-105 focus:outline-none"
-          >
-            <FiPlus size={20} />
-          </button>
+          
+          {/* 새 대화 시작 버튼 - 현재 대화가 없을 때만 보이도록 수정 */}
+          {conversations.length === 0 && (
+            <button
+              onClick={onNewConversation}
+              className="p-2 bg-gradient-to-r from-indigo-600 to-indigo-500 rounded-xl text-white hover:from-indigo-700 hover:to-indigo-600 transition-all duration-300 shadow-sm hover:shadow transform hover:scale-105 focus:outline-none"
+              title="새 대화 시작"
+            >
+              <FiPlus size={20} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -272,7 +279,7 @@ function Sidebar({
 // 대화 항목 컴포넌트 업데이트
 function ConversationItem({ conversation, isActive, onClick, onRename, onDelete, onTogglePin, animationDelay }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [newTitle, setNewTitle] = useState(conversation.title);
+  const [newTitle, setNewTitle] = useState(typeof conversation.title === 'string' ? conversation.title : '');
   const inputRef = useRef(null);
 
   // 타이틀 편집 시작
@@ -291,7 +298,7 @@ function ConversationItem({ conversation, isActive, onClick, onRename, onDelete,
 
   // 타이틀 편집 취소
   const cancelEditing = () => {
-    setNewTitle(conversation.title);
+    setNewTitle(typeof conversation.title === 'string' ? conversation.title : '');
     setIsEditing(false);
   };
 
@@ -344,7 +351,7 @@ function ConversationItem({ conversation, isActive, onClick, onRename, onDelete,
         ) : (
           <>
             <div className="flex-1 truncate text-sm">
-              {conversation.title}
+              {typeof conversation.title === 'string' ? conversation.title : '제목 없음'}
             </div>
             
             <div className={`flex space-x-1 ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
-import { FiLoader, FiSend, FiPaperclip, FiX, FiCheck, FiImage, FiMessageSquare, FiFile, FiSmile } from 'react-icons/fi';
+import { FiLoader, FiSend, FiPaperclip, FiX, FiCheck, FiImage, FiMessageSquare, FiFile, FiSmile, FiUploadCloud } from 'react-icons/fi';
 import FileUpload from './FileUpload';
 
 const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isEmbedding }, ref) => {
@@ -10,9 +10,19 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
   const [selectedCategory, setSelectedCategory] = useState('메뉴얼'); // 기본 카테고리
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
+  const dropZoneRef = useRef(null);
   const categories = ['메뉴얼', '장애보고서', '기술문서', '기타'];
   const typingTimerRef = useRef(null);
   const [isFocused, setIsFocused] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // 외부에서 드롭된 파일을 처리하는 메서드
+  const handleDroppedFiles = useCallback((droppedFiles) => {
+    if (droppedFiles && droppedFiles.length > 0) {
+      setFiles(droppedFiles);
+      setShowFileUploadModal(true);
+    }
+  }, []);
 
   useImperativeHandle(ref, () => ({
     focus: () => {
@@ -23,6 +33,18 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
     clear: () => {
       setMessage('');
     },
+    setMessage: (text) => {
+      setMessage(text);
+      // 다음 틱에 높이 조정
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto';
+          textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+        }
+      }, 0);
+    },
+    // 외부에서 드롭된 파일을 처리하는 메서드 노출
+    handleDroppedFiles
   }));
 
   useEffect(() => {
@@ -59,6 +81,57 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
       }
     };
   }, [message, disabled, onTyping]);
+
+  // 드래그 앤 드롭 이벤트 핸들러 설정
+  useEffect(() => {
+    const dropZone = dropZoneRef.current;
+    if (!dropZone) return;
+    
+    const handleDragOver = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(true);
+    };
+    
+    const handleDragEnter = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(true);
+    };
+    
+    const handleDragLeave = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+    };
+    
+    const handleDrop = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+      
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const droppedFiles = Array.from(e.dataTransfer.files);
+        // 파일 업로드 모달로 전환하여 카테고리 선택 가능하게 함
+        setFiles(droppedFiles);
+        setShowFileUploadModal(true);
+      }
+    };
+    
+    // 이벤트 리스너 등록
+    dropZone.addEventListener('dragover', handleDragOver);
+    dropZone.addEventListener('dragenter', handleDragEnter);
+    dropZone.addEventListener('dragleave', handleDragLeave);
+    dropZone.addEventListener('drop', handleDrop);
+    
+    // 클린업 함수로 이벤트 리스너 제거
+    return () => {
+      dropZone.removeEventListener('dragover', handleDragOver);
+      dropZone.removeEventListener('dragenter', handleDragEnter);
+      dropZone.removeEventListener('dragleave', handleDragLeave);
+      dropZone.removeEventListener('drop', handleDrop);
+    };
+  }, []);
 
   // 컴포넌트 언마운트 시 타이핑 상태 초기화
   useEffect(() => {
@@ -140,7 +213,21 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
   };
 
   return (
-    <div className="p-3 md:p-4 animate-float-in bg-gray-900">
+    <div 
+      className={`p-3 md:p-4 animate-float-in bg-gray-900 ${isDragging ? 'relative' : ''}`}
+      ref={dropZoneRef}
+    >
+      {/* 드래그 앤 드롭 오버레이 */}
+      {isDragging && (
+        <div className="absolute inset-0 bg-indigo-900/50 backdrop-blur-sm border-2 border-dashed border-indigo-400 rounded-xl z-10 flex items-center justify-center animate-pulse">
+          <div className="text-center p-6 bg-gray-800/70 rounded-xl shadow-lg">
+            <FiUploadCloud size={40} className="mx-auto text-indigo-400 mb-3" />
+            <p className="text-white font-medium">파일을 여기에 놓으세요</p>
+            <p className="text-gray-300 text-sm mt-1">업로드를 시작합니다</p>
+          </div>
+        </div>
+      )}
+      
       <div className={`chat-input mx-auto max-w-4xl transition-all duration-300 bg-gray-900 ${isFocused ? 'shadow-sm' : ''}`}>
         {/* 카테고리 선택 영역 추가 */}
         <div className="mb-2 flex justify-start">
@@ -205,12 +292,21 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
               placeholder="메시지를 입력하세요..."
-              className="w-full resize-none outline-none bg-transparent text-gray-200 dark:text-gray-200 py-2 min-h-[44px] max-h-[150px] placeholder:text-gray-500 dark:placeholder:text-gray-500"
+              className="block w-full px-4 py-3 bg-gray-800 dark:bg-gray-800 focus:ring-0 focus:outline-none text-gray-200 dark:text-gray-200 rounded-xl resize-none overflow-hidden transition-shadow duration-200 pr-12"
               disabled={disabled}
               rows={1}
             />
-            {message.length === 0 && (
-              <div className="absolute right-0 bottom-2 text-xs text-gray-500 dark:text-gray-500 pointer-events-none pr-2">
+            {/* 타이핑 인디케이터 */}
+            {message.trim().length > 0 ? (
+              <div className="absolute right-3 bottom-3 text-indigo-500 dark:text-indigo-500 animate-pulse">
+                <div className="flex items-center space-x-1">
+                  <div className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                </div>
+              </div>
+            ) : (
+              <div className="absolute right-3 bottom-3 text-xs text-gray-500 dark:text-gray-500 pointer-events-none">
                 Enter 키로 전송
               </div>
             )}
@@ -229,6 +325,11 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
             <FiSend size={20} className={message.trim() ? 'animate-appear' : ''} />
           </button>
         </div>
+        
+        {/* 드래그 앤 드롭 힌트 메시지 */}
+        <div className="mt-1 text-center">
+          <p className="text-xs text-gray-500">파일을 이곳에 끌어다 놓아도 업로드할 수 있습니다</p>
+        </div>
       </div>
 
       {showFileUploadModal && (
@@ -237,6 +338,7 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
           categories={categories}
           onUploadSuccess={handleFileUpload}
           initialCategory={selectedCategory}
+          initialFiles={files}
           containerSelector="#chat-content-container"
         />
       )}

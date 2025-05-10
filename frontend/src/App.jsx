@@ -18,28 +18,44 @@ const SIDEBAR_MAX = 400;
 
 // 임베딩 알림 오버레이 컴포넌트 추가
 const EmbeddingOverlay = ({ isActive, status, files }) => {
-  if (!isActive) return null;
+  if (!isActive && !status) return null;
+  
+  const isCompleted = status === '완료';
   
   return (
     <div className="fixed inset-0 bg-gray-900/90 backdrop-blur-sm flex flex-col items-center justify-center z-[100] animate-fade-in">
       <div className="max-w-lg w-full px-6 py-8 rounded-2xl bg-gray-800/70 backdrop-blur-md text-center space-y-6">
         <div className="relative mx-auto w-24 h-24">
           <div className="absolute inset-0 rounded-full border-4 border-indigo-500/20"></div>
-          <div className="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
+          
+          {!isCompleted ? (
+            <div className="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
+          ) : (
+            <div className="absolute inset-0 rounded-full border-4 border-green-500 flex items-center justify-center animate-pulse">
+              <FiCheckCircle className="text-green-400" size={36} />
+            </div>
+          )}
+          
           <div className="absolute inset-4 rounded-full bg-indigo-500/20 flex items-center justify-center">
-            <FiFile className="text-indigo-200" size={24} />
+            <FiFile className={isCompleted ? "text-green-200" : "text-indigo-200"} size={24} />
           </div>
         </div>
         
         <div className="space-y-2">
-          <h3 className="text-xl font-bold text-white">{status || "파일 임베딩 처리 중..."}</h3>
+          <h3 className="text-xl font-bold text-white">
+            {isCompleted ? "파일 임베딩 완료!" : (status || "파일 임베딩 처리 중...")}
+          </h3>
           <p className="text-gray-300 text-sm">
-            이 과정은 파일 크기와 내용에 따라 몇 분 정도 소요될 수 있습니다.<br/>
-            임베딩이 완료될 때까지 기다려주세요.
+            {isCompleted ? (
+              <>파일이 성공적으로 임베딩되었습니다.<br/>이제 챗봇과의 대화에 활용할 수 있습니다.</>
+            ) : (
+              <>이 과정은 파일 크기와 내용에 따라 몇 분 정도 소요될 수 있습니다.<br/>
+              임베딩이 완료될 때까지 기다려주세요.</>
+            )}
           </p>
         </div>
         
-        {files && files.length > 0 && (
+        {files && files.length > 0 && !isCompleted && (
           <div className="bg-gray-900/50 rounded-xl p-4 max-h-40 overflow-y-auto">
             <p className="text-gray-400 text-xs mb-2">{files.length}개 파일 처리 중:</p>
             <div className="space-y-1.5">
@@ -51,6 +67,15 @@ const EmbeddingOverlay = ({ isActive, status, files }) => {
               ))}
             </div>
           </div>
+        )}
+        
+        {isCompleted && (
+          <button 
+            className="mt-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+            onClick={() => { window.dispatchEvent(new CustomEvent('refreshIndexedFiles')); }}
+          >
+            파일 목록 보기
+          </button>
         )}
       </div>
     </div>
@@ -197,25 +222,38 @@ function App() {
 
   const isDark = theme === "dark";
 
+  // 인덱싱된 파일 목록 새로고침을 위한 이벤트 리스너 추가
+  useEffect(() => {
+    const handleRefreshFiles = () => {
+      setFileManagerOpen(true);
+    };
+    
+    window.addEventListener('refreshIndexedFiles', handleRefreshFiles);
+    
+    return () => {
+      window.removeEventListener('refreshIndexedFiles', handleRefreshFiles);
+    };
+  }, []);
+
+  // 파일 목록 표시 상태
+  const [fileManagerOpen, setFileManagerOpen] = useState(false);
+
   // 파일 업로드 완료 핸들러 추가
   const handleUploadSuccess = (files) => {
+    console.log('업로드 성공:', files);
     setIsEmbedding(true);
     setEmbeddedFiles(files);
-    setEmbeddingStatus(`${files.length}개 파일 임베딩 중...`);
-
-    // 임베딩이 진행 중임을 알리는 메시지
-    // 실제로는 웹소켓이나 주기적인 폴링을 통해 임베딩 상태를 확인할 수 있음
-    // 여기서는 간단하게 5초 후에 임베딩이 완료되었다고 가정
+    
+    // 5초 후 임베딩 완료 처리 (실제로는 서버에서 완료 신호를 받아야 함)
     setTimeout(() => {
-      setEmbeddingStatus(`${files.length}개 파일 임베딩 완료!`);
+      setIsEmbedding(false);
+      // 임베딩 완료 상태를 설정하고 UI로 표시
+      setEmbeddingStatus('완료');
+      // 5초 후 임베딩 상태 초기화
       setTimeout(() => {
-        setIsEmbedding(false);
         setEmbeddingStatus(null);
         setEmbeddedFiles([]);
-        
-        // ChatInput 컴포넌트가 사용하는 파일 상태 초기화는 
-        // ChatInput 컴포넌트 내부에서 처리하도록 함
-      }, 3000);
+      }, 5000);
     }, 5000);
   };
 
@@ -322,25 +360,33 @@ function App() {
   }, [conversations, activeConversationId, userId]);
 
   // 새 대화 생성
-  const handleNewConversation = () => {
-    const now = new Date();
-    const newConv = {
-      id: Date.now().toString(),
-      title: `대화 ${conversations.length + 1}`,
-      timestamp: now.toLocaleString(),
+  const handleNewConversation = (topic, category) => {
+    // 새 대화 ID 생성 (UUID 형식)
+    const newConversationId = `conversation-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    
+    // 첫 시스템 메시지 설정 (대화 컨텍스트 정보)
+    let contextMessage = "안녕하세요! 무엇을 도와드릴까요?";
+    
+    // 새 대화 생성
+    const newConversation = {
+      id: newConversationId,
       messages: [
         {
           role: "assistant",
-          content: "안녕하세요! 무엇을 도와드릴까요?",
-          sources: [],
-        },
+          content: contextMessage,
+          timestamp: Date.now()
+        }
       ],
-      pinned: false,
+      title: topic || "새 대화",
+      created_at: new Date().toISOString()
     };
-    setConversations((prev) => [...prev, newConv]);
-    setActiveConversationId(newConv.id);
-    // 새 대화 생성 시 검색어 초기화
-    setSearchTerm("");
+    
+    // 대화 목록 및 활성 대화 업데이트
+    setConversations(prev => [newConversation, ...prev]);
+    setActiveConversationId(newConversationId);
+    
+    // 검색어 초기화
+    setSearchTerm('');
   };
 
   // 대화 선택
@@ -613,6 +659,9 @@ function App() {
           onUpdateMessages={handleUpdateMessages}
           isEmbedding={isEmbedding}
           onUploadSuccess={handleUploadSuccess}
+          onNewConversation={handleNewConversation}
+          fileManagerOpen={fileManagerOpen}
+          setFileManagerOpen={setFileManagerOpen}
         />
       </div>
 
