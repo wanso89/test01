@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from elasticsearch import Elasticsearch
-from app.utils.indexing_utils import process_and_index_file, ES_INDEX_NAME
+from app.utils.indexing_utils import process_and_index_file, ES_INDEX_NAME, check_file_exists, format_file_size
 from fastapi.responses import FileResponse, StreamingResponse
 import mimetypes  # 파일 타입 감지용
 
@@ -1356,219 +1356,154 @@ async def get_file_for_viewer(filename: str):
 @app.post("/api/upload")
 async def upload_files(
     files: List[UploadFile] = File(...),  # 다중 파일 지원
-    category: str = Form("메뉴얼"),
+    category: str = Form("메뉴얼"),  # 기본값을 메뉴얼로 설정
 ):
     results = []
-    for file in files:
-        print(f"파일 업로드 요청 수신: {file.filename}, 카테고리: {category}")
+    start_time = time.time()  # 전체 처리 시작 시간
+    
+    print(f"파일 업로드 요청 수신: {len(files)}개 파일, 카테고리: {category}")
+    
+    # 메모리 정리 - 초기 상태
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        initial_memory = torch.cuda.memory_allocated() / (1024 ** 2)
+        print(f"업로드 처리 시작 - 초기 GPU 메모리 사용량: {initial_memory:.2f} MB")
+    
+    for file_index, file in enumerate(files):
+        print(f"[{file_index+1}/{len(files)}] 파일 처리 중: {file.filename}, 카테고리: {category}")
+        
         # 임시 파일 저장
-        file_path = f"app/static/uploads/{uuid.uuid4()}_{file.filename}"
+        unique_id = uuid.uuid4()
+        file_path = f"app/static/uploads/{unique_id}_{file.filename}"
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        with open(file_path, "wb") as f:
-            content = await file.read()
-            f.write(content)
-        print(f"임시 파일 저장 완료: {file_path}")
-
-        # 파일 처리 및 인덱싱
         try:
-            print(f"파일 인덱싱 시작: {file.filename}")
-            success = await process_and_index_file(
-                es_client, embedding_function, file_path, category
-            )
-            if success:
-                print(f"파일 인덱싱 성공: {file.filename}")
-                results.append(
-                    {
-                        "filename": file.filename,
-                        "status": "success",
-                        "message": f"파일 '{file.filename}' 인덱싱 완료",
-                    }
-                )
-            else:
-                print(f"파일 인덱싱 실패: {file.filename}")
-                results.append(
-                    {
-                        "filename": file.filename,
-                        "status": "error",
-                        "message": "파일 인덱싱 실패",
-                    }
-                )
-        except Exception as e:
-            print(f"파일 처리 중 오류 발생: {file.filename}, 오류: {str(e)}")
-            results.append(
-                {
-                    "filename": file.filename,
+            with open(file_path, "wb") as f:
+                content = await file.read()
+                f.write(content)
+            
+            # 파일 정보 및 초기 상태
+            file_size = os.path.getsize(file_path)
+            file_result = {
+                "filename": file.filename,
+                "unique_id": str(unique_id),
+                "status": "processing",
+                "message": f"파일 '{file.filename}' 처리 중...",
+                "size": file_size,
+                "start_time": time.time(),
+                "progress": 0,  # 진행률 추가
+                "file_info": {
+                    "size_formatted": format_file_size(file_size),
+                    "extension": os.path.splitext(file.filename)[1].lower(),
+                    "index": file_index + 1,
+                    "total": len(files)
+                }
+            }
+            
+            # 파일 처리 및 인덱싱
+            try:
+                print(f"파일 인덱싱 시작: {file.filename}")
+                # 파일 중복 체크
+                file_exists, file_hash = await check_file_exists(es_client, file_path)
+                
+                # 해시값 저장
+                file_result["file_hash"] = file_hash[:8] + "..." if file_hash else None
+                
+                if file_exists:
+                    # 중복 파일인 경우
+                    file_result.update({
+                        "status": "skipped",
+                        "message": f"파일 '{file.filename}'은(는) 이미 인덱싱되어 있습니다.",
+                        "processing_time": round(time.time() - file_result["start_time"], 2),
+                        "duplicate": True,
+                        "progress": 100
+                    })
+                else:
+                    # 새 파일 처리 - 메모리 관리 강화
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                        pre_process_memory = torch.cuda.memory_allocated() / (1024 ** 2)
+                        print(f"파일 처리 전 GPU 메모리: {pre_process_memory:.2f} MB")
+                    
+                    # 파일 처리 진행률 업데이트 (실제로는 비동기 처리가 필요할 수 있음)
+                    file_result["progress"] = 30
+                    
+                    success = await process_and_index_file(
+                        es_client, embedding_function, file_path, category
+                    )
+                    
+                    # 메모리 사용량 확인
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                        post_process_memory = torch.cuda.memory_allocated() / (1024 ** 2)
+                        memory_used = post_process_memory - pre_process_memory
+                        print(f"파일 처리 후 GPU 메모리: {post_process_memory:.2f} MB (변화: {memory_used:.2f} MB)")
+                    
+                    if success:
+                        print(f"파일 인덱싱 성공: {file.filename}")
+                        file_result.update({
+                            "status": "success",
+                            "message": f"파일 '{file.filename}' 인덱싱 완료",
+                            "processing_time": round(time.time() - file_result["start_time"], 2),
+                            "progress": 100
+                        })
+                    else:
+                        print(f"파일 인덱싱 실패: {file.filename}")
+                        file_result.update({
+                            "status": "error",
+                            "message": "파일 인덱싱 실패",
+                            "processing_time": round(time.time() - file_result["start_time"], 2),
+                            "progress": 100
+                        })
+            except Exception as e:
+                print(f"파일 처리 중 오류 발생: {file.filename}, 오류: {str(e)}")
+                traceback.print_exc()
+                file_result.update({
                     "status": "error",
                     "message": f"오류 발생: {str(e)}",
-                }
-            )
-        finally:
-            # 임시 파일 삭제
-            if os.path.exists(file_path):
-                # os.remove(file_path)
-                # print(f"임시 파일 삭제 완료: {file_path}")
-                print(f"파일 처리 완료 및 파일 유지 : {file_path}")
-
-    print(f"업로드 결과: {len(results)}개 파일 처리 완료")
-    return {"results": results}
-
-
-# 파일 삭제 엔드포인트 추가
-@app.delete("/api/delete-file")
-async def delete_file(filename: str):
-    """
-    인덱싱된 파일을 삭제하고 관련 Elasticsearch 인덱스도 함께 삭제합니다.
-    
-    Args:
-        filename: 삭제할 파일의 이름 (UUID 포함된 전체 파일명)
-    """
-    print(f"파일 삭제 요청: {filename}")
-    
-    if not es_client:
-        raise HTTPException(status_code=503, detail="Elasticsearch is not connected")
-    
-    if ".." in filename or filename.startswith("/"):
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    
-    # 1. 파일 시스템에서 파일 삭제
-    file_path = os.path.join(STATIC_DIR, "uploads", filename)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
-    
-    # 2. Elasticsearch에서 해당 파일과 관련된 모든 문서 삭제
-    try:
-        # filename은 UUID가 포함된 전체 파일명이지만,
-        # ES의 source 필드에는 원래 파일명만 저장되어 있을 수 있음
-        # 각각의 업로드 방식에 따라 조정 필요
-        
-        # 완전히 동일한 filename으로 저장된 경우 (1순위 시도)
-        delete_query = {
-            "query": {
-                "term": {
-                    "source": filename
-                }
-            }
-        }
-        
-        delete_response = es_client.delete_by_query(
-            index=ES_INDEX_NAME,
-            body=delete_query
-        )
-        
-        deleted_count = delete_response.get('deleted', 0)
-        
-        # 삭제된 문서가 없으면, UUID를 제외한 원본 파일명으로 다시 시도 (2순위 시도)
-        if deleted_count == 0:
-            # UUID를 제외한 원본 파일명 추출
-            original_filename = filename
-            if '_' in filename:
-                original_filename = filename[filename.find('_')+1:]
+                    "processing_time": round(time.time() - file_result["start_time"], 2),
+                    "error_details": str(e),
+                    "progress": 100
+                })
             
-            delete_query = {
-                "query": {
-                    "term": {
-                        "source": original_filename
-                    }
-                }
-            }
-            
-            delete_response = es_client.delete_by_query(
-                index=ES_INDEX_NAME,
-                body=delete_query
-            )
-            
-            deleted_count = delete_response.get('deleted', 0)
-            
-        # 3순위 시도: 파일 경로 전체를 포함하는 경우
-        if deleted_count == 0:
-            delete_query = {
-                "query": {
-                    "term": {
-                        "source": f"app/static/uploads/{filename}"
-                    }
-                }
-            }
-            
-            delete_response = es_client.delete_by_query(
-                index=ES_INDEX_NAME,
-                body=delete_query
-            )
-            
-            deleted_count = delete_response.get('deleted', 0)
-            
-        # 4순위 시도: 파일 경로와 원본 파일명 결합
-        if deleted_count == 0:
-            original_filename = filename
-            if '_' in filename:
-                original_filename = filename[filename.find('_')+1:]
-                
-            delete_query = {
-                "query": {
-                    "term": {
-                        "source": f"app/static/uploads/{original_filename}"
-                    }
-                }
-            }
-            
-            delete_response = es_client.delete_by_query(
-                index=ES_INDEX_NAME,
-                body=delete_query
-            )
-            
-            deleted_count = delete_response.get('deleted', 0)
-            
-        # 5순위 시도: 부분 일치로 검색
-        if deleted_count == 0:
-            original_filename = filename
-            if '_' in filename:
-                original_filename = filename[filename.find('_')+1:]
-                
-            delete_query = {
-                "query": {
-                    "wildcard": {
-                        "source": f"*{original_filename}"
-                    }
-                }
-            }
-            
-            delete_response = es_client.delete_by_query(
-                index=ES_INDEX_NAME,
-                body=delete_query
-            )
-            
-            deleted_count = delete_response.get('deleted', 0)
-        
-        # 3. 파일 시스템에서 실제 파일 삭제
-        try:
-            os.remove(file_path)
-            print(f"파일 삭제 완료: {file_path}")
+            results.append(file_result)
         except Exception as e:
-            print(f"파일 삭제 중 오류 발생: {e}")
-            # 파일 삭제에 실패해도 일단 ES 인덱스가 삭제되었으면 성공으로 간주
-            
-        print(f"파일 '{filename}' 삭제 완료. Elasticsearch에서 {deleted_count}개 문서 삭제됨.")
-        return {
-            "status": "success",
-            "message": f"파일 '{filename}' 삭제 완료",
-            "deleted_docs": deleted_count
-        }
-        
-    except Exception as e:
-        print(f"파일 삭제 중 오류 발생: {e}")
-        traceback.print_exc()
-        # 이미 파일이 삭제된 경우에도 500 에러를 반환하면 사용자 경험이 좋지 않음
-        # 파일은 삭제되었지만 ES 인덱스 삭제에 실패한 경우 경고 메시지 반환
-        if not os.path.exists(file_path):
-            return {
-                "status": "warning",
-                "message": f"파일은 삭제되었으나 인덱스 삭제 중 오류 발생: {str(e)}"
-            }
-        else:
-            raise HTTPException(
-                status_code=500, 
-                detail=f"파일 삭제 중 오류 발생: {str(e)}"
-            )
+            print(f"파일 저장 중 오류 발생: {file.filename}, 오류: {str(e)}")
+            traceback.print_exc()
+            results.append({
+                "filename": file.filename,
+                "status": "error",
+                "message": f"파일 저장 중 오류 발생: {str(e)}",
+                "error_details": str(e),
+                "progress": 100
+            })
+    
+    # 최종 메모리 정리
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        final_memory = torch.cuda.memory_allocated() / (1024 ** 2)
+        print(f"전체 처리 완료 - 최종 GPU 메모리 사용량: {final_memory:.2f} MB")
+    
+    # 전체 요약 통계 추가
+    total_time = round(time.time() - start_time, 2)
+    summary = {
+        "total_files": len(results),
+        "success_count": sum(1 for r in results if r["status"] == "success"),
+        "error_count": sum(1 for r in results if r["status"] == "error"),
+        "skipped_count": sum(1 for r in results if r["status"] == "skipped"),
+        "total_size": sum(r["size"] for r in results),
+        "total_size_formatted": format_file_size(sum(r["size"] for r in results)),
+        "total_processing_time": total_time,
+        "average_file_time": round(total_time / len(results), 2) if results else 0
+    }
 
+    return JSONResponse(
+        content={
+            "status": "success" if summary["error_count"] == 0 else "partial_success",
+            "message": f"{summary['total_files']}개 파일 처리 완료. {summary['success_count']}개 성공, {summary['error_count']}개 실패, {summary['skipped_count']}개 건너뜀",
+            "results": results,
+            "summary": summary,
+        }
+    )
 
 # 질문-응답 엔드포인트
 @app.post("/api/chat")

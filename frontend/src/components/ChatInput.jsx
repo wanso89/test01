@@ -7,11 +7,10 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
   const [showFileUploadModal, setShowFileUploadModal] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [files, setFiles] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('메뉴얼'); // 기본 카테고리
+  const [selectedCategory, setSelectedCategory] = useState('메뉴얼'); // 기본 카테고리 (이제 하나만 사용)
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
   const dropZoneRef = useRef(null);
-  const categories = ['메뉴얼', '장애보고서', '기술문서', '기타'];
   const typingTimerRef = useRef(null);
   const [isFocused, setIsFocused] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -86,52 +85,56 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
   useEffect(() => {
     const dropZone = dropZoneRef.current;
     if (!dropZone) return;
-    
-    const handleDragOver = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(true);
-    };
-    
+
     const handleDragEnter = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      setIsDragging(true);
+      if (!disabled && !isEmbedding) {
+        setIsDragging(true);
+      }
     };
-    
+
+    const handleDragOver = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!disabled && !isEmbedding) {
+        setIsDragging(true);
+      }
+    };
+
     const handleDragLeave = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      setIsDragging(false);
+      if (!e.currentTarget.contains(e.relatedTarget)) {
+        setIsDragging(false);
+      }
     };
-    
+
     const handleDrop = (e) => {
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(false);
       
+      if (disabled || isEmbedding) return;
+      
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         const droppedFiles = Array.from(e.dataTransfer.files);
-        // 파일 업로드 모달로 전환하여 카테고리 선택 가능하게 함
-        setFiles(droppedFiles);
-        setShowFileUploadModal(true);
+        handleDroppedFiles(droppedFiles);
       }
     };
-    
-    // 이벤트 리스너 등록
-    dropZone.addEventListener('dragover', handleDragOver);
+
     dropZone.addEventListener('dragenter', handleDragEnter);
+    dropZone.addEventListener('dragover', handleDragOver);
     dropZone.addEventListener('dragleave', handleDragLeave);
     dropZone.addEventListener('drop', handleDrop);
-    
-    // 클린업 함수로 이벤트 리스너 제거
+
     return () => {
-      dropZone.removeEventListener('dragover', handleDragOver);
       dropZone.removeEventListener('dragenter', handleDragEnter);
+      dropZone.removeEventListener('dragover', handleDragOver);
       dropZone.removeEventListener('dragleave', handleDragLeave);
       dropZone.removeEventListener('drop', handleDrop);
     };
-  }, []);
+  }, [disabled, isEmbedding, handleDroppedFiles]);
 
   // 컴포넌트 언마운트 시 타이핑 상태 초기화
   useEffect(() => {
@@ -157,8 +160,8 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
 
   const handleSend = () => {
     if (message.trim() || files.length > 0) {
-      // 선택된 카테고리 전달 (문자열 확인)
-      onSend(message, selectedCategory || '메뉴얼');
+      // 선택된 카테고리 전달 (항상 '메뉴얼' 사용)
+      onSend(message, '메뉴얼');
       setMessage('');
       setFiles([]);
       if (textareaRef.current) {
@@ -190,166 +193,109 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
 
   const handleFileUpload = async (uploadedFiles, category) => {
     try {
-      // 카테고리가 전달된 경우 업데이트
-      if (category && typeof category === 'string') {
-        setSelectedCategory(category);
-      }
+      // 카테고리는 항상 '메뉴얼'로 고정
+      setSelectedCategory('메뉴얼');
       
       // 업로드 성공 콜백 호출
       if (onUploadSuccess) {
         onUploadSuccess(uploadedFiles);
       }
       
-      // 파일 목록 초기화
-      setFiles([]);
+      setIsUploading(false);
+      setShowFileUploadModal(false);
     } catch (error) {
       console.error('파일 업로드 오류:', error);
-      alert('파일 업로드 중 오류가 발생했습니다.');
+      alert('파일 업로드 중 오류가 발생했습니다. 다시 시도해주세요.');
+      setIsUploading(false);
     }
   };
 
-  const handleCategoryChange = (category) => {
-    setSelectedCategory(category);
-  };
-
+  // 컴포넌트 렌더링
   return (
-    <div 
-      className={`p-3 md:p-4 animate-float-in bg-gray-900 ${isDragging ? 'relative' : ''}`}
-      ref={dropZoneRef}
-    >
-      {/* 드래그 앤 드롭 오버레이 */}
-      {isDragging && (
-        <div className="absolute inset-0 bg-indigo-900/50 backdrop-blur-sm border-2 border-dashed border-indigo-400 rounded-xl z-10 flex items-center justify-center animate-pulse">
-          <div className="text-center p-6 bg-gray-800/70 rounded-xl shadow-lg">
-            <FiUploadCloud size={40} className="mx-auto text-indigo-400 mb-3" />
-            <p className="text-white font-medium">파일을 여기에 놓으세요</p>
-            <p className="text-gray-300 text-sm mt-1">업로드를 시작합니다</p>
-          </div>
-        </div>
-      )}
-      
-      <div className={`chat-input mx-auto max-w-4xl transition-all duration-300 bg-gray-900 ${isFocused ? 'shadow-sm' : ''}`}>
-        {/* 카테고리 선택 영역 추가 */}
-        <div className="mb-2 flex justify-start">
-          <div className="inline-flex text-xs bg-gray-800 dark:bg-gray-800 rounded-lg overflow-hidden">
-            {categories.map((category) => (
-              <button
-                key={category}
-                onClick={() => handleCategoryChange(category)}
-                className={`px-3 py-1 transition-colors ${
-                  selectedCategory === category 
-                    ? 'bg-indigo-500 text-white' 
-                    : 'text-gray-400 dark:text-gray-400 hover:bg-gray-700 dark:hover:bg-gray-700'
-                }`}
-              >
-                {category}
-              </button>
-            ))}
-          </div>
-        </div>
-        
-        {files.length > 0 && (
-          <div className="flex flex-wrap gap-2 p-2 bg-gray-800 dark:bg-gray-800">
-            {files.map((file, index) => (
-              <div 
-                key={index} 
-                className="flex items-center gap-1.5 py-1 px-2.5 bg-indigo-900/50 dark:bg-indigo-900/50 text-indigo-300 dark:text-indigo-300 rounded-full text-sm animate-fade-in-fast shadow-sm"
-              >
-                <FiFile size={14} />
-                <span className="truncate max-w-[150px] font-medium">{file.name}</span>
-                <button 
-                  onClick={() => removeFile(index)}
-                  className="p-0.5 hover:bg-indigo-800 dark:hover:bg-indigo-800 rounded-full transition-colors"
-                  title="파일 제거"
-                >
-                  <FiX size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        
-        <div className="flex items-end gap-2 p-2.5">
-          <button
-            onClick={handleFileButtonClick}
-            className={`p-2.5 rounded-full text-gray-400 hover:text-indigo-400 dark:text-gray-400 dark:hover:text-indigo-400 hover:bg-gray-800 dark:hover:bg-gray-800 transition-colors ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={disabled || isUploading}
-            title="파일 첨부"
-          >
-            {isUploading ? (
-              <FiLoader className="animate-spin" size={20} />
-            ) : (
-              <FiPaperclip size={20} />
-            )}
-          </button>
-
-          <div className="flex-1 relative">
-            <textarea
-              ref={textareaRef}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              placeholder="메시지를 입력하세요..."
-              className="block w-full px-4 py-3 bg-gray-800 dark:bg-gray-800 focus:ring-0 focus:outline-none text-gray-200 dark:text-gray-200 rounded-xl resize-none overflow-hidden transition-shadow duration-200 pr-12"
-              disabled={disabled}
-              rows={1}
-            />
-            {/* 타이핑 인디케이터 */}
-            {message.trim().length > 0 ? (
-              <div className="absolute right-3 bottom-3 text-indigo-500 dark:text-indigo-500 animate-pulse">
-                <div className="flex items-center space-x-1">
-                  <div className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                  <div className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                  <div className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                </div>
-              </div>
-            ) : (
-              <div className="absolute right-3 bottom-3 text-xs text-gray-500 dark:text-gray-500 pointer-events-none">
-                Enter 키로 전송
-              </div>
-            )}
-          </div>
-
-          <button
-            onClick={handleSend}
-            className={`p-2.5 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 transition-colors ${
-              (disabled || (!message.trim() && files.length === 0))
-                ? 'opacity-50 cursor-not-allowed'
-                : 'shadow-sm transform hover:-translate-y-0.5 active:translate-y-0'
-            }`}
-            disabled={disabled || (!message.trim() && files.length === 0)}
-            title="메시지 보내기"
-          >
-            <FiSend size={20} className={message.trim() ? 'animate-appear' : ''} />
-          </button>
-        </div>
-        
-        {/* 드래그 앤 드롭 힌트 메시지 */}
-        <div className="mt-1 text-center">
-          <p className="text-xs text-gray-500">파일을 이곳에 끌어다 놓아도 업로드할 수 있습니다</p>
-        </div>
-      </div>
-
+    <div ref={dropZoneRef} className={`relative ${isDragging ? 'bg-indigo-900/10 border-2 border-dashed border-indigo-500/50' : ''}`}>
+      {/* 파일 업로드 모달 */}
       {showFileUploadModal && (
-        <FileUpload 
-          onClose={handleModalClose} 
-          categories={categories}
-          onUploadSuccess={handleFileUpload}
-          initialCategory={selectedCategory}
-          initialFiles={files}
-          containerSelector="#chat-content-container"
+        <FileUpload
+          files={files}
+          onClose={handleModalClose}
+          onUpload={handleFileUpload}
+          onAddFiles={addFiles}
+          onRemoveFile={removeFile}
+          isLoading={isUploading}
+          isEmbedding={isEmbedding}
+          showCategories={false} // 카테고리 선택 숨김
+          onUploadSuccess={onUploadSuccess}
+          categories={['메뉴얼']} // 카테고리 '메뉴얼'로 고정
+          initialCategory="메뉴얼"
         />
       )}
-
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        className="hidden"
-        multiple
-      />
+      
+      {/* 메인 입력창 */}
+      <div className={`p-3 bg-gray-850 border border-gray-700/50 rounded-2xl shadow-inner mx-4 mb-4 transition-all duration-200 ${isFocused ? 'bg-gray-800/80' : ''}`}>
+        <div className="relative flex items-end">
+          <textarea
+            ref={textareaRef}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            placeholder="메시지를 입력하세요..."
+            className="w-full bg-transparent border-none outline-none resize-none text-gray-200 placeholder-gray-500 py-2 pr-24 max-h-[150px] custom-scrollbar"
+            disabled={disabled || isEmbedding}
+            rows={1}
+          />
+          
+          {/* 버튼 그룹 */}
+          <div className="flex space-x-2 absolute right-0 bottom-1">
+            {/* 파일 업로드 버튼 - 전송 버튼 옆으로 이동 */}
+            <button
+              onClick={handleFileButtonClick}
+              type="button"
+              disabled={disabled || isEmbedding}
+              className={`p-2 text-sm rounded-xl transition-colors ${
+                disabled || isEmbedding 
+                  ? 'text-gray-500 bg-gray-800/40 cursor-not-allowed' 
+                  : 'text-gray-300 hover:bg-indigo-600/30 hover:text-indigo-300'
+              }`}
+              aria-label="파일 첨부"
+              title="파일 첨부"
+            >
+              <FiUploadCloud className="w-5 h-5" />
+            </button>
+            
+            {/* 전송 버튼 */}
+            <button
+              onClick={handleSend}
+              type="button"
+              disabled={disabled || (message.trim() === '' && files.length === 0) || isEmbedding}
+              className={`p-2 rounded-xl transition-colors ${
+                disabled || (message.trim() === '' && files.length === 0) || isEmbedding
+                  ? 'text-gray-500 bg-gray-800/40 cursor-not-allowed' 
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+              }`}
+              aria-label="메시지 보내기"
+            >
+              {isEmbedding ? (
+                <FiLoader className="w-5 h-5 animate-spin" />
+              ) : (
+                <FiSend className="w-5 h-5" />
+              )}
+            </button>
+          </div>
+        </div>
+        
+        {/* 드롭 영역 안내 메시지 - 드래그 중일 때만 표시 */}
+        {isDragging && (
+          <div className="absolute inset-0 flex items-center justify-center bg-indigo-900/20 rounded-2xl backdrop-blur-sm z-10">
+            <div className="text-center p-4 bg-gray-800/80 rounded-xl shadow-lg">
+              <FiUploadCloud className="w-10 h-10 mx-auto mb-2 text-indigo-400" />
+              <p className="text-gray-200 font-medium">파일을 여기에 놓으세요</p>
+              <p className="text-gray-400 text-sm">파일을 자동으로 업로드합니다</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 });

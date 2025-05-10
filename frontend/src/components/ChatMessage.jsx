@@ -435,7 +435,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     if (loadingContent) return;
 
     setLoadingContent(true);
-    setPreviewSource(source);
+    setPreviewSource(source); 
 
     try {
       const sourcePath = source.path;
@@ -453,7 +453,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
           chunk_id: chunkId,
         }),
       });
-
+      
       if (!response.ok) {
         throw new Error(`소스 미리보기 실패: ${response.status}`);
       }
@@ -611,10 +611,10 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     const contentWithIds = headings.length > 0 ? addHeadingIds(message.content) : message.content;
     
     return (
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeHighlight, rehypeKatex, rehypeRaw]}
-        components={{
+                components={{
           h1: ({ node, ...props }) => (
             <h1 className="text-xl font-bold mt-6 mb-3 pb-1 border-b border-gray-700/30 text-gray-100" {...props} />
           ),
@@ -624,111 +624,111 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
           h3: ({ node, ...props }) => (
             <h3 className="text-base font-medium mt-4 mb-1 text-gray-200" {...props} />
           ),
-          code({ node, inline, className, children, ...props }) {
-            const match = /language-(\w+)/.exec(className || "");
-            return !inline && match ? (
+                  code({ node, inline, className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || "");
+                    return !inline && match ? (
               <div className="relative">
                 <div className="absolute top-2 right-2 flex space-x-2">
                   <div className="text-xs text-gray-500 mr-2">
                     {match[1]}
                   </div>
-                  <button
-                    onClick={() => {
+                          <button
+                            onClick={() => {
                       const code = String(children).replace(/\n$/, "");
                       navigator.clipboard.writeText(code);
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 2000);
-                    }}
-                    className="p-1 rounded-md bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
-                    title="코드 복사"
-                  >
-                    {copied ? <FiCheck size={14} /> : <FiCopy size={14} />}
-                  </button>
-                </div>
-                <SyntaxHighlighter
-                  style={oneDark}
-                  language={match[1]}
-                  PreTag="div"
-                  className="rounded-md overflow-hidden !my-3"
-                  showLineNumbers
-                  wrapLines
-                  {...props}
-                >
-                  {String(children).replace(/\n$/, "")}
-                </SyntaxHighlighter>
-              </div>
-            ) : (
-              <code
-                className={`${className} rounded-md bg-gray-800/80 dark:bg-gray-900/80 px-1.5 py-0.5 text-gray-200 dark:text-gray-200`}
-                {...props}
+                              setCopied(true);
+                              setTimeout(() => setCopied(false), 2000);
+                            }}
+                            className="p-1 rounded-md bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                            title="코드 복사"
+                          >
+                            {copied ? <FiCheck size={14} /> : <FiCopy size={14} />}
+                          </button>
+                        </div>
+                        <SyntaxHighlighter
+                          style={oneDark}
+                          language={match[1]}
+                          PreTag="div"
+                          className="rounded-md overflow-hidden !my-3"
+                          showLineNumbers
+                          wrapLines
+                          {...props}
+                        >
+                          {String(children).replace(/\n$/, "")}
+                        </SyntaxHighlighter>
+                      </div>
+                    ) : (
+                      <code
+                        className={`${className} rounded-md bg-gray-800/80 dark:bg-gray-900/80 px-1.5 py-0.5 text-gray-200 dark:text-gray-200`}
+                        {...props}
+                      >
+                        {children}
+                      </code>
+                    );
+                  },
+                  img({ src, alt, ...props }) {
+                    return (
+                      <img
+                        src={src}
+                        alt={alt}
+                        className="max-w-full h-auto rounded-md"
+                        {...props}
+                      />
+                    );
+                  },
+                  a({ node, ...props }) {
+                    return (
+                      <a
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                        {...props}
+                      />
+                    );
+                  },
+                  ul({ node, ...props }) {
+                    return <ul className="list-disc pl-5 my-2.5" {...props} />;
+                  },
+                  ol({ node, ...props }) {
+                    return <ol className="list-decimal pl-5 my-2.5" {...props} />;
+                  },
+                  li({ node, ...props }) {
+                    return <li className="my-0.5" {...props} />;
+                  },
+                  blockquote({ node, ...props }) {
+                    return (
+                      <blockquote
+                        className="border-l-2 border-indigo-300 dark:border-indigo-700 pl-4 my-3 italic text-gray-700 dark:text-gray-300"
+                        {...props}
+                      />
+                    );
+                  },
+                  table({ node, ...props }) {
+                    return (
+                      <div className="overflow-x-auto my-3">
+                        <table className="border-collapse border border-slate-300 dark:border-slate-700 w-full text-sm" {...props} />
+                      </div>
+                    );
+                  },
+                  thead({ node, ...props }) {
+                    return <thead className="bg-slate-100 dark:bg-slate-800" {...props} />;
+                  },
+                  tbody({ node, ...props }) {
+                    return <tbody {...props} />;
+                  },
+                  tr({ node, ...props }) {
+                    return <tr className="border-b border-slate-300 dark:border-slate-700" {...props} />;
+                  },
+                  th({ node, ...props }) {
+                    return <th className="border border-slate-300 dark:border-slate-700 p-2 text-left font-medium" {...props} />;
+                  },
+                  td({ node, ...props }) {
+                    return <td className="border border-slate-300 dark:border-slate-700 p-2" {...props} />;
+                  },
+                }}
               >
-                {children}
-              </code>
-            );
-          },
-          img({ src, alt, ...props }) {
-            return (
-              <img
-                src={src}
-                alt={alt}
-                className="max-w-full h-auto rounded-md"
-                {...props}
-              />
-            );
-          },
-          a({ node, ...props }) {
-            return (
-              <a
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-                {...props}
-              />
-            );
-          },
-          ul({ node, ...props }) {
-            return <ul className="list-disc pl-5 my-2.5" {...props} />;
-          },
-          ol({ node, ...props }) {
-            return <ol className="list-decimal pl-5 my-2.5" {...props} />;
-          },
-          li({ node, ...props }) {
-            return <li className="my-0.5" {...props} />;
-          },
-          blockquote({ node, ...props }) {
-            return (
-              <blockquote
-                className="border-l-2 border-indigo-300 dark:border-indigo-700 pl-4 my-3 italic text-gray-700 dark:text-gray-300"
-                {...props}
-              />
-            );
-          },
-          table({ node, ...props }) {
-            return (
-              <div className="overflow-x-auto my-3">
-                <table className="border-collapse border border-slate-300 dark:border-slate-700 w-full text-sm" {...props} />
-              </div>
-            );
-          },
-          thead({ node, ...props }) {
-            return <thead className="bg-slate-100 dark:bg-slate-800" {...props} />;
-          },
-          tbody({ node, ...props }) {
-            return <tbody {...props} />;
-          },
-          tr({ node, ...props }) {
-            return <tr className="border-b border-slate-300 dark:border-slate-700" {...props} />;
-          },
-          th({ node, ...props }) {
-            return <th className="border border-slate-300 dark:border-slate-700 p-2 text-left font-medium" {...props} />;
-          },
-          td({ node, ...props }) {
-            return <td className="border border-slate-300 dark:border-slate-700 p-2" {...props} />;
-          },
-        }}
-      >
         {contentWithIds}
-      </ReactMarkdown>
+              </ReactMarkdown>
     );
   }, [message.content, headings, copied]);
 
@@ -782,7 +782,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
                 <div className="flex flex-col justify-center items-center h-32 space-y-3">
                   <FiLoader className="animate-spin text-indigo-500" size={24} />
                   <span className="text-gray-400 text-sm">내용을 불러오는 중...</span>
-                </div>
+          </div>
               ) : previewContent ? (
                 <div className="prose prose-sm dark:prose-invert max-w-none">
                   {previewContent}
@@ -935,106 +935,106 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
               </div>
             )}
 
-            {/* 소스 목록 */}
-            {message.sources && message.sources.length > 0 && (
-              <div className="w-full mt-1">
-                <button
-                  onClick={() => setSourcesVisible(!sourcesVisible)}
-                  className="text-xs flex items-center gap-1 text-gray-400 hover:text-indigo-400 dark:text-gray-400 dark:hover:text-indigo-400 transition-colors mt-1 mb-1 px-1 py-0.5 rounded-md hover:bg-gray-800/50 dark:hover:bg-gray-800/50"
-                >
-                  <FiLink size={12} />
-                  <span>
-                    {sourcesVisible ? "출처 숨기기" : `${message.sources.length}개 출처 보기`}
-                  </span>
-                </button>
-                
-                {sourcesVisible && (
-                  <div className="animate-fade-in mt-1 mb-2 space-y-1.5">
-                    {message.sources.map((source, idx) => (
-                      <div
-                        key={idx}
-                        onClick={() => handlePreviewSource(source)}
-                        className="flex items-center cursor-pointer p-2.5 rounded-lg hover:bg-gray-800/70 dark:hover:bg-gray-750 text-sm text-gray-300 dark:text-gray-300 transition-all border border-gray-700/50 dark:border-gray-700/50 group bg-gray-850/70 dark:bg-gray-800/50 backdrop-blur-sm shadow-sm hover:shadow-md"
-                      >
-                        <div className="flex-shrink-0 mr-2">
-                          <div className="w-6 h-6 bg-indigo-900/30 dark:bg-indigo-900/30 rounded-full flex items-center justify-center">
-                            <span className="text-xs font-medium text-indigo-400 dark:text-indigo-400">
-                              {idx + 1}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex-1 truncate">
-                          <div className="truncate font-medium">{source.path || "Unknown"}</div>
-                          {source.page && (
-                            <div className="text-xs text-gray-400 dark:text-gray-400">
-                              페이지: {source.page}
-                            </div>
-                          )}
-                        </div>
-                        <FiEye
-                          className="text-gray-400 group-hover:text-indigo-400 dark:group-hover:text-indigo-400 ml-2 transform group-hover:scale-110 transition-all"
-                          size={16}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* 액션 버튼 */}
-            <div
-              className={`flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity ${
-                isUser ? "justify-start" : "justify-end"
-              }`}
-            >
+          {/* 소스 목록 */}
+          {message.sources && message.sources.length > 0 && (
+            <div className="w-full mt-1">
               <button
-                onClick={handleCopy}
-                className="p-1.5 rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 transition-colors"
-                title="복사하기"
+                onClick={() => setSourcesVisible(!sourcesVisible)}
+                className="text-xs flex items-center gap-1 text-gray-400 hover:text-indigo-400 dark:text-gray-400 dark:hover:text-indigo-400 transition-colors mt-1 mb-1 px-1 py-0.5 rounded-md hover:bg-gray-800/50 dark:hover:bg-gray-800/50"
               >
-                {copied ? <FiCheck size={15} /> : <FiCopy size={15} />}
+                <FiLink size={12} />
+                <span>
+                  {sourcesVisible ? "출처 숨기기" : `${message.sources.length}개 출처 보기`}
+                </span>
               </button>
               
-              {!isUser && (
-                <>
-                  <button
-                    onClick={() => handleFeedback("up")}
-                    className={`p-1.5 rounded-full transition-colors ${
-                      feedback === "up"
-                        ? "text-green-500 bg-green-50 dark:bg-green-900/30"
-                        : "text-gray-500 hover:text-gray-800 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700"
-                    }`}
-                    title="좋아요"
-                  >
-                    <FiThumbsUp size={15} />
-                  </button>
-                  <button
-                    onClick={() => handleFeedback("down")}
-                    className={`p-1.5 rounded-full transition-colors ${
-                      feedback === "down"
-                        ? "text-red-500 bg-red-50 dark:bg-red-900/30"
-                        : "text-gray-500 hover:text-gray-800 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700"
-                    }`}
-                    title="싫어요"
-                  >
-                    <FiThumbsDown size={15} />
-                  </button>
-                </>
+              {sourcesVisible && (
+                <div className="animate-fade-in mt-1 mb-2 space-y-1.5">
+                  {message.sources.map((source, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => handlePreviewSource(source)}
+                      className="flex items-center cursor-pointer p-2.5 rounded-lg hover:bg-gray-800/70 dark:hover:bg-gray-750 text-sm text-gray-300 dark:text-gray-300 transition-all border border-gray-700/50 dark:border-gray-700/50 group bg-gray-850/70 dark:bg-gray-800/50 backdrop-blur-sm shadow-sm hover:shadow-md"
+                    >
+                      <div className="flex-shrink-0 mr-2">
+                        <div className="w-6 h-6 bg-indigo-900/30 dark:bg-indigo-900/30 rounded-full flex items-center justify-center">
+                          <span className="text-xs font-medium text-indigo-400 dark:text-indigo-400">
+                            {idx + 1}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex-1 truncate">
+                        <div className="truncate font-medium">{source.path || "Unknown"}</div>
+                        {source.page && (
+                          <div className="text-xs text-gray-400 dark:text-gray-400">
+                            페이지: {source.page}
+                          </div>
+                        )}
+                      </div>
+                      <FiEye
+                        className="text-gray-400 group-hover:text-indigo-400 dark:group-hover:text-indigo-400 ml-2 transform group-hover:scale-110 transition-all"
+                        size={16}
+                      />
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
+          )}
+
+          {/* 액션 버튼 */}
+          <div
+            className={`flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity ${
+              isUser ? "justify-start" : "justify-end"
+            }`}
+          >
+            <button
+              onClick={handleCopy}
+              className="p-1.5 rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 transition-colors"
+              title="복사하기"
+            >
+              {copied ? <FiCheck size={15} /> : <FiCopy size={15} />}
+            </button>
+            
+            {!isUser && (
+              <>
+                <button
+                  onClick={() => handleFeedback("up")}
+                  className={`p-1.5 rounded-full transition-colors ${
+                    feedback === "up"
+                      ? "text-green-500 bg-green-50 dark:bg-green-900/30"
+                      : "text-gray-500 hover:text-gray-800 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700"
+                  }`}
+                  title="좋아요"
+                >
+                  <FiThumbsUp size={15} />
+                </button>
+                <button
+                  onClick={() => handleFeedback("down")}
+                  className={`p-1.5 rounded-full transition-colors ${
+                    feedback === "down"
+                      ? "text-red-500 bg-red-50 dark:bg-red-900/30"
+                      : "text-gray-500 hover:text-gray-800 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700"
+                  }`}
+                  title="싫어요"
+                >
+                  <FiThumbsDown size={15} />
+                </button>
+              </>
+            )}
           </div>
+        </div>
         
-          {/* 프로필 아이콘 (사용자만) */}
+        {/* 프로필 아이콘 (사용자만) */}
           {isUser && !isPrevSameSender && (
-            <div className="flex-shrink-0 ml-3 mt-1">
+          <div className="flex-shrink-0 ml-3 mt-1">
               <ProfileAvatar role={message.role} isGrouped={isGrouped} />
             </div>
           )}
           
           {/* 사용자 메시지 오른쪽 여백 처리 */}
           {isUser && isPrevSameSender && <div className="w-12"></div>}
-        </div>
+          </div>
       </div>
 
       {/* 이미지 미리보기 모달 */}
@@ -1074,7 +1074,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
                       <FiMaximize2 className="text-white" size={16} />
                     )}
                   </button>
-                </div>
+      </div>
               ) : (
                 <div className="text-center text-gray-400 py-8">
                   이미지를 불러올 수 없습니다.

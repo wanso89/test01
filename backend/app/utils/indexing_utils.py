@@ -5,8 +5,9 @@ import numpy as np  # 현재 코드에서는 직접 사용 안됨
 from PIL import Image  # 현재 코드에서는 직접 사용 안됨
 import io  # 현재 코드에서는 직접 사용 안됨
 import os, re, asyncio
+import hashlib  # 파일 중복 체크를 위한 해시 라이브러리 추가
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from langchain_community.document_loaders import (
     UnstructuredFileLoader,
     # UnstructuredPDFLoader, # PyPDFLoader로 대체
@@ -353,7 +354,77 @@ async def index_chunks_to_elasticsearch(
     return success_count > 0
 
 
-# --- process_and_index_file 함수 (제공해주신 원본 구조 최대한 유지) ---
+# 파일 중복 체크를 위한 함수 개선
+async def check_file_exists(es_client: Any, file_path: str) -> Tuple[bool, str]:
+    """
+    파일의 해시값을 계산하고 ES에서 중복 여부를 확인합니다.
+    
+    Args:
+        es_client: Elasticsearch 클라이언트
+        file_path: 파일 경로
+        
+    Returns:
+        Tuple[bool, str]: (파일 존재 여부, 파일 해시값)
+    """
+    # 파일 해시값 계산 - 메모리 효율적인 방식으로 업데이트
+    file_hash = ""
+    try:
+        # 큰 파일을 처리할 때 메모리 사용량을 줄이기 위해 청크 단위로 읽음
+        hash_md5 = hashlib.md5()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_md5.update(chunk)
+        file_hash = hash_md5.hexdigest()
+        
+        # 파일 크기도 로깅 (디버깅용)
+        file_size = os.path.getsize(file_path)
+        print(f"파일 해시 계산 완료: {file_path}, 크기: {format_file_size(file_size)}, 해시: {file_hash[:8]}...")
+    except Exception as e:
+        print(f"파일 해시 계산 중 오류: {e}")
+        return False, ""
+    
+    # 인덱스 존재 확인
+    if not es_client.indices.exists(index=ES_INDEX_NAME):
+        return False, file_hash
+    
+    # ES에서 해당 해시값을 가진 문서 검색
+    try:
+        query = {
+            "query": {
+                "term": {
+                    "file_hash": file_hash
+                }
+            },
+            "size": 1
+        }
+        response = es_client.search(index=ES_INDEX_NAME, body=query)
+        
+        # 검색 결과 확인
+        hits = response.get("hits", {}).get("hits", [])
+        exists = len(hits) > 0
+        
+        if exists:
+            # 중복 파일 정보 출력
+            duplicate_doc = hits[0]["_source"]
+            print(f"중복 파일 발견: {os.path.basename(file_path)}, 기존 문서: {duplicate_doc.get('source', 'unknown')}")
+        
+        return exists, file_hash
+    except Exception as e:
+        print(f"ES에서 파일 중복 확인 중 오류: {e}")
+        return False, file_hash
+
+
+# 파일 크기를 사람이 읽기 쉬운 형식으로 변환하는 함수 추가
+def format_file_size(size_in_bytes):
+    """파일 크기를 읽기 쉬운 형식으로 변환합니다."""
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if size_in_bytes < 1024.0:
+            return f"{size_in_bytes:.2f} {unit}"
+        size_in_bytes /= 1024.0
+    return f"{size_in_bytes:.2f} TB"
+
+
+# --- process_and_index_file 함수 수정 ---
 async def process_and_index_file(
     es_client: Any,
     embedding_function: Any,
@@ -371,6 +442,12 @@ async def process_and_index_file(
         print("ES 클라이언트 또는 임베딩 함수 유효하지 않음.")
         return False
 
+    # 파일 중복 체크
+    file_exists, file_hash = await check_file_exists(es_client, uploaded_file_path)
+    if file_exists:
+        print(f"이미 인덱싱된 파일입니다: {uploaded_file_path}")
+        return True  # 중복 파일은 성공으로 간주
+        
     original_filename_for_metadata = os.path.basename(uploaded_file_path)
     file_to_actually_load = uploaded_file_path
     extension_for_loader_selection = Path(uploaded_file_path).suffix.lower()
@@ -413,6 +490,8 @@ async def process_and_index_file(
 
     for doc in documents:
         doc.metadata["source"] = original_filename_for_metadata
+        # 파일 해시값 추가
+        doc.metadata["file_hash"] = file_hash
 
     # 청킹: 원본 process_and_index_file의 청크 크기 결정 로직을 split_text 내부의 adaptive로 옮겼거나,
     # split_text 호출 시 chunk_size, chunk_overlap을 명시적으로 전달해야 함.

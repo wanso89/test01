@@ -2,13 +2,14 @@ import { useState, useRef, useEffect } from "react";
 import { FiLoader, FiX, FiPaperclip, FiCheck, FiFolder, FiFile, FiUploadCloud } from 'react-icons/fi';
 import ReactDOM from 'react-dom';
 
-function FileUpload({ onClose, categories, onUploadSuccess, initialCategory, initialFiles = [], containerSelector }) {
+function FileUpload({ onClose, categories = ['메뉴얼'], onUploadSuccess, initialCategory = '메뉴얼', initialFiles = [], containerSelector, showCategories = false }) {
   const [files, setFiles] = useState([]);
-  const [category, setCategory] = useState(initialCategory || categories[0] || "메뉴얼");
+  const [category, setCategory] = useState(initialCategory || '메뉴얼');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
   const [dragActive, setDragActive] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [fileResults, setFileResults] = useState([]);
   
   const fileInputRef = useRef(null);
 
@@ -59,37 +60,54 @@ function FileUpload({ onClose, categories, onUploadSuccess, initialCategory, ini
     setIsUploading(true);
     setUploadStatus('업로드 중...');
     setUploadProgress(0);
+    setFileResults([]);
     
     const formData = new FormData();
     files.forEach(file => {
       formData.append('files', file);
     });
-    formData.append('category', category);
+    
+    // 카테고리는 항상 '메뉴얼'로 고정
+    formData.append('category', '메뉴얼'); 
     
     try {
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => Math.min(prev + 5, 90)); // 진행 표시용 (실제 진행도는 아님)
+      }, 500);
+      
       const response = await fetch('http://172.10.2.70:8000/api/upload', {
         method: 'POST',
         body: formData,
       });
+      
+      clearInterval(progressInterval);
       const data = await response.json();
       
+      // 파일별 결과 저장
       if (data.results && data.results.length > 0) {
+        setFileResults(data.results);
+        setUploadProgress(100);
+        
         const successCount = data.results.filter(r => r.status === 'success').length;
-        if (successCount === files.length) {
-          setUploadStatus(`${files.length}개 파일 업로드 성공!`);
+        const skipCount = data.results.filter(r => r.status === 'skipped').length;
+        
+        if (successCount + skipCount === files.length) {
+          setUploadStatus(`${files.length}개 파일 처리 완료! (${successCount}개 인덱싱, ${skipCount}개 건너뜀)`);
+          
           if (onUploadSuccess) {
             onUploadSuccess(files, category);
           }
+          
+          // 3초 후 모달 닫기 (사용자가 결과를 볼 수 있도록)
           setTimeout(() => {
             onClose();
-          }, 2000);
-        } else if (successCount > 0) {
-          setUploadStatus(`${successCount}/${files.length} 파일 업로드 성공`);
+          }, 3000);
+        } else {
+          setUploadStatus(`${successCount}/${files.length} 파일 업로드 성공, ${skipCount}개 건너뜀`);
+          
           if (onUploadSuccess) {
             onUploadSuccess(files.slice(0, successCount), category);
           }
-        } else {
-          setUploadStatus(`업로드 실패: ${data.results[0].message || '알 수 없는 오류'}`);
         }
       } else {
         setUploadStatus(`업로드 실패: 응답 데이터 오류`);
@@ -97,9 +115,9 @@ function FileUpload({ onClose, categories, onUploadSuccess, initialCategory, ini
     } catch (error) {
       console.error('업로드 실패:', error);
       setUploadStatus(`업로드 오류: ${error.message}`);
+      setUploadProgress(0);
     } finally {
       setIsUploading(false);
-      setUploadProgress(100);
     }
   };
   
@@ -110,6 +128,21 @@ function FileUpload({ onClose, categories, onUploadSuccess, initialCategory, ini
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  // 파일 결과 상태에 따른 아이콘 및 색상 클래스
+  const getStatusClasses = (status) => {
+    switch(status) {
+      case 'success':
+        return { icon: <FiCheck size={16} />, className: 'text-green-500 bg-green-100 dark:bg-green-900/30' };
+      case 'error':
+        return { icon: <FiX size={16} />, className: 'text-red-500 bg-red-100 dark:bg-red-900/30' };
+      case 'skipped':
+        return { icon: <FiCheck size={16} />, className: 'text-blue-500 bg-blue-100 dark:bg-blue-900/30' };
+      case 'processing':
+      default:
+        return { icon: <FiLoader size={16} className="animate-spin" />, className: 'text-indigo-500 bg-indigo-100 dark:bg-indigo-900/30' };
+    }
   };
 
   // 모달 콘텐츠
@@ -136,31 +169,24 @@ function FileUpload({ onClose, categories, onUploadSuccess, initialCategory, ini
             </button>
           </div>
           
-          <div className="mb-5">
-            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">카테고리</label>
-            <div className="grid grid-cols-2 gap-2">
-              {categories.map((cat) => (
+          {/* 카테고리 선택 섹션은 숨김 처리 */}
+          {showCategories && (
+            <div className="mb-5">
+              <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">카테고리</label>
+              <div className="grid grid-cols-1 gap-2">
                 <button
-                  key={cat}
                   type="button"
-                  onClick={() => setCategory(cat)}
-                  className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                    category === cat 
-                      ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md' 
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  }`}
-                  disabled={isUploading}
+                  className="px-4 py-2.5 rounded-xl text-sm font-medium transition-all bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md"
+                  disabled={true}
                 >
                   <div className="flex items-center justify-center">
-                    {category === cat && (
-                      <FiCheck size={16} className="mr-1.5" />
-                    )}
-                    <span>{cat}</span>
+                    <FiCheck size={16} className="mr-1.5" />
+                    <span>메뉴얼</span>
                   </div>
                 </button>
-              ))}
+              </div>
             </div>
-          </div>
+          )}
           
           <div className="mb-6">
             <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">파일 선택</label>
@@ -233,6 +259,7 @@ function FileUpload({ onClose, categories, onUploadSuccess, initialCategory, ini
             </div>
           </div>
           
+          {/* 업로드 진행 상태 표시 */}
           {isUploading && (
             <div className="mb-4">
               <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
@@ -247,47 +274,64 @@ function FileUpload({ onClose, categories, onUploadSuccess, initialCategory, ini
             </div>
           )}
           
-          {uploadStatus && !isUploading && (
-            <div className={`mt-2 text-sm p-3 rounded-lg transition-all animate-fade-in ${
-              uploadStatus.includes('성공') 
-                ? 'text-green-700 bg-green-100 dark:bg-green-900/20 dark:text-green-400' 
-                : uploadStatus.includes('실패') || uploadStatus.includes('오류')
-                  ? 'text-red-700 bg-red-100 dark:bg-red-900/20 dark:text-red-400'
-                  : 'text-indigo-700 bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-400'
-            }`}>
-              {uploadStatus}
+          {/* 파일별 처리 결과 표시 */}
+          {fileResults.length > 0 && !isUploading && (
+            <div className="mb-4 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              <div className="max-h-48 overflow-y-auto custom-scrollbar">
+                {fileResults.map((result, index) => {
+                  const statusInfo = getStatusClasses(result.status);
+                  return (
+                    <div key={index} className="flex items-center p-2 border-b border-gray-200 dark:border-gray-700 last:border-0">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center mr-2 ${statusInfo.className}`}>
+                        {statusInfo.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{result.filename}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{result.message}</p>
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap ml-2">
+                        {result.processing_time ? `${result.processing_time}초` : ''}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
           
-          <div className="flex justify-end space-x-3 mt-6">
+          {uploadStatus && !isUploading && (
+            <div className={`mb-4 p-3 rounded-lg ${uploadStatus.includes('실패') || uploadStatus.includes('오류') ? 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-200' : 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-200'}`}>
+              <p className="text-sm">{uploadStatus}</p>
+            </div>
+          )}
+          
+          <div className="flex justify-end space-x-3">
             <button
-              type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-colors font-medium"
+              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-all"
               disabled={isUploading}
             >
               취소
             </button>
             <button
-              type="button"
               onClick={handleSubmit}
-              className={`px-4 py-2.5 rounded-xl text-white shadow-md font-medium transition-colors ${
-                isUploading 
-                  ? 'bg-indigo-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 shadow-glow-sm'
+              disabled={files.length === 0 || isUploading}
+              className={`px-4 py-2 rounded-lg transition-all flex items-center ${
+                files.length === 0 || isUploading
+                  ? 'bg-indigo-400 dark:bg-indigo-700 cursor-not-allowed text-white opacity-70'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
               }`}
-              disabled={isUploading || files.length === 0}
             >
               {isUploading ? (
-                <div className="flex items-center">
+                <>
                   <FiLoader className="animate-spin mr-2" size={16} />
-                  <span>업로드 중...</span>
-                </div>
+                  <span>처리 중...</span>
+                </>
               ) : (
-                <div className="flex items-center">
-                  <FiUploadCloud className="mr-1.5" size={16} />
+                <>
+                  <FiUploadCloud className="mr-2" size={16} />
                   <span>업로드</span>
-                </div>
+                </>
               )}
             </button>
           </div>
@@ -296,15 +340,9 @@ function FileUpload({ onClose, categories, onUploadSuccess, initialCategory, ini
     </div>
   );
 
-  // 지정된 컨테이너에 렌더링하거나, 없으면 body에 렌더링
-  if (containerSelector) {
-    const container = document.querySelector(containerSelector);
-    // 항상 body에 렌더링하도록 변경
-    return ReactDOM.createPortal(modalContent, document.body);
-  }
-  
-  // 기본: body에 렌더링
-  return ReactDOM.createPortal(modalContent, document.body);
+  // ReactDOM.createPortal을 사용하여 모달을 렌더링
+  const container = containerSelector ? document.querySelector(containerSelector) : document.body;
+  return ReactDOM.createPortal(modalContent, container);
 }
 
 export default FileUpload;

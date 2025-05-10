@@ -29,7 +29,7 @@ const EmbeddingOverlay = ({ isActive, status, files }) => {
           <div className="absolute inset-0 rounded-full border-4 border-indigo-500/20"></div>
           
           {!isCompleted ? (
-            <div className="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
+          <div className="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
           ) : (
             <div className="absolute inset-0 rounded-full border-4 border-green-500 flex items-center justify-center animate-pulse">
               <FiCheckCircle className="text-green-400" size={36} />
@@ -243,7 +243,7 @@ function App() {
     console.log('업로드 성공:', files);
     setIsEmbedding(true);
     setEmbeddedFiles(files);
-    
+
     // 5초 후 임베딩 완료 처리 (실제로는 서버에서 완료 신호를 받아야 함)
     setTimeout(() => {
       setIsEmbedding(false);
