@@ -12,9 +12,9 @@ import {
   FiFile
 } from "react-icons/fi";
 
-const SIDEBAR_WIDTH = 280;
-const SIDEBAR_MIN = 240;
-const SIDEBAR_MAX = 400;
+const SIDEBAR_WIDTH = 320;
+const SIDEBAR_MIN = 280;
+const SIDEBAR_MAX = 450;
 
 // 임베딩 알림 오버레이 컴포넌트 추가
 const EmbeddingOverlay = ({ isActive, status, files }) => {
@@ -367,6 +367,23 @@ function App() {
     // 첫 시스템 메시지 설정 (대화 컨텍스트 정보)
     let contextMessage = "안녕하세요! 무엇을 도와드릴까요?";
     
+    // topic이 없는 경우 기본 제목 설정 (대화 1, 대화 2 등)
+    let defaultTitle = "새 대화";
+    if (!topic) {
+      // 기존 '대화 N' 형식의 제목 중 가장 큰 번호 찾기
+      const conversationNumbers = conversations
+        .map(conv => {
+          const match = /^대화 (\d+)$/.exec(conv.title);
+          return match ? parseInt(match[1]) : 0;
+        })
+        .filter(num => !isNaN(num));
+      
+      const maxNumber = conversationNumbers.length > 0 ? 
+        Math.max(...conversationNumbers) : 0;
+      
+      defaultTitle = `대화 ${maxNumber + 1}`;
+    }
+    
     // 새 대화 생성
     const newConversation = {
       id: newConversationId,
@@ -377,7 +394,7 @@ function App() {
           timestamp: Date.now()
         }
       ],
-      title: topic || "새 대화",
+      title: topic || defaultTitle,
       created_at: new Date().toISOString()
     };
     
@@ -586,13 +603,77 @@ function App() {
 
   // 메시지 업데이트
   const handleUpdateMessages = (updatedMessages) => {
-    setConversations((prev) =>
-      prev.map((conv) =>
-        conv.id === activeConversationId
-          ? { ...conv, messages: updatedMessages }
-          : conv
-      )
-    );
+    if (!activeConversationId) return;
+    
+    // 대화 업데이트
+    setConversations((prev) => {
+      const updated = prev.map((conv) => {
+        if (conv.id === activeConversationId) {
+          // 기존 대화 업데이트
+          return { ...conv, messages: updatedMessages, timestamp: new Date().getTime() };
+        }
+        return conv;
+      });
+      return updated;
+    });
+    setCurrentMessages(updatedMessages);
+    
+    // 자동 제목 생성 로직: 사용자 메시지가 있을 때 모든 제목에 대해 동작
+    const userMessages = updatedMessages.filter(msg => msg.role === "user");
+    
+    // 첫 번째 사용자 메시지가 추가됐을 때만 자동 제목 생성을 수행
+    const activeConv = conversations.find(c => c.id === activeConversationId);
+    const prevUserMessages = activeConv?.messages?.filter(msg => msg.role === "user") || [];
+    
+    if (userMessages.length > 0 && prevUserMessages.length === 0) {
+      console.log("첫 질문 감지: 자동 제목 생성 시도");
+      // 비동기로 제목 생성 API 호출
+      generateTitleForConversation(activeConversationId, updatedMessages);
+    }
+  };
+
+  // 대화 제목 자동 생성 함수
+  const generateTitleForConversation = async (conversationId, messages) => {
+    try {
+      console.log("제목 생성 API 호출 - 메시지:", messages);
+      
+      const response = await fetch("http://172.10.2.70:8000/api/generate-title", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ messages }),
+      });
+      
+      const responseText = await response.text();
+      console.log("제목 생성 API 원본 응답:", responseText);
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error("제목 생성 API 응답 파싱 실패:", e);
+        return;
+      }
+      
+      if (!response.ok) {
+        throw new Error(`제목 생성 실패: ${response.status} ${response.statusText}`);
+      }
+      
+      console.log("제목 생성 API 응답 데이터:", data);
+      
+      if (data.title) {
+        // 생성된 제목으로 대화 제목 업데이트
+        console.log(`대화 제목 업데이트: ID=${conversationId}, 새 제목="${data.title}"`);
+        handleRenameConversation(conversationId, data.title);
+        console.log("대화 제목이 자동 생성되었습니다:", data.title);
+      } else {
+        console.warn("API에서 제목을 반환하지 않았습니다:", data);
+      }
+    } catch (err) {
+      console.error("제목 생성 중 오류 발생:", err);
+      // 오류 발생 시 기본 제목 유지하므로 별도 처리 필요 없음
+    }
   };
 
   return (

@@ -280,11 +280,14 @@ function Sidebar({
 function ConversationItem({ conversation, isActive, onClick, onRename, onDelete, onTogglePin, animationDelay }) {
   const [isEditing, setIsEditing] = useState(false);
   const [newTitle, setNewTitle] = useState(typeof conversation.title === 'string' ? conversation.title : '');
+  const [showMenu, setShowMenu] = useState(false);
   const inputRef = useRef(null);
+  const menuRef = useRef(null);
 
   // 타이틀 편집 시작
   const startEditing = () => {
     setIsEditing(true);
+    setShowMenu(false); // 메뉴 닫기
   };
 
   // 타이틀 편집 완료 (Enter 또는 blur)
@@ -301,94 +304,145 @@ function ConversationItem({ conversation, isActive, onClick, onRename, onDelete,
     setNewTitle(typeof conversation.title === 'string' ? conversation.title : '');
     setIsEditing(false);
   };
+  
+  // 메뉴 토글
+  const toggleMenu = (e) => {
+    e.stopPropagation();
+    setShowMenu(!showMenu);
+  };
+  
+  // 메뉴 외부 클릭 감지
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setShowMenu(false);
+      }
+    };
+    
+    if (showMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showMenu]);
 
   return (
     <div 
-      className={`relative group transition-all duration-200 ${isEditing ? 'z-20' : 'z-10'}`}
+      className={`relative group transition-all duration-200 ${isEditing || showMenu ? 'z-20' : 'z-10'}`}
       style={{ 
         animation: 'fade-in-right 0.3s ease-out forwards',
         animationDelay: `${animationDelay}s`
       }}
     >
-      <div
-        className={`flex items-center px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-300 ${
-          isActive 
-            ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md' 
-            : 'hover:bg-gray-800/70 text-gray-300'
-        }`}
-        onClick={isEditing ? undefined : onClick}
-      >
-        <div className="mr-2 text-sm">
-          <FiMessageSquare size={16} className={isActive ? 'text-white' : 'text-indigo-400'} />
-        </div>
-        
-        {isEditing ? (
-          <form onSubmit={handleSubmit} className="flex-1 flex">
+      {isEditing ? (
+        // 이름 변경 모드 - 세로로 배치하여 공간 확보
+        <div className="p-2 bg-gray-800 rounded-xl border border-gray-700 shadow-lg">
+          <form onSubmit={handleSubmit} className="flex flex-col space-y-2">
             <input
               type="text"
               ref={inputRef}
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
-              className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-sm text-white"
+              className="w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-sm text-white"
               autoFocus
+              placeholder="대화 이름 입력..."
             />
-            <div className="flex ml-1">
+            <div className="flex space-x-2">
               <button
                 type="submit"
-                className="p-1 bg-green-800/70 text-green-400 rounded-lg hover:bg-green-700/70"
+                className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
               >
-                <FiCheck size={16} />
+                <FiCheck size={14} />
+                <span className="text-xs font-medium">확인</span>
               </button>
               <button
                 type="button"
                 onClick={cancelEditing}
-                className="p-1 bg-gray-800/70 text-gray-400 rounded-lg ml-1 hover:bg-gray-700/70"
+                className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg transition-colors"
               >
-                <FiX size={16} />
+                <FiX size={14} />
+                <span className="text-xs font-medium">취소</span>
               </button>
             </div>
           </form>
-        ) : (
-          <>
-            <div className="flex-1 truncate text-sm">
-              {typeof conversation.title === 'string' ? conversation.title : '제목 없음'}
-            </div>
+        </div>
+      ) : (
+        // 일반 모드
+        <div
+          className={`flex items-center px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-300 ${
+            isActive 
+              ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md' 
+              : 'hover:bg-gray-800/70 text-gray-300'
+          }`}
+          onClick={onClick}
+        >
+          <div className="mr-2 text-sm">
+            <FiMessageSquare size={16} className={isActive ? 'text-white' : 'text-indigo-400'} />
+          </div>
+          
+          {/* 대화 제목 영역 - 더 넓게 설정 */}
+          <div className="flex-1 truncate text-sm mr-2">
+            {typeof conversation.title === 'string' ? conversation.title : '제목 없음'}
+            {/* 핀 고정된 경우 작은 핀 아이콘 표시 */}
+            {conversation.pinned && (
+              <span className="ml-1 inline-flex items-center">
+                <FiStar size={10} className="fill-current text-yellow-400" />
+              </span>
+            )}
+          </div>
+          
+          {/* 세로 점 메뉴 버튼 */}
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={toggleMenu}
+              className={`p-1 rounded-lg ${isActive ? 'text-white hover:bg-white/20' : 'text-gray-400 hover:bg-gray-700'} transition-colors`}
+              title="메뉴"
+            >
+              <FiMoreVertical size={16} />
+            </button>
             
-            <div className={`flex space-x-1 ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onTogglePin();
-                }}
-                className={`p-1 rounded-lg ${isActive ? 'text-white hover:bg-white/20' : 'text-gray-400 hover:bg-gray-700'} transition-colors`}
-                title={conversation.pinned ? "핀 제거" : "대화 핀 고정"}
-              >
-                <FiStar size={14} className={conversation.pinned ? "fill-current" : ""} />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  startEditing();
-                }}
-                className={`p-1 rounded-lg ${isActive ? 'text-white hover:bg-white/20' : 'text-gray-400 hover:bg-gray-700'} transition-colors`}
-                title="대화 이름 변경"
-              >
-                <FiEdit2 size={14} />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(); // 확인 창 없이 바로 삭제
-                }}
-                className={`p-1 rounded-lg ${isActive ? 'text-white hover:bg-white/20' : 'text-gray-400 hover:bg-gray-700'} transition-colors`}
-                title="대화 삭제"
-              >
-                <FiTrash2 size={14} />
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+            {/* 드롭다운 메뉴 - z-index 높임, 위치 조정 */}
+            {showMenu && (
+              <div className="fixed right-4 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-lg py-1 w-36 z-50">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTogglePin();
+                    setShowMenu(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 flex items-center"
+                >
+                  <FiStar size={14} className={`mr-2 ${conversation.pinned ? "fill-current text-yellow-400" : "text-gray-400"}`} />
+                  {conversation.pinned ? "고정 해제" : "대화 고정"}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    startEditing();
+                    setShowMenu(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 flex items-center"
+                >
+                  <FiEdit2 size={14} className="mr-2 text-gray-400" />
+                  이름 변경
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                    setShowMenu(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 flex items-center"
+                >
+                  <FiTrash2 size={14} className="mr-2 text-gray-400" />
+                  대화 삭제
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

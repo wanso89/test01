@@ -1557,6 +1557,60 @@ async def get_categories():
         raise HTTPException(status_code=500, detail=f"카테고리 조회 실패: {str(e)}")
 
 
+# 대화 제목 자동 생성을 위한 모델 추가
+class GenerateTitleRequest(BaseModel):
+    messages: List[Dict[str, Any]]  # 대화 메시지 목록
+
+# 대화 제목 생성 API 엔드포인트
+@app.post("/api/generate-title")
+async def generate_title_endpoint(request: GenerateTitleRequest = Body(...)):
+    try:
+        if not request.messages or len(request.messages) == 0:
+            return {"title": "새 대화"}
+            
+        # 첫 번째 사용자 메시지 추출
+        user_messages = [msg for msg in request.messages if msg.get("role") == "user"]
+        if not user_messages:
+            return {"title": "새 대화"}
+            
+        first_user_message = user_messages[0].get("content", "")
+        if not first_user_message:
+            return {"title": "새 대화"}
+            
+        # 간단한 제목 생성 로직 (LLM 사용 없이)
+        title = first_user_message[:20]  # 첫 20자 추출
+        
+        # 마침표, 물음표, 느낌표로 끝나는 경우 처리
+        punctuation_marks = [".", "?", "!", ",", ";", ":", "...", "…"]
+        for mark in punctuation_marks:
+            if title.endswith(mark):
+                title = title[:-len(mark)]
+                break
+                
+        # 조사로 끝나는 경우 처리
+        korean_particles = ["이", "가", "을", "를", "은", "는", "에", "의", "로", "와", "과"]
+        for particle in korean_particles:
+            if title.endswith(particle):
+                title = title[:-len(particle)]
+                break
+        
+        # 너무 짧은 경우 적당한 접미사 추가
+        if len(title) < 5:
+            title += "에 대한 대화"
+        elif "?" in first_user_message or "질문" in first_user_message:
+            title += "에 대한 질문"
+            
+        # 50자 이상이면 줄임
+        if len(title) > 50:
+            title = title[:47] + "..."
+            
+        return {"title": title.strip()}
+    except Exception as e:
+        print(f"대화 제목 생성 중 오류 발생: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"대화 제목 생성 중 오류 발생: {str(e)}")
+
+
 # 기본 라우트
 @app.get("/")
 async def root():

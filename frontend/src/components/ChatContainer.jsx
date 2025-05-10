@@ -1054,10 +1054,11 @@ function ChatContainer({
     setBookmarkModalOpen(true);
   };
   
-  // 새 대화 시작 핸들러
-  const handleStartNewChat = (topic, category) => {
+  // 새 대화 시작 핸들러 - 모달 없이 바로 새 대화 생성으로 수정
+  const handleStartNewChat = () => {
     if (onNewConversation) {
-      onNewConversation(topic, category);
+      // 모달 대신 바로 기본 제목("새 대화" 또는 "대화 N")으로 대화 생성
+      onNewConversation(null, "메뉴얼");
     }
   };
 
@@ -1092,7 +1093,7 @@ function ChatContainer({
         {/* 헤더 버튼 그룹 */}
         <div className="flex gap-2">
           <button
-            onClick={() => setNewChatModalOpen(true)}
+            onClick={handleStartNewChat}
             className="p-2.5 rounded-full text-gray-400 hover:text-indigo-400 hover:bg-gray-800/70 transition-colors flex items-center gap-2 group"
             title="새 대화 시작"
             disabled={isEmbedding}
@@ -1199,15 +1200,6 @@ function ChatContainer({
         <BookmarkModal
           isOpen={bookmarkModalOpen}
           onClose={() => setBookmarkModalOpen(false)}
-        />
-      )}
-      
-      {/* 새 대화 시작 모달 */}
-      {newChatModalOpen && (
-        <NewChatModal
-          isOpen={newChatModalOpen}
-          onClose={() => setNewChatModalOpen(false)}
-          onStart={handleStartNewChat}
         />
       )}
     </div>
