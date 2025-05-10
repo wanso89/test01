@@ -32,7 +32,10 @@ import {
   FiHash,
   FiBookmark,
   FiMessageCircle,
-  FiMoreHorizontal
+  FiMoreHorizontal,
+  FiImage,
+  FiMaximize2,
+  FiMinimize2
 } from "react-icons/fi";
 
 const KOREAN_STOPWORDS = new Set([
@@ -169,6 +172,54 @@ const TableOfContents = ({ headings, onClickHeading }) => {
   );
 };
 
+// 프로필 아바타 컴포넌트
+const ProfileAvatar = ({ role, isGrouped }) => {
+  const isAssistant = role === 'assistant';
+  
+  return (
+    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+      isGrouped ? 'opacity-0' : ''
+    } transition-opacity duration-200 ${
+      isAssistant 
+        ? 'bg-gradient-to-br from-indigo-500 to-purple-600' 
+        : 'bg-gradient-to-br from-blue-500 to-cyan-500'
+    }`}>
+      {isAssistant ? (
+        <FiMessageSquare className="text-white" size={16} />
+      ) : (
+        <FiUser className="text-white" size={16} />
+      )}
+    </div>
+  );
+};
+
+// 이미지 미리보기 컴포넌트
+const ImagePreview = ({ src, alt }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  return (
+    <div className="relative group">
+      <img 
+        src={src} 
+        alt={alt || '이미지'} 
+        className={`rounded-lg shadow-md transition-all duration-300 ${
+          isExpanded ? 'max-w-none' : 'max-w-md'
+        }`}
+      />
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="absolute top-2 right-2 p-2 bg-gray-800/80 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+      >
+        {isExpanded ? (
+          <FiMinimize2 className="text-white" size={16} />
+        ) : (
+          <FiMaximize2 className="text-white" size={16} />
+        )}
+      </button>
+    </div>
+  );
+};
+
 function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, nextMessage, onAskFollowUp }) {
   const isUser = message.role === "user";
   const [previewSource, setPreviewSource] = useState(null);
@@ -186,6 +237,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
   const contentRef = useRef(null);
   const [bookmarked, setBookmarked] = useState(false);
   const [showFollowUpOptions, setShowFollowUpOptions] = useState(false);
+  const [showImagePreview, setShowImagePreview] = useState(false);
   
   // 제목 추출 및 목차 생성
   const headings = useMemo(() => {
@@ -680,6 +732,31 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     );
   }, [message.content, headings, copied]);
 
+  // 메시지 그룹핑 로직
+  const isGrouped = prevMessage && prevMessage.role === message.role;
+  const isLastInGroup = !nextMessage || nextMessage.role !== message.role;
+  
+  // 이미지 URL 추출 및 처리
+  const extractImageUrl = (content) => {
+    const imageRegex = /!\[.*?\]\((.*?)\)/;
+    const match = content.match(imageRegex);
+    return match ? match[1] : null;
+  };
+  
+  const imageUrl = extractImageUrl(message.content);
+  
+  // 메시지 내용에서 이미지 마크다운 제거
+  const cleanContent = message.content.replace(/!\[.*?\]\(.*?\)/g, '').trim();
+  
+  // 검색어 하이라이트 처리
+  const highlightSearchTerm = (text) => {
+    if (!searchTerm || !text) return text;
+    const regex = new RegExp(`(${searchTerm})`, 'gi');
+    return text.split(regex).map((part, i) => 
+      regex.test(part) ? <mark key={i} className="bg-yellow-500/30">{part}</mark> : part
+    );
+  };
+  
   return (
     <>
       {/* 소스 프리뷰 모달 */}
@@ -749,9 +826,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
         {/* 프로필 아이콘 (어시스턴트만) */}
         {!isUser && !isPrevSameSender && (
           <div className="flex-shrink-0 mr-3 mt-1">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-avatar">
-              <FiMessageSquare size={15} className="text-white" />
-            </div>
+            <ProfileAvatar role={message.role} isGrouped={isGrouped} />
           </div>
         )}
         
@@ -953,9 +1028,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
           {/* 프로필 아이콘 (사용자만) */}
           {isUser && !isPrevSameSender && (
             <div className="flex-shrink-0 ml-3 mt-1">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-avatar">
-                <FiUser size={15} className="text-white" />
-              </div>
+              <ProfileAvatar role={message.role} isGrouped={isGrouped} />
             </div>
           )}
           
@@ -963,6 +1036,54 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
           {isUser && isPrevSameSender && <div className="w-12"></div>}
         </div>
       </div>
+
+      {/* 이미지 미리보기 모달 */}
+      {showImagePreview && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-gradient-to-br from-gray-800 to-gray-850 rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-soft-2xl border border-gray-700/50">
+            <div className="flex items-center justify-between p-4 border-b border-gray-700/50 bg-gradient-to-r from-gray-800/90 to-gray-850/90">
+              <h3 className="font-medium flex items-center text-gray-200">
+                <FiImage className="mr-2 text-indigo-500" />
+                <span className="truncate max-w-md">{previewImage ? previewImage : "이미지 미리보기"}</span>
+              </h3>
+              <button 
+                onClick={() => setShowImagePreview(false)}
+                className="p-2 rounded-full hover:bg-gray-700 transition-colors text-gray-400"
+              >
+                <FiX size={20} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-auto p-6 custom-scrollbar bg-gradient-to-b from-gray-800/90 to-gray-850/95">
+              {previewImage ? (
+                <div className="relative group">
+                  <img 
+                    src={previewImage}
+                    alt="미리보기"
+                    className={`rounded-lg shadow-md transition-all duration-300 ${
+                      showImagePreview ? 'max-w-none' : 'max-w-md'
+                    }`}
+                  />
+                  <button
+                    onClick={() => setShowImagePreview(false)}
+                    className="absolute top-2 right-2 p-2 bg-gray-800/80 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    {showImagePreview ? (
+                      <FiMinimize2 className="text-white" size={16} />
+                    ) : (
+                      <FiMaximize2 className="text-white" size={16} />
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <div className="text-center text-gray-400 py-8">
+                  이미지를 불러올 수 없습니다.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

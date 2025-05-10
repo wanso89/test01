@@ -1005,9 +1005,31 @@ function ChatContainer({
     });
   };
 
-  // 렌더링할 메시지 결정
-  const displayMessages = searchTerm ? filteredMessages : messages;
-  
+  // 메시지 렌더링 부분 수정
+  const renderMessages = () => {
+    const displayMessages = searchTerm ? filteredMessages : messages;
+    
+    return displayMessages.map((message, index) => {
+      const prevMessage = index > 0 ? displayMessages[index - 1] : null;
+      const nextMessage = index < displayMessages.length - 1 ? displayMessages[index + 1] : null;
+      
+      // 고유한 key 생성 (timestamp + index 조합)
+      const messageKey = `${message.timestamp || Date.now()}-${index}`;
+      
+      return (
+        <ChatMessage
+          key={messageKey}
+          message={message}
+          searchTerm={searchTerm}
+          isSearchMode={!!searchTerm}
+          prevMessage={prevMessage}
+          nextMessage={nextMessage}
+          onAskFollowUp={handleAskFollowUp}
+        />
+      );
+    });
+  };
+
   // 파일 관리 버튼 클릭 핸들러
   const handleFileManager = () => {
     setFileManagerOpen(true);
@@ -1105,7 +1127,7 @@ function ChatContainer({
       >
         <div className="flex flex-col space-y-2 max-w-4xl mx-auto">
           {/* 메시지가 없을 때 안내 메시지 */}
-          {displayMessages.length === 0 && (
+          {renderMessages().length === 0 && (
             <div className="flex flex-col items-center justify-center h-full py-10 text-center">
               <div className="w-16 h-16 rounded-full bg-indigo-900/30 flex items-center justify-center mb-4">
                 <FiMessageSquare size={28} className="text-indigo-400" />
@@ -1118,17 +1140,7 @@ function ChatContainer({
           )}
           
           {/* 메시지 목록 */}
-          {displayMessages.map((msg, index) => (
-            <ChatMessage
-              key={`${activeConversationId}-${index}`}
-              message={msg}
-              searchTerm={searchTerm}
-              isSearchMode={!!searchTerm}
-              prevMessage={index > 0 ? displayMessages[index - 1] : null}
-              nextMessage={index < displayMessages.length - 1 ? displayMessages[index + 1] : null}
-              onAskFollowUp={handleAskFollowUp}
-            />
-          ))}
+          {renderMessages()}
         <div ref={messagesEndRef} />
       </div>
 
