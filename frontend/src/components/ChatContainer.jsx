@@ -511,128 +511,6 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
   );
 };
 
-// 북마크 모달 컴포넌트 추가
-const BookmarkModal = ({ isOpen, onClose }) => {
-  const [bookmarks, setBookmarks] = useState([]);
-  const modalRef = useRef(null);
-  
-  // 북마크 로드
-  useEffect(() => {
-    if (isOpen) {
-      const savedBookmarks = JSON.parse(localStorage.getItem('chat_bookmarks') || '[]');
-      setBookmarks(savedBookmarks.sort((a, b) => b.timestamp - a.timestamp)); // 최신순 정렬
-    }
-  }, [isOpen]);
-  
-  // 모달 바깥 클릭 시 닫기
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (modalRef.current && !modalRef.current.contains(event.target)) {
-        onClose();
-      }
-    }
-    
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => {
-        document.removeEventListener("mousedown", handleClickOutside);
-      };
-    }
-  }, [isOpen, onClose]);
-  
-  // 북마크 삭제
-  const handleRemoveBookmark = (id) => {
-    const updatedBookmarks = bookmarks.filter(bookmark => bookmark.id !== id);
-    localStorage.setItem('chat_bookmarks', JSON.stringify(updatedBookmarks));
-    setBookmarks(updatedBookmarks);
-  };
-  
-  // 북마크 포맷
-  const formatTimestamp = (timestamp) => {
-    const date = new Date(timestamp);
-    return date.toLocaleDateString('ko-KR', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-  
-  if (!isOpen) return null;
-  
-  return (
-    <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div
-        ref={modalRef}
-        className="bg-gray-800 rounded-xl w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-xl border border-gray-700/50 animate-slide-up"
-      >
-        <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-          <h2 className="text-lg font-medium text-gray-100 flex items-center">
-            <FiBookmark className="mr-2 text-yellow-500" size={18} />
-            북마크된 메시지
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-gray-700 text-gray-400 hover:text-gray-300 transition-colors"
-          >
-            <FiX size={20} />
-          </button>
-        </div>
-        
-        <div className="overflow-y-auto custom-scrollbar" style={{ maxHeight: 'calc(80vh - 70px)' }}>
-          {bookmarks.length === 0 ? (
-            <div className="p-8 text-center text-gray-400">
-              <FiBookmark size={36} className="mx-auto mb-4 opacity-50" />
-              <p>북마크된 메시지가 없습니다.</p>
-              <p className="text-sm mt-2 text-gray-500">대화 중 중요한 내용을 북마크해보세요.</p>
-            </div>
-          ) : (
-            <div className="p-4 space-y-3">
-              {bookmarks.map((bookmark) => (
-                <div 
-                  key={bookmark.id}
-                  className="p-4 rounded-lg border border-gray-700/50 bg-gray-750 hover:bg-gray-700 transition-colors group"
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-center">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center mr-2 ${
-                        bookmark.role === 'assistant' 
-                          ? 'bg-indigo-600/30 text-indigo-400' 
-                          : 'bg-blue-600/30 text-blue-400'
-                      }`}>
-                        {bookmark.role === 'assistant' ? 
-                          <FiMessageSquare size={12} /> : 
-                          <FiType size={12} />}
-                      </div>
-                      <span className="text-sm text-gray-400">
-                        {bookmark.role === 'assistant' ? '어시스턴트' : '사용자'} • {formatTimestamp(bookmark.timestamp)}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => handleRemoveBookmark(bookmark.id)}
-                      className="p-1 rounded-full text-gray-500 hover:text-red-400 hover:bg-red-900/20 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="북마크 제거"
-                    >
-                      <FiX size={16} />
-                    </button>
-                  </div>
-                  <div className="pl-8 pr-2 py-1 text-gray-200 text-sm border-l-2 border-gray-600">
-                    {/* 내용 길이가 길 경우 잘라서 표시 */}
-                    {bookmark.content.length > 300
-                      ? `${bookmark.content.substring(0, 300)}...`
-                      : bookmark.content}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
 // 새 대화 시작 모달 컴포넌트 추가
 const NewChatModal = ({ isOpen, onClose, onStart }) => {
   const [topic, setTopic] = useState('');
@@ -761,7 +639,6 @@ function ChatContainer({
   const containerRef = useRef(null);
   const messagesEndRef = useRef(null);
   const chatInputRef = useRef(null);
-  const [bookmarkModalOpen, setBookmarkModalOpen] = useState(false);
   const [newChatModalOpen, setNewChatModalOpen] = useState(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const dropZoneRef = useRef(null);
@@ -1178,11 +1055,6 @@ function ChatContainer({
     }, 50);
   };
   
-  // 북마크 버튼 핸들러
-  const handleBookmarkClick = () => {
-    setBookmarkModalOpen(true);
-  };
-  
   // 새 대화 시작 핸들러 - 모달 없이 바로 새 대화 생성으로 수정
   const handleStartNewChat = () => {
     if (onNewConversation) {
@@ -1224,23 +1096,6 @@ function ChatContainer({
         </div>
         {/* 헤더 버튼 그룹 */}
         <div className="flex gap-2">
-          <button
-            onClick={handleStartNewChat}
-            className="p-2 rounded-xl bg-blue-600/80 text-white hover:bg-blue-600 transition-colors flex items-center gap-2 group shadow-sm"
-            title="새 대화 시작"
-            disabled={isEmbedding}
-          >
-            <FiPlus size={18} className="group-hover:scale-110 transition-transform" />
-            <span className="text-sm font-medium hidden sm:inline-block">새 대화</span>
-          </button>
-          <button
-            onClick={handleBookmarkClick}
-            className="p-2 rounded-xl text-gray-400 hover:text-blue-400 hover:bg-gray-800/70 transition-colors flex items-center gap-2 group"
-            title="북마크 보기"
-          >
-            <FiBookmark size={18} className="group-hover:scale-110 transition-transform" />
-            <span className="text-sm hidden sm:inline-block">북마크</span>
-          </button>
           <button
             onClick={handleFileManager}
             className="p-2 rounded-xl text-gray-400 hover:text-blue-400 hover:bg-gray-800/70 transition-colors flex items-center gap-2 group"
@@ -1324,14 +1179,6 @@ function ChatContainer({
         <IndexedFilesModal 
           isOpen={fileManagerOpen}
           onClose={() => setFileManagerOpen(false)}
-        />
-      )}
-      
-      {/* 북마크 모달 */}
-      {bookmarkModalOpen && (
-        <BookmarkModal
-          isOpen={bookmarkModalOpen}
-          onClose={() => setBookmarkModalOpen(false)}
         />
       )}
     </div>

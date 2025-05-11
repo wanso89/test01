@@ -513,20 +513,63 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
   const [isTypingComplete, setIsTypingComplete] = useState(true); // 기본값 true로 설정
   const [showTypeWriter, setShowTypeWriter] = useState(false); // 타이핑 효과 비활성화 (기본값 false)
   const contentRef = useRef(null);
-  const [bookmarked, setBookmarked] = useState(false);
-  const [showFollowUpOptions, setShowFollowUpOptions] = useState(false);
   const [showImagePreview, setShowImagePreview] = useState(false);
   // 피드백 모달 상태 추가
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [currentFeedbackType, setCurrentFeedbackType] = useState(null);
   // 토스트 알림 상태 추가
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
+  const [isGrouped, setIsGrouped] = useState(false);
+  // 스레드 인디케이터 관련 변수들 추가
+  const [threadStartLine, setThreadStartLine] = useState(false);
+  const [showThreadLine, setShowThreadLine] = useState(false);
+  const [threadEndLine, setThreadEndLine] = useState(false);
+  const [showTableOfContents, setShowTableOfContents] = useState(false);
+  
+  // 같은 화자의 연속 메시지인지 확인 - 위치 이동
+  const isPrevSameSender = useMemo(() => {
+    return prevMessage && prevMessage.role === message.role;
+  }, [prevMessage, message.role]);
+  
+  const isNextSameSender = useMemo(() => {
+    return nextMessage && nextMessage.role === message.role;
+  }, [nextMessage, message.role]);
+  
+  // 스레드 라인 관련 상태 업데이트
+  useEffect(() => {
+    // 현재 메시지가 어시스턴트인 경우만 스레드 라인 표시
+    if (!isUser) {
+      // 앞 메시지가 다른 화자(사용자)면 스레드 시작
+      setThreadStartLine(!isPrevSameSender);
+      
+      // 뒤 메시지가 같은 화자(어시스턴트)면 스레드 라인 표시
+      setShowThreadLine(isNextSameSender);
+      
+      // 뒤 메시지가 다른 화자(사용자)면 스레드 종료
+      setThreadEndLine(!isNextSameSender);
+    } else {
+      // 사용자 메시지는 스레드 라인 표시 안함
+      setThreadStartLine(false);
+      setShowThreadLine(false);
+      setThreadEndLine(false);
+    }
+  }, [isUser, isPrevSameSender, isNextSameSender]);
+
+  // isPrevSameSender에 따라 isGrouped 상태 업데이트
+  useEffect(() => {
+    setIsGrouped(isPrevSameSender);
+  }, [isPrevSameSender]);
   
   // 제목 추출 및 목차 생성
   const headings = useMemo(() => {
     if (isUser || !message.content) return [];
     return extractHeadings(message.content);
   }, [isUser, message.content]);
+  
+  // 목차 표시 여부 업데이트
+  useEffect(() => {
+    setShowTableOfContents(!isUser && headings.length >= 2);
+  }, [isUser, headings.length]);
   
   // 목차 클릭 시 해당 제목으로 스크롤
   const scrollToHeading = (headingId) => {
@@ -552,15 +595,6 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     
     return () => clearTimeout(timer);
   }, [message.content]);
-  
-  // 같은 화자의 연속 메시지인지 확인
-  const isPrevSameSender = useMemo(() => {
-    return prevMessage && prevMessage.role === message.role;
-  }, [prevMessage, message.role]);
-  
-  const isNextSameSender = useMemo(() => {
-    return nextMessage && nextMessage.role === message.role;
-  }, [nextMessage, message.role]);
   
   // 메시지 시간을 참조로 저장
   const messageTime = useMemo(() => {
@@ -803,116 +837,6 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     setSourcesVisible((prevVisible) => !prevVisible);
   }, []);
 
-  // 후속 질문 예시들
-  const followUpSuggestions = useMemo(() => {
-    if (isUser || !message.content) return [];
-    
-    // 메시지 길이와 내용에 따라 다양한 후속 질문 생성
-    const contentLower = message.content.toLowerCase();
-    const basicQuestions = [
-      "이 내용에 대해 더 자세히 설명해주세요.",
-      "위 내용을 실제 예시와 함께 설명해주세요.",
-      "이 정보의 출처는 무엇인가요?",
-    ];
-    
-    // 컨텍스트 기반 질문 생성
-    const contextQuestions = [];
-    
-    // 코드가 포함된 경우
-    if (contentLower.includes("```") || contentLower.includes("function") || contentLower.includes("class")) {
-      contextQuestions.push(
-        "이 코드의 작동 방식을 설명해주세요.",
-        "이 코드를 최적화하는 방법은 무엇인가요?",
-        "이 코드의 실행 결과는 어떻게 되나요?"
-      );
-    }
-    
-    // 단계나 절차가 포함된 경우
-    if (contentLower.includes("step") || contentLower.includes("단계") || 
-        contentLower.includes("절차") || contentLower.includes("process")) {
-      contextQuestions.push(
-        "이 절차의 다음 단계는 무엇인가요?",
-        "이 과정에서 주의해야 할 점은 무엇인가요?",
-        "이 절차를 간소화할 수 있는 방법이 있나요?"
-      );
-    }
-    
-    // 오류/예외 관련 내용이 포함된 경우
-    if (contentLower.includes("error") || contentLower.includes("exception") || 
-        contentLower.includes("오류") || contentLower.includes("예외")) {
-      contextQuestions.push(
-        "이 오류를 해결하는 가장 좋은 방법은 무엇인가요?",
-        "이 오류가 발생하는 다른 상황에는 어떤 것이 있나요?",
-        "이 오류를 방지하는 방법이 있나요?"
-      );
-    }
-    
-    // 의사결정 관련 내용이 포함된 경우
-    if (contentLower.includes("recommend") || contentLower.includes("suggest") || 
-        contentLower.includes("권장") || contentLower.includes("추천")) {
-      contextQuestions.push(
-        "다른 대안은 어떤 것이 있나요?",
-        "이 추천의 장단점은 무엇인가요?",
-        "이 방법이 가장 좋은 이유는 무엇인가요?"
-      );
-    }
-    
-    // 조합하여 최대 4개의 질문 반환
-    const allQuestions = [...new Set([...contextQuestions, ...basicQuestions])];
-    return allQuestions.slice(0, 4);
-  }, [isUser, message.content]);
-  
-  // 후속 질문 클릭 핸들러
-  const handleFollowUpClick = (question) => {
-    if (onAskFollowUp) {
-      onAskFollowUp(question);
-      setShowFollowUpOptions(false);
-    }
-  };
-  
-  // 북마크 토글 핸들러
-  const toggleBookmark = () => {
-    setBookmarked(prev => !prev);
-    
-    // 로컬 스토리지에 북마크 저장
-    const bookmarks = JSON.parse(localStorage.getItem('chat_bookmarks') || '[]');
-    const messageId = `${message.role}-${message.timestamp || Date.now()}`;
-    
-    if (!bookmarked) {
-      // 북마크 추가
-      bookmarks.push({
-        id: messageId,
-        content: message.content,
-        timestamp: message.timestamp || Date.now(),
-        role: message.role
-      });
-      localStorage.setItem('chat_bookmarks', JSON.stringify(bookmarks));
-    } else {
-      // 북마크 제거
-      const updatedBookmarks = bookmarks.filter(b => b.id !== messageId);
-      localStorage.setItem('chat_bookmarks', JSON.stringify(updatedBookmarks));
-    }
-  };
-  
-  // 컴포넌트 마운트 시 북마크 상태 체크
-  useEffect(() => {
-    if (!message.timestamp) return;
-    
-    const bookmarks = JSON.parse(localStorage.getItem('chat_bookmarks') || '[]');
-    const messageId = `${message.role}-${message.timestamp}`;
-    const isBookmarked = bookmarks.some(b => b.id === messageId);
-    
-    setBookmarked(isBookmarked);
-  }, [message.role, message.timestamp]);
-  
-  // 스레드 라인 스타일 계산 - 스레드 UI 효과를 위한 라인 렌더링
-  const threadStartLine = !isPrevSameSender && !isUser;
-  const threadEndLine = !isNextSameSender && !isUser;
-  const showThreadLine = !isUser && (isPrevSameSender || isNextSameSender);
-  
-  // 어시스턴트 메시지이고 제목이 있는 경우에만 목차 표시
-  const showTableOfContents = !isUser && headings.length >= 3;
-  
   // 마크다운 컴포넌트 생성
   const MarkdownContent = useMemo(() => {
     // 헤딩에 ID 추가하는 함수
@@ -1049,7 +973,6 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
   }, [message.content, headings, copied]);
 
   // 메시지 그룹핑 로직
-  const isGrouped = prevMessage && prevMessage.role === message.role;
   const isLastInGroup = !nextMessage || nextMessage.role !== message.role;
   
   // 이미지 URL 추출 및 처리
@@ -1195,153 +1118,52 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
                   MarkdownContent
                 )}
               </div>
-              
-              {/* 북마크 버튼 - 오른쪽 상단에 표시 */}
-              <button
-                onClick={toggleBookmark}
-                className={`absolute top-2 right-2 p-1.5 rounded-full ${
-                  bookmarked 
-                    ? 'text-yellow-500 bg-yellow-900/20' 
-                    : 'text-gray-400 opacity-0 group-hover:opacity-100 hover:text-gray-300 hover:bg-gray-700/50'
-                } transition-all duration-200`}
-                title={bookmarked ? "북마크 제거" : "북마크 추가"}
-              >
-                <FiBookmark size={14} className={bookmarked ? "fill-current" : ""} />
-              </button>
             </div>
 
-            {/* 후속 질문 옵션 - 어시스턴트 메시지에만 표시 */}
-            {!isUser && followUpSuggestions.length > 0 && (
-              <div className="mt-2 mb-1 w-full">
-                {!showFollowUpOptions ? (
-                  <div className="flex justify-start">
-                    <button
-                      onClick={() => setShowFollowUpOptions(true)}
-                      className="flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 px-2 py-1 rounded-lg hover:bg-indigo-900/20 transition-colors"
-                    >
-                      <FiMessageCircle size={14} />
-                      <span>후속 질문하기</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="animate-fade-in space-y-1.5 bg-gray-800/50 p-2 rounded-lg border border-gray-700/50">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-xs text-gray-400">추천 질문</span>
-                      <button 
-                        onClick={() => setShowFollowUpOptions(false)}
-                        className="text-gray-500 hover:text-gray-300 p-0.5"
-                      >
-                        <FiX size={14} />
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 gap-1.5">
-                      {followUpSuggestions.map((question, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => handleFollowUpClick(question)}
-                          className="text-left text-sm px-3 py-1.5 rounded-lg bg-indigo-900/20 hover:bg-indigo-900/40 text-indigo-300 hover:text-indigo-200 transition-colors flex items-start"
-                        >
-                          <FiCornerDownRight className="mr-2 mt-0.5 flex-shrink-0" size={12} />
-                          <span>{question}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-          {/* 소스 목록 */}
-          {message.sources && message.sources.length > 0 && (
-            <div className="w-full mt-1">
+            {/* 액션 버튼 */}
+            <div
+              className={`flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity ${
+                isUser ? "justify-start" : "justify-end"
+              }`}
+            >
               <button
-                onClick={() => setSourcesVisible(!sourcesVisible)}
-                className="text-xs flex items-center gap-1 text-gray-400 hover:text-indigo-400 dark:text-gray-400 dark:hover:text-indigo-400 transition-colors mt-1 mb-1 px-1 py-0.5 rounded-md hover:bg-gray-800/50 dark:hover:bg-gray-800/50"
+                onClick={handleCopy}
+                className="p-1.5 rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 transition-colors"
+                title="복사하기"
               >
-                <FiLink size={12} />
-                <span>
-                  {sourcesVisible ? "출처 숨기기" : `${message.sources.length}개 출처 보기`}
-                </span>
+                {copied ? <FiCheck size={15} /> : <FiCopy size={15} />}
               </button>
               
-              {sourcesVisible && (
-                <div className="animate-fade-in mt-1 mb-2 space-y-1.5">
-                  {message.sources.map((source, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => handlePreviewSource(source)}
-                      className="flex items-center cursor-pointer p-2.5 rounded-lg hover:bg-gray-800/70 dark:hover:bg-gray-750 text-sm text-gray-300 dark:text-gray-300 transition-all border border-gray-700/50 dark:border-gray-700/50 group bg-gray-850/70 dark:bg-gray-800/50 backdrop-blur-sm shadow-sm hover:shadow-md"
-                    >
-                      <div className="flex-shrink-0 mr-2">
-                        <div className="w-6 h-6 bg-indigo-900/30 dark:bg-indigo-900/30 rounded-full flex items-center justify-center">
-                          <span className="text-xs font-medium text-indigo-400 dark:text-indigo-400">
-                            {idx + 1}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex-1 truncate">
-                        <div className="truncate font-medium">{source.path || "Unknown"}</div>
-                        {source.page && (
-                          <div className="text-xs text-gray-400 dark:text-gray-400">
-                            페이지: {source.page}
-                          </div>
-                        )}
-                      </div>
-                      <FiEye
-                        className="text-gray-400 group-hover:text-indigo-400 dark:group-hover:text-indigo-400 ml-2 transform group-hover:scale-110 transition-all"
-                        size={16}
-                      />
-                    </div>
-                  ))}
-                </div>
+              {!isUser && (
+                <>
+                  <button
+                    onClick={() => handleFeedback("up")}
+                    className={`p-1.5 rounded-full transition-colors ${
+                      feedback === "up"
+                        ? "text-green-500 bg-green-50 dark:bg-green-900/30"
+                        : "text-gray-500 hover:text-gray-800 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700"
+                    }`}
+                    title="좋아요"
+                  >
+                    <FiThumbsUp size={15} />
+                  </button>
+                  <button
+                    onClick={() => handleFeedback("down")}
+                    className={`p-1.5 rounded-full transition-colors ${
+                      feedback === "down"
+                        ? "text-red-500 bg-red-50 dark:bg-red-900/30"
+                        : "text-gray-500 hover:text-gray-800 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700"
+                    }`}
+                    title="싫어요"
+                  >
+                    <FiThumbsDown size={15} />
+                  </button>
+                </>
               )}
             </div>
-          )}
-
-          {/* 액션 버튼 */}
-          <div
-            className={`flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity ${
-              isUser ? "justify-start" : "justify-end"
-            }`}
-          >
-            <button
-              onClick={handleCopy}
-              className="p-1.5 rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 transition-colors"
-              title="복사하기"
-            >
-              {copied ? <FiCheck size={15} /> : <FiCopy size={15} />}
-            </button>
-            
-            {!isUser && (
-              <>
-                <button
-                  onClick={() => handleFeedback("up")}
-                  className={`p-1.5 rounded-full transition-colors ${
-                    feedback === "up"
-                      ? "text-green-500 bg-green-50 dark:bg-green-900/30"
-                      : "text-gray-500 hover:text-gray-800 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700"
-                  }`}
-                  title="좋아요"
-                >
-                  <FiThumbsUp size={15} />
-                </button>
-                <button
-                  onClick={() => handleFeedback("down")}
-                  className={`p-1.5 rounded-full transition-colors ${
-                    feedback === "down"
-                      ? "text-red-500 bg-red-50 dark:bg-red-900/30"
-                      : "text-gray-500 hover:text-gray-800 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700"
-                  }`}
-                  title="싫어요"
-                >
-                  <FiThumbsDown size={15} />
-                </button>
-              </>
-            )}
           </div>
-        </div>
-        
-        {/* 프로필 아이콘 (사용자만) */}
+          
+          {/* 프로필 아이콘 (사용자만) */}
           {isUser && !isPrevSameSender && (
           <div className="flex-shrink-0 ml-3 mt-1">
               <ProfileAvatar role={message.role} isGrouped={isGrouped} />

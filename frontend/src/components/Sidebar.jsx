@@ -19,7 +19,8 @@ import {
   FiHelpCircle,
   FiMoon,
   FiSun,
-  FiMenu
+  FiMenu,
+  FiChevronUp
 } from "react-icons/fi";
 import { LOGO_IMAGE, createLogoIcon } from "../assets/3ssoft-logo.js";
 
@@ -193,28 +194,15 @@ function Sidebar({
         <Logo />
       </div>
 
-      {/* 검색 입력 필드 */}
-      <div className="px-4 py-3">
-        <div className="relative">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="대화 검색..."
-            className="w-full bg-gray-800/70 border border-gray-700/50 rounded-xl py-2.5 pl-10 pr-4 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all duration-200 shadow-sm"
-          />
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <FiSearch className="h-4 w-4 text-gray-500" />
-          </div>
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-300"
-            >
-              <FiX className="h-4 w-4" />
-            </button>
-          )}
-        </div>
+      {/* 새 대화 버튼 */}
+      <div className="px-4 py-2.5 border-b border-gray-800/50">
+        <button
+          onClick={onNewConversation}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-gray-300 hover:text-white bg-transparent hover:bg-gray-800/70 rounded-md transition-all duration-200 text-sm ml-auto float-right"
+        >
+          <FiPlus size={15} className="text-gray-400" />
+          <span>새 대화</span>
+        </button>
       </div>
 
       {/* 대화 목록 */}
@@ -261,49 +249,48 @@ function Sidebar({
             </div>
           )}
 
-          {/* 최근 대화 목록 */}
-          <div>
-            <div className="flex items-center px-2 py-1.5 text-xs text-gray-500 font-medium">
-              <FiClock size={12} className="mr-1.5" />
-              <span>최근 대화</span>
-            </div>
-            <div className="space-y-1.5 mt-1.5">
-              {filteredConversations.length === 0 ? (
-                <div className="px-3 py-6 text-center">
-                  <div className="text-gray-400 text-sm">대화 기록이 없습니다</div>
-                  <button
-                    onClick={onNewConversation}
-                    className="mt-2 px-3 py-1.5 bg-indigo-900/30 text-indigo-400 text-sm rounded-lg hover:bg-indigo-800/40 transition-colors inline-flex items-center"
-                  >
-                    <FiPlus size={14} className="mr-1" />
-                    새 대화 시작하기
-                  </button>
-                </div>
-              ) : (
-                filteredConversations.filter(conv => !conv.pinned).map((conversation, index) => (
-                  <ConversationItem
-                    key={conversation.id}
-                    conversation={conversation}
-                    isActive={conversation.id === activeConversationId}
-                    onClick={() => onSelectConversation(conversation.id)}
-                    onRename={(newTitle) => onRenameConversation(conversation.id, newTitle)}
-                    onDelete={() => onDeleteConversation(conversation.id)}
-                    onTogglePin={() => onTogglePinConversation(conversation.id)}
-                    animationDelay={index * 0.05}
-                  />
-                ))
-              )}
-            </div>
-          </div>
+          {/* 최근 대화 목록 - 접기/펼치기 기능 추가 */}
+          <ConversationGroup
+            title="최근 대화"
+            icon={<FiClock size={12} className="mr-1.5" />}
+            conversations={filteredConversations.filter(conv => !conv.pinned)}
+            activeConversationId={activeConversationId}
+            onSelect={onSelectConversation}
+            onRename={onRenameConversation}
+            onDelete={onDeleteConversation}
+            onTogglePin={onTogglePinConversation}
+            maxVisible={6}
+          />
         </div>
       </div>
 
-      {/* 푸터 - 다크모드 버튼과 도움말 제거 */}
-      <div className="p-3 bg-gray-900">
-        <div className="flex flex-col space-y-3">
-          {/* 버전 정보만 남김 */}
-          <div className="mt-2 flex items-center justify-center text-xs text-gray-500">
-            <span>3Ssoft Chatbot v1</span>
+      {/* 푸터 - 유용한 정보 추가 */}
+      <div className="p-4 bg-gray-800/30 rounded-lg mx-3 mb-3 shadow-inner">
+        <div className="flex flex-col">
+          {/* 유용한 단축키 */}
+          <div>
+            <div className="text-xs font-medium text-indigo-400 mb-2.5 flex items-center">
+              <FiHelpCircle size={12} className="mr-1.5" />
+              <span>유용한 단축키</span>
+            </div>
+            <div className="grid grid-cols-2 gap-y-2 gap-x-3 text-xs text-gray-300">
+              <div className="flex items-center">
+                <span className="inline-flex items-center justify-center min-w-[24px] h-5 px-1 mr-1.5 bg-gray-700/70 rounded text-indigo-300 font-mono">↑</span>
+                <span>이전 질문</span>
+              </div>
+              <div className="flex items-center">
+                <span className="inline-flex items-center justify-center min-w-[24px] h-5 px-1 mr-1.5 bg-gray-700/70 rounded text-indigo-300 font-mono">↓</span>
+                <span>다음 질문</span>
+              </div>
+              <div className="flex items-center">
+                <span className="inline-flex items-center justify-center min-w-[24px] h-5 px-1 mr-1.5 bg-gray-700/70 rounded text-indigo-300 font-mono">Tab</span>
+                <span>자동 완성</span>
+              </div>
+              <div className="flex items-center">
+                <span className="inline-flex items-center justify-center min-w-[24px] h-5 px-1 mr-1.5 bg-gray-700/70 rounded text-indigo-300 font-mono">Esc</span>
+                <span>입력 취소</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -476,6 +463,91 @@ function ConversationItem({ conversation, isActive, onClick, onRename, onDelete,
               </div>
             )}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 대화 그룹 컴포넌트 - 접기/펼치기 기능을 가진 대화 목록
+function ConversationGroup({ title, icon, conversations, activeConversationId, onSelect, onRename, onDelete, onTogglePin, maxVisible = 6 }) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  
+  // 보여줄 대화 목록 결정
+  const visibleConversations = showAll
+    ? conversations
+    : conversations.slice(0, maxVisible);
+    
+  // 더 보기 버튼이 필요한지 여부
+  const needsMoreButton = conversations.length > maxVisible;
+  
+  // 대화 목록이 비어있으면 빈 UI 반환
+  if (conversations.length === 0) {
+    return (
+      <div className="mb-3">
+        <div className="flex items-center justify-between px-2 py-1.5">
+          <div className="flex items-center text-xs text-gray-500 font-medium">
+            {icon}
+            <span>{title}</span>
+          </div>
+        </div>
+        <div className="px-3 py-6 text-center">
+          <div className="text-gray-400 text-sm">대화 기록이 없습니다</div>
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="mb-3">
+      {/* 그룹 헤더 - 접기/펼치기 토글 버튼 */}
+      <div className="flex items-center justify-between px-2 py-1.5 cursor-pointer" onClick={() => setIsCollapsed(!isCollapsed)}>
+        <div className="flex items-center text-xs text-gray-500 font-medium">
+          {icon}
+          <span>{title}</span>
+        </div>
+        <button className="text-gray-500 hover:text-gray-300 p-0.5">
+          {isCollapsed ? <FiChevronRight size={14} /> : <FiChevronDown size={14} />}
+        </button>
+      </div>
+      
+      {/* 대화 목록 */}
+      {!isCollapsed && (
+        <div className="space-y-1.5 mt-1.5">
+          {/* 대화 항목들 */}
+          {visibleConversations.map((conversation, index) => (
+            <ConversationItem
+              key={conversation.id}
+              conversation={conversation}
+              isActive={conversation.id === activeConversationId}
+              onClick={() => onSelect(conversation.id)}
+              onRename={(newTitle) => onRename(conversation.id, newTitle)}
+              onDelete={() => onDelete(conversation.id)}
+              onTogglePin={() => onTogglePin(conversation.id)}
+              animationDelay={index * 0.05}
+            />
+          ))}
+          
+          {/* 더 보기/접기 버튼 */}
+          {needsMoreButton && (
+            <button
+              onClick={() => setShowAll(!showAll)}
+              className="w-full flex items-center justify-center py-1.5 px-3 mt-2 text-xs text-gray-400 hover:text-gray-300 hover:bg-gray-800/50 rounded-lg transition-colors"
+            >
+              {showAll ? (
+                <>
+                  <FiChevronUp size={14} className="mr-1.5" />
+                  <span>접기</span>
+                </>
+              ) : (
+                <>
+                  <FiChevronDown size={14} className="mr-1.5" />
+                  <span>더 보기 ({conversations.length - maxVisible})</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       )}
     </div>

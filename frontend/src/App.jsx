@@ -346,14 +346,33 @@ function App() {
   useEffect(() => {
     // 대화가 변경되면 로컬 스토리지에 자동 저장
     if (conversations.length > 0) {
-      localStorage.setItem("conversations", JSON.stringify(conversations));
+      try {
+        // 직렬화 전에 DOM 요소 참조를 제거하기 위해 순수 객체만 추출
+        const cleanConversations = conversations.map(conv => ({
+          id: conv.id,
+          title: conv.title,
+          timestamp: conv.timestamp,
+          pinned: !!conv.pinned,
+          messages: conv.messages.map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            timestamp: msg.timestamp || Date.now(),
+            sources: Array.isArray(msg.sources) ? msg.sources : []
+          }))
+        }));
+        
+        localStorage.setItem("conversations", JSON.stringify(cleanConversations));
+        console.log("로컬 스토리지에 대화 저장 완료");
+      } catch (error) {
+        console.error("대화 저장 중 오류 발생:", error);
+      }
+      
       // 활성화된 대화에 대해서만 백엔드에 저장
       if (activeConversationId) {
         const activeConv = conversations.find(
           (c) => c.id === activeConversationId
         );
         if (activeConv && activeConv.messages.length > 0) {
-          console.log("로컬 스토리지에 대화 저장 완료");
           // 백엔드 저장 비활성화 (422 오류 문제 해결을 위함)
           // saveConversationToBackend(userId, activeConversationId, activeConv.messages);
         }
@@ -369,14 +388,16 @@ function App() {
     // 첫 시스템 메시지 설정 (대화 컨텍스트 정보)
     let contextMessage = "안녕하세요! 무엇을 도와드릴까요?";
     
-    // topic이 없는 경우 기본 제목 설정 (대화 1, 대화 2 등)
+    // 기본 제목 설정 (항상 "대화 N" 형식으로 생성)
     let defaultTitle = "새 대화";
-    if (!topic) {
+    
+    try {
       // 기존 '대화 N' 형식의 제목 중 가장 큰 번호 찾기
       const conversationNumbers = conversations
         .map(conv => {
+          if (!conv || !conv.title) return 0;
           const match = /^대화 (\d+)$/.exec(conv.title);
-          return match ? parseInt(match[1]) : 0;
+          return match ? parseInt(match[1], 10) : 0;
         })
         .filter(num => !isNaN(num));
       
@@ -384,25 +405,63 @@ function App() {
         Math.max(...conversationNumbers) : 0;
       
       defaultTitle = `대화 ${maxNumber + 1}`;
+    } catch (error) {
+      console.error("대화 제목 생성 중 오류:", error);
+      defaultTitle = `대화 ${Date.now() % 1000}`;
     }
     
-    // 새 대화 생성
+    const timestamp = Date.now();
+    
+    // 새 대화 생성 - 항상 기본 제목 사용
     const newConversation = {
       id: newConversationId,
       messages: [
         {
           role: "assistant",
           content: contextMessage,
-          timestamp: Date.now()
+          timestamp: timestamp,
+          sources: []
         }
       ],
-      title: topic || defaultTitle,
-      created_at: new Date().toISOString()
+      title: defaultTitle, // topic 무시하고 항상 기본 제목 사용
+      created_at: new Date(timestamp).toISOString(),
+      pinned: false,
+      timestamp: timestamp
     };
     
-    // 대화 목록 및 활성 대화 업데이트
-    setConversations(prev => [newConversation, ...prev]);
+    // 상태 업데이트 안전하게 수행
+    setConversations(prev => {
+      const prevCopy = Array.isArray(prev) ? [...prev] : [];
+      return [newConversation, ...prevCopy];
+    });
+    
     setActiveConversationId(newConversationId);
+    
+    // localStorage 직접 업데이트 (useEffect 의존하지 않음)
+    try {
+      const currentConversations = localStorage.getItem("conversations");
+      let savedConversations = [];
+      
+      if (currentConversations) {
+        try {
+          savedConversations = JSON.parse(currentConversations);
+          if (!Array.isArray(savedConversations)) {
+            savedConversations = [];
+          }
+        } catch (e) {
+          console.error("기존 대화 파싱 오류:", e);
+          savedConversations = [];
+        }
+      }
+      
+      // 새 대화를 맨 앞에 추가
+      const updatedConversations = [newConversation, ...savedConversations];
+      localStorage.setItem("conversations", JSON.stringify(updatedConversations));
+      localStorage.setItem("activeConversationId", JSON.stringify(newConversationId));
+      console.log("새 대화가 생성되었습니다:", newConversation.title);
+    } catch (error) {
+      console.error("대화 저장 중 오류 발생:", error);
+    }
     
     // 검색어 초기화
     setSearchTerm('');
