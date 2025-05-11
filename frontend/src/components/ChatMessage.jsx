@@ -839,108 +839,111 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
 
   // 원시 HTML 태그를 이스케이프 처리하는 함수
   const escapeHtmlTags = (content) => {
+    if (!content) return '';
+    
     // 원본 콘텐츠 보존
     let processedContent = content;
     
+    // 마크다운 테이블 형식이 있는지 먼저 확인
+    const hasMarkdownTable = /\|[\s-]+\|/.test(processedContent);
+    
     // 테이블 변환 - 마크다운 테이블 형식으로 변환
-    if (/<table>|<tr>|<td>|<th>/.test(processedContent)) {
+    if (!hasMarkdownTable && /<table>|<tr>|<td>|<th>/.test(processedContent)) {
       try {
-        // 테이블 태그 균형 확인
+        // 테이블 태그 균형 확인 로그
         const tableOpenCount = (processedContent.match(/<table>/g) || []).length;
         const tableCloseCount = (processedContent.match(/<\/table>/g) || []).length;
-        const trOpenCount = (processedContent.match(/<tr>/g) || []).length;
-        const trCloseCount = (processedContent.match(/<\/tr>/g) || []).length;
-        const tdOpenCount = (processedContent.match(/<td>/g) || []).length;
-        const tdCloseCount = (processedContent.match(/<\/td>/g) || []).length;
-        const thOpenCount = (processedContent.match(/<th>/g) || []).length;
-        const thCloseCount = (processedContent.match(/<\/th>/g) || []).length;
         
-        console.log(`테이블 태그 균형: table(${tableOpenCount}:${tableCloseCount}), tr(${trOpenCount}:${trCloseCount}), td(${tdOpenCount}:${tdCloseCount}), th(${thOpenCount}:${thCloseCount})`);
+        console.log(`테이블 태그 균형: 열림(${tableOpenCount}) 닫힘(${tableCloseCount})`);
         
-        // 정규식을 사용한 더 강력한 변환 방식 적용
-        // 전체 테이블 구조 추출 (멀티라인 포함)
+        // 테이블 추출 및 변환 (멀티라인 지원)
         const tablePattern = /<table>([\s\S]*?)<\/table>/g;
-        let tableMatch;
-        let newContent = processedContent;
+        let matches;
+        let lastIndex = 0;
+        let result = '';
         
-        while ((tableMatch = tablePattern.exec(processedContent)) !== null) {
-          const fullTable = tableMatch[0];
-          const tableContent = tableMatch[1];
+        while ((matches = tablePattern.exec(processedContent)) !== null) {
+          // 테이블 앞 부분 추가
+          result += processedContent.substring(lastIndex, matches.index);
           
-          // 마크다운 테이블 생성을 위한 준비
-          let mdTableRows = [];
+          // 테이블 콘텐츠 추출
+          const tableContent = matches[1];
+          lastIndex = matches.index + matches[0].length;
           
-          // <thead>, <tbody> 태그 제거 (내용은 유지)
-          const cleanedContent = tableContent.replace(/<thead>|<\/thead>|<tbody>|<\/tbody>/g, '');
+          // 테이블 헤더와 바디 추출
+          let tableRows = [];
+          let headerProcessed = false;
           
-          // 행(row) 추출
-          const rowPattern = /<tr>([\s\S]*?)<\/tr>/g;
-          let rowMatch;
-          let rowIndex = 0;
+          // thead와 tbody 태그가 있는 경우 분리 처리
+          const theadMatch = /<thead>([\s\S]*?)<\/thead>/.exec(tableContent);
+          const tbodyMatch = /<tbody>([\s\S]*?)<\/tbody>/.exec(tableContent);
           
-          while ((rowMatch = rowPattern.exec(cleanedContent)) !== null) {
-            const rowContent = rowMatch[1];
-            
-            // 헤더 셀(<th>) 또는 데이터 셀(<td>) 추출
-            const headerPattern = /<th>([\s\S]*?)<\/th>/g;
-            const cellPattern = /<td>([\s\S]*?)<\/td>/g;
-            
-            let headers = [];
-            let headerMatch;
-            while ((headerMatch = headerPattern.exec(rowContent)) !== null) {
-              headers.push(headerMatch[1].trim());
-            }
-            
-            let cells = [];
-            let cellMatch;
-            while ((cellMatch = cellPattern.exec(rowContent)) !== null) {
-              cells.push(cellMatch[1].trim());
-            }
-            
-            // 헤더 행 처리
-            if (headers.length > 0) {
-              let mdRow = '| ' + headers.join(' | ') + ' |';
-              mdTableRows.push(mdRow);
-              
-              // 헤더 다음에 구분선 추가
-              let separator = '| ' + Array(headers.length).fill('---').join(' | ') + ' |';
-              mdTableRows.push(separator);
-            }
-            // 데이터 행 처리
-            else if (cells.length > 0) {
-              let mdRow = '| ' + cells.join(' | ') + ' |';
-              
-              // 첫 행이고 헤더가 없다면 헤더로 처리
-              if (rowIndex === 0 && mdTableRows.length === 0) {
-                mdTableRows.push(mdRow);
-                let separator = '| ' + Array(cells.length).fill('---').join(' | ') + ' |';
-                mdTableRows.push(separator);
-              } else {
-                mdTableRows.push(mdRow);
+          if (theadMatch) {
+            // thead에서 행 추출
+            const headerRowMatch = /<tr>([\s\S]*?)<\/tr>/.exec(theadMatch[1]);
+            if (headerRowMatch) {
+              const headerCells = headerRowMatch[1].match(/<th>([\s\S]*?)<\/th>/g) || [];
+              if (headerCells.length > 0) {
+                const headerValues = headerCells.map(cell => 
+                  cell.replace(/<th>([\s\S]*?)<\/th>/, '$1').trim()
+                );
+                tableRows.push(`| ${headerValues.join(' | ')} |`);
+                tableRows.push(`| ${headerValues.map(() => '---').join(' | ')} |`);
+                headerProcessed = true;
               }
             }
+          }
+          
+          // tbody 처리 또는 직접 tr 추출
+          const rowsContent = tbodyMatch ? tbodyMatch[1] : tableContent;
+          const rowPattern = /<tr>([\s\S]*?)<\/tr>/g;
+          let rowMatch;
+          
+          while ((rowMatch = rowPattern.exec(rowsContent)) !== null) {
+            const rowContent = rowMatch[1];
+            const thCells = rowContent.match(/<th>([\s\S]*?)<\/th>/g) || [];
+            const tdCells = rowContent.match(/<td>([\s\S]*?)<\/td>/g) || [];
             
-            rowIndex++;
+            // 첫 번째 행이 th 셀을 가지고 있고, 헤더가 아직 처리되지 않은 경우
+            if (thCells.length > 0 && !headerProcessed) {
+              const headerValues = thCells.map(cell => 
+                cell.replace(/<th>([\s\S]*?)<\/th>/, '$1').trim()
+              );
+              tableRows.push(`| ${headerValues.join(' | ')} |`);
+              tableRows.push(`| ${headerValues.map(() => '---').join(' | ')} |`);
+              headerProcessed = true;
+            } 
+            // td 셀 처리
+            else if (tdCells.length > 0) {
+              const cellValues = tdCells.map(cell => 
+                cell.replace(/<td>([\s\S]*?)<\/td>/, '$1').trim()
+              );
+              
+              // 첫 번째 행이고 아직 헤더가 없는 경우, 헤더로 처리
+              if (tableRows.length === 0) {
+                tableRows.push(`| ${cellValues.join(' | ')} |`);
+                tableRows.push(`| ${cellValues.map(() => '---').join(' | ')} |`);
+                headerProcessed = true;
+              } else {
+                tableRows.push(`| ${cellValues.join(' | ')} |`);
+              }
+            }
           }
           
           // 마크다운 테이블 생성
-          const mdTable = mdTableRows.length > 0 ? '\n' + mdTableRows.join('\n') + '\n' : '';
-          
-          // 원본 HTML 테이블을 마크다운 테이블로 대체
-          newContent = newContent.replace(fullTable, mdTable);
+          if (tableRows.length > 0) {
+            result += '\n' + tableRows.join('\n') + '\n';
+          } else {
+            // 변환에 실패한 경우 원본 텍스트 유지
+            result += matches[0];
+          }
         }
         
-        processedContent = newContent;
+        // 테이블 다음 부분 추가
+        result += processedContent.substring(lastIndex);
+        processedContent = result;
       } catch (error) {
         console.error("테이블 변환 중 오류 발생:", error);
-        // 오류 발생 시 폴백: 간단한 정규식 방식으로 변환 시도
-        processedContent = processedContent
-          .replace(/<table>/g, '\n')
-          .replace(/<\/table>/g, '\n')
-          .replace(/<tr>/g, '| ')
-          .replace(/<\/tr>/g, ' |')
-          .replace(/<th>(.*?)<\/th>/g, ' $1 | ')
-          .replace(/<td>(.*?)<\/td>/g, ' $1 | ');
       }
     }
     
@@ -948,22 +951,23 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     processedContent = processedContent.replace(/<br\s*\/?>/g, '\n');
     
     // p 태그 변환
-    processedContent = processedContent.replace(/<p.*?>(.*?)<\/p>/g, '\n$1\n');
+    processedContent = processedContent.replace(/<p.*?>([\s\S]*?)<\/p>/g, '\n$1\n');
     
     // 기타 일반적인 태그 처리
     processedContent = processedContent
-      .replace(/<b>(.*?)<\/b>/g, '**$1**')
-      .replace(/<i>(.*?)<\/i>/g, '*$1*')
-      .replace(/<strong>(.*?)<\/strong>/g, '**$1**')
-      .replace(/<em>(.*?)<\/em>/g, '*$1*')
-      .replace(/<ul>/g, '\n')
-      .replace(/<\/ul>/g, '\n')
-      .replace(/<li>(.*?)<\/li>/g, '- $1\n')
-      .replace(/<ol>/g, '\n')
-      .replace(/<\/ol>/g, '\n');
+      .replace(/<b>([\s\S]*?)<\/b>/g, '**$1**')
+      .replace(/<i>([\s\S]*?)<\/i>/g, '*$1*')
+      .replace(/<strong>([\s\S]*?)<\/strong>/g, '**$1**')
+      .replace(/<em>([\s\S]*?)<\/em>/g, '*$1*')
+      .replace(/<ul>([\s\S]*?)<\/ul>/g, (match, content) => {
+        return '\n' + content.replace(/<li>([\s\S]*?)<\/li>/g, '- $1\n');
+      })
+      .replace(/<ol>([\s\S]*?)<\/ol>/g, (match, content) => {
+        return '\n' + content.replace(/<li>([\s\S]*?)<\/li>/g, '1. $1\n');
+      });
     
     // 색상 태그 처리 (font color)
-    processedContent = processedContent.replace(/<font color="(.*?)">(.*?)<\/font>/g, '**$2**');
+    processedContent = processedContent.replace(/<font color="([\s\S]*?)">([\s\S]*?)<\/font>/g, '**$2**');
     
     // 남은 모든 HTML 태그 제거
     const remainingTags = processedContent.match(/<[^>]+>/g);
@@ -1005,111 +1009,119 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
           h3: ({ node, ...props }) => (
             <h3 className="text-base font-medium mt-4 mb-1 text-gray-200" {...props} />
           ),
-                  code({ node, inline, className, children, ...props }) {
-                    const match = /language-(\w+)/.exec(className || "");
-                    return !inline && match ? (
+          code({ node, inline, className, children, ...props }) {
+            const match = /language-(\w+)/.exec(className || "");
+            return !inline && match ? (
               <div className="relative">
                 <div className="absolute top-2 right-2 flex space-x-2">
                   <div className="text-xs text-gray-500 mr-2">
                     {match[1]}
                   </div>
-                          <button
-                            onClick={() => {
+                  <button
+                    onClick={() => {
                       const code = String(children).replace(/\n$/, "");
                       navigator.clipboard.writeText(code);
-                              setCopied(true);
-                              setTimeout(() => setCopied(false), 2000);
-                            }}
-                            className="p-1 rounded-md bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
-                            title="코드 복사"
-                          >
-                            {copied ? <FiCheck size={14} /> : <FiCopy size={14} />}
-                          </button>
-                        </div>
-                        <SyntaxHighlighter
-                          style={oneDark}
-                          language={match[1]}
-                          PreTag="div"
-                          className="rounded-md overflow-hidden !my-3"
-                          showLineNumbers
-                          wrapLines
-                          {...props}
-                        >
-                          {String(children).replace(/\n$/, "")}
-                        </SyntaxHighlighter>
-                      </div>
-                    ) : (
-                      <code
-                        className={`${className} rounded-md bg-gray-800/80 dark:bg-gray-900/80 px-1.5 py-0.5 text-gray-200 dark:text-gray-200`}
-                        {...props}
-                      >
-                        {children}
-                      </code>
-                    );
-                  },
-                  img({ src, alt, ...props }) {
-                    return (
-                      <img
-                        src={src}
-                        alt={alt}
-                        className="max-w-full h-auto rounded-md"
-                        {...props}
-                      />
-                    );
-                  },
-                  a({ node, ...props }) {
-                    return (
-                      <a
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-                        {...props}
-                      />
-                    );
-                  },
-                  ul({ node, ...props }) {
-                    return <ul className="list-disc pl-5 my-2.5" {...props} />;
-                  },
-                  ol({ node, ...props }) {
-                    return <ol className="list-decimal pl-5 my-2.5" {...props} />;
-                  },
-                  li({ node, ...props }) {
-                    return <li className="my-0.5" {...props} />;
-                  },
-                  blockquote({ node, ...props }) {
-                    return (
-                      <blockquote
-                        className="border-l-2 border-indigo-300 dark:border-indigo-700 pl-4 my-3 italic text-gray-700 dark:text-gray-300"
-                        {...props}
-                      />
-                    );
-                  },
-                  table({ node, ...props }) {
-                    return (
-                      <div className="overflow-x-auto my-3">
-                        <table className="border-collapse border border-slate-300 dark:border-slate-700 w-full text-sm" {...props} />
-                      </div>
-                    );
-                  },
-                  thead({ node, ...props }) {
-                    return <thead className="bg-slate-100 dark:bg-slate-800" {...props} />;
-                  },
-                  tbody({ node, ...props }) {
-                    return <tbody {...props} />;
-                  },
-                  tr({ node, ...props }) {
-                    return <tr className="border-b border-slate-300 dark:border-slate-700" {...props} />;
-                  },
-                  th({ node, ...props }) {
-                    return <th className="border border-slate-300 dark:border-slate-700 p-2 text-left font-medium" {...props} />;
-                  },
-                  td({ node, ...props }) {
-                    return <td className="border border-slate-300 dark:border-slate-700 p-2" {...props} />;
-                  },
-                }}
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                    className="p-1 rounded-md bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                    title="코드 복사"
+                  >
+                    {copied ? <FiCheck size={14} /> : <FiCopy size={14} />}
+                  </button>
+                </div>
+                <SyntaxHighlighter
+                  style={oneDark}
+                  language={match[1]}
+                  PreTag="div"
+                  className="rounded-md overflow-hidden !my-3"
+                  showLineNumbers
+                  wrapLines
+                  {...props}
+                >
+                  {String(children).replace(/\n$/, "")}
+                </SyntaxHighlighter>
+              </div>
+            ) : (
+              <code
+                className={`${className} rounded-md bg-gray-800/80 dark:bg-gray-900/80 px-1.5 py-0.5 text-gray-200 dark:text-gray-200`}
+                {...props}
               >
+                {children}
+              </code>
+            );
+          },
+          img({ src, alt, ...props }) {
+            return (
+              <img
+                src={src}
+                alt={alt}
+                className="max-w-full h-auto rounded-md"
+                {...props}
+              />
+            );
+          },
+          a({ node, ...props }) {
+            return (
+              <a
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                {...props}
+              />
+            );
+          },
+          ul({ node, ...props }) {
+            return <ul className="list-disc pl-5 my-2.5" {...props} />;
+          },
+          ol({ node, ...props }) {
+            return <ol className="list-decimal pl-5 my-2.5" {...props} />;
+          },
+          li({ node, ...props }) {
+            return <li className="my-0.5" {...props} />;
+          },
+          blockquote({ node, ...props }) {
+            return (
+              <blockquote
+                className="border-l-2 border-indigo-300 dark:border-indigo-700 pl-4 my-3 italic text-gray-700 dark:text-gray-300"
+                {...props}
+              />
+            );
+          },
+          table({ node, ...props }) {
+            return (
+              <div className="overflow-x-auto my-3 relative rounded-md border border-slate-700">
+                <table className="w-full text-sm border-collapse" {...props} />
+              </div>
+            );
+          },
+          thead({ node, ...props }) {
+            return <thead className="bg-slate-800" {...props} />;
+          },
+          tbody({ node, ...props }) {
+            return <tbody className="divide-y divide-slate-700" {...props} />;
+          },
+          tr({ node, isHeader, ...props }) {
+            const className = isHeader 
+              ? "bg-slate-800" 
+              : "border-b border-slate-700 hover:bg-slate-800/50 transition-colors";
+            return <tr className={className} {...props} />;
+          },
+          th({ node, ...props }) {
+            return (
+              <th 
+                className="px-4 py-3 text-left font-medium text-slate-300 border-b border-slate-600"
+                {...props} 
+              />
+            );
+          },
+          td({ node, ...props }) {
+            return <td className="px-4 py-3 border-slate-700" {...props} />;
+          },
+        }}
+      >
         {contentWithIds}
-              </ReactMarkdown>
+      </ReactMarkdown>
     );
   }, [message.content, headings, copied]);
 
@@ -1162,7 +1174,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
                 <div className="flex flex-col justify-center items-center h-32 space-y-3">
                   <FiLoader className="animate-spin text-indigo-500" size={24} />
                   <span className="text-gray-400 text-sm">내용을 불러오는 중...</span>
-          </div>
+                </div>
               ) : previewContent ? (
                 <div className="prose prose-sm dark:prose-invert max-w-none">
                   {previewContent}
@@ -1392,7 +1404,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
                       <FiMaximize2 className="text-white" size={16} />
                     )}
                   </button>
-      </div>
+                </div>
               ) : (
                 <div className="text-center text-gray-400 py-8">
                   이미지를 불러올 수 없습니다.
