@@ -975,6 +975,150 @@ function ChatContainer({
       
       console.log('생성된 어시스턴트 메시지:', assistantMessage);
       
+      // "응답을 받아왔습니다" 같은 오류 메시지인 경우 처리
+      const errorMessages = ["응답을 받아왔습니다", "정보 없음"];
+      if (errorMessages.some(errMsg => assistantMessage.content.trim() === errMsg)) {
+        console.warn('API에서 오류 응답이 반환되었습니다:', assistantMessage.content);
+        assistantMessage.content = "죄송합니다. 질문에 대한 응답을 생성하는 중 오류가 발생했습니다. 다시 질문해 주시거나 다른 방식으로 질문해 주세요.";
+      }
+      
+      // HTML 태그가 그대로 표시되는 경우 전처리
+      if (/<p align=|<table>|<tr>|<td>|<th>|<br|<thead|<tbody/.test(assistantMessage.content)) {
+        console.warn('HTML 태그가 포함된 응답이 감지되었습니다. 전처리를 시도합니다.');
+        
+        // 테이블 변환 - 마크다운 테이블 형식으로 더 정확하게 변환
+        let processedContent = assistantMessage.content;
+        
+        if (/<table>/.test(processedContent)) {
+          try {
+            // 테이블 태그 균형 확인
+            const tableOpenCount = (processedContent.match(/<table>/g) || []).length;
+            const tableCloseCount = (processedContent.match(/<\/table>/g) || []).length;
+            
+            console.log(`테이블 태그 균형: 열림(${tableOpenCount}) 닫힘(${tableCloseCount})`);
+            
+            // 테이블 추출 및 변환 (멀티라인 지원)
+            const tablePattern = /<table>([\s\S]*?)<\/table>/g;
+            let tableMatch;
+            let newContent = processedContent;
+            
+            while ((tableMatch = tablePattern.exec(processedContent)) !== null) {
+              const fullTable = tableMatch[0];
+              const tableContent = tableMatch[1];
+              
+              // 마크다운 테이블 생성을 위한 준비
+              let mdTableRows = [];
+              
+              // <thead>, <tbody> 태그 제거 (내용은 유지)
+              const cleanedContent = tableContent.replace(/<thead>|<\/thead>|<tbody>|<\/tbody>/g, '');
+              
+              // 행(row) 추출
+              const rowPattern = /<tr>([\s\S]*?)<\/tr>/g;
+              let rowMatch;
+              let rowIndex = 0;
+              
+              while ((rowMatch = rowPattern.exec(cleanedContent)) !== null) {
+                const rowContent = rowMatch[1];
+                
+                // 헤더 셀(<th>) 또는 데이터 셀(<td>) 추출
+                const headerPattern = /<th>([\s\S]*?)<\/th>/g;
+                const cellPattern = /<td>([\s\S]*?)<\/td>/g;
+                
+                let headers = [];
+                let headerMatch;
+                while ((headerMatch = headerPattern.exec(rowContent)) !== null) {
+                  headers.push(headerMatch[1].trim());
+                }
+                
+                let cells = [];
+                let cellMatch;
+                while ((cellMatch = cellPattern.exec(rowContent)) !== null) {
+                  cells.push(cellMatch[1].trim());
+                }
+                
+                // 헤더 행 처리
+                if (headers.length > 0) {
+                  let mdRow = '| ' + headers.join(' | ') + ' |';
+                  mdTableRows.push(mdRow);
+                  
+                  // 헤더 행 다음에 구분선 추가
+                  let separator = '| ' + Array(headers.length).fill('---').join(' | ') + ' |';
+                  mdTableRows.push(separator);
+                }
+                // 데이터 행 처리
+                else if (cells.length > 0) {
+                  let mdRow = '| ' + cells.join(' | ') + ' |';
+                  
+                  // 첫 행이고 헤더가 없다면, 헤더로 처리
+                  if (rowIndex === 0 && mdTableRows.length === 0) {
+                    mdTableRows.push(mdRow);
+                    let separator = '| ' + Array(cells.length).fill('---').join(' | ') + ' |';
+                    mdTableRows.push(separator);
+                  } else {
+                    mdTableRows.push(mdRow);
+                  }
+                }
+                
+                rowIndex++;
+              }
+              
+              // 마크다운 테이블 생성
+              const mdTable = mdTableRows.length > 0 ? '\n' + mdTableRows.join('\n') + '\n' : '';
+              
+              // 원본 HTML 테이블을 마크다운 테이블로 대체
+              newContent = newContent.replace(fullTable, mdTable);
+            }
+            
+            processedContent = newContent;
+          } catch (error) {
+            console.error("테이블 변환 중 오류 발생:", error);
+            // 오류 발생 시 폴백: 간단한 정규식 방식으로 변환 시도
+            processedContent = processedContent
+              .replace(/<table>/g, '\n')
+              .replace(/<\/table>/g, '\n')
+              .replace(/<tr>/g, '| ')
+              .replace(/<\/tr>/g, ' |')
+              .replace(/<th>(.*?)<\/th>/g, ' $1 | ')
+              .replace(/<td>(.*?)<\/td>/g, ' $1 | ');
+          }
+        }
+        
+        // 기타 HTML 태그 처리
+        // 닫히지 않은 br 태그 처리
+        processedContent = processedContent.replace(/<br\s*\/?>/g, '\n');
+        
+        // p 태그 변환
+        processedContent = processedContent.replace(/<p.*?>(.*?)<\/p>/g, '\n$1\n');
+        
+        // 일반적인 태그 처리
+        processedContent = processedContent
+          .replace(/<b>(.*?)<\/b>/g, '**$1**')
+          .replace(/<i>(.*?)<\/i>/g, '*$1*')
+          .replace(/<strong>(.*?)<\/strong>/g, '**$1**')
+          .replace(/<em>(.*?)<\/em>/g, '*$1*')
+          .replace(/<ul>/g, '\n')
+          .replace(/<\/ul>/g, '\n')
+          .replace(/<li>(.*?)<\/li>/g, '- $1\n')
+          .replace(/<ol>/g, '\n')
+          .replace(/<\/ol>/g, '\n')
+          .replace(/<br>/g, '\n')
+          .replace(/<font color="(.*?)">(.*?)<\/font>/g, '**$2**');
+          
+        // 남은 HTML 태그 제거
+        const remainingTags = processedContent.match(/<[^>]+>/g);
+        if (remainingTags) {
+          console.log('남은 HTML 태그:', remainingTags);
+          processedContent = processedContent.replace(/<[^>]+>/g, '');
+        }
+        
+        assistantMessage.content = processedContent;
+      }
+      
+      // sources가 비어 있으면 콘솔에 로그 추가
+      if (!assistantMessage.sources || assistantMessage.sources.length === 0) {
+        console.warn('응답에 sources가 없거나 비어 있습니다:', data);
+      }
+      
       // 메시지 목록에 어시스턴트 응답 추가
       const finalMessages = [...updatedMessages, assistantMessage];
       onUpdateMessages(finalMessages);
@@ -993,6 +1137,7 @@ function ChatContainer({
         role: "assistant",
         content: `죄송합니다. 요청을 처리하는 중 오류가 발생했습니다: ${errorMsg}`,
         timestamp: new Date().getTime(),
+        sources: [], // 빈 sources 배열 추가
       };
       onUpdateMessages([...updatedMessages, errorMessage]);
     } finally {

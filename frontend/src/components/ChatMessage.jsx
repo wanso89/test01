@@ -3,7 +3,6 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
-import rehypeRaw from "rehype-raw";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { useState, memo, useCallback, useMemo, useEffect, useRef } from "react";
@@ -40,7 +39,8 @@ import {
   FiSmile,
   FiAlertCircle,
   FiFrown,
-  FiHelpCircle
+  FiHelpCircle,
+  FiFile
 } from "react-icons/fi";
 
 const KOREAN_STOPWORDS = new Set([
@@ -837,6 +837,144 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     setSourcesVisible((prevVisible) => !prevVisible);
   }, []);
 
+  // 원시 HTML 태그를 이스케이프 처리하는 함수
+  const escapeHtmlTags = (content) => {
+    // 원본 콘텐츠 보존
+    let processedContent = content;
+    
+    // 테이블 변환 - 마크다운 테이블 형식으로 변환
+    if (/<table>|<tr>|<td>|<th>/.test(processedContent)) {
+      try {
+        // 테이블 태그 균형 확인
+        const tableOpenCount = (processedContent.match(/<table>/g) || []).length;
+        const tableCloseCount = (processedContent.match(/<\/table>/g) || []).length;
+        const trOpenCount = (processedContent.match(/<tr>/g) || []).length;
+        const trCloseCount = (processedContent.match(/<\/tr>/g) || []).length;
+        const tdOpenCount = (processedContent.match(/<td>/g) || []).length;
+        const tdCloseCount = (processedContent.match(/<\/td>/g) || []).length;
+        const thOpenCount = (processedContent.match(/<th>/g) || []).length;
+        const thCloseCount = (processedContent.match(/<\/th>/g) || []).length;
+        
+        console.log(`테이블 태그 균형: table(${tableOpenCount}:${tableCloseCount}), tr(${trOpenCount}:${trCloseCount}), td(${tdOpenCount}:${tdCloseCount}), th(${thOpenCount}:${thCloseCount})`);
+        
+        // 정규식을 사용한 더 강력한 변환 방식 적용
+        // 전체 테이블 구조 추출 (멀티라인 포함)
+        const tablePattern = /<table>([\s\S]*?)<\/table>/g;
+        let tableMatch;
+        let newContent = processedContent;
+        
+        while ((tableMatch = tablePattern.exec(processedContent)) !== null) {
+          const fullTable = tableMatch[0];
+          const tableContent = tableMatch[1];
+          
+          // 마크다운 테이블 생성을 위한 준비
+          let mdTableRows = [];
+          
+          // <thead>, <tbody> 태그 제거 (내용은 유지)
+          const cleanedContent = tableContent.replace(/<thead>|<\/thead>|<tbody>|<\/tbody>/g, '');
+          
+          // 행(row) 추출
+          const rowPattern = /<tr>([\s\S]*?)<\/tr>/g;
+          let rowMatch;
+          let rowIndex = 0;
+          
+          while ((rowMatch = rowPattern.exec(cleanedContent)) !== null) {
+            const rowContent = rowMatch[1];
+            
+            // 헤더 셀(<th>) 또는 데이터 셀(<td>) 추출
+            const headerPattern = /<th>([\s\S]*?)<\/th>/g;
+            const cellPattern = /<td>([\s\S]*?)<\/td>/g;
+            
+            let headers = [];
+            let headerMatch;
+            while ((headerMatch = headerPattern.exec(rowContent)) !== null) {
+              headers.push(headerMatch[1].trim());
+            }
+            
+            let cells = [];
+            let cellMatch;
+            while ((cellMatch = cellPattern.exec(rowContent)) !== null) {
+              cells.push(cellMatch[1].trim());
+            }
+            
+            // 헤더 행 처리
+            if (headers.length > 0) {
+              let mdRow = '| ' + headers.join(' | ') + ' |';
+              mdTableRows.push(mdRow);
+              
+              // 헤더 다음에 구분선 추가
+              let separator = '| ' + Array(headers.length).fill('---').join(' | ') + ' |';
+              mdTableRows.push(separator);
+            }
+            // 데이터 행 처리
+            else if (cells.length > 0) {
+              let mdRow = '| ' + cells.join(' | ') + ' |';
+              
+              // 첫 행이고 헤더가 없다면 헤더로 처리
+              if (rowIndex === 0 && mdTableRows.length === 0) {
+                mdTableRows.push(mdRow);
+                let separator = '| ' + Array(cells.length).fill('---').join(' | ') + ' |';
+                mdTableRows.push(separator);
+              } else {
+                mdTableRows.push(mdRow);
+              }
+            }
+            
+            rowIndex++;
+          }
+          
+          // 마크다운 테이블 생성
+          const mdTable = mdTableRows.length > 0 ? '\n' + mdTableRows.join('\n') + '\n' : '';
+          
+          // 원본 HTML 테이블을 마크다운 테이블로 대체
+          newContent = newContent.replace(fullTable, mdTable);
+        }
+        
+        processedContent = newContent;
+      } catch (error) {
+        console.error("테이블 변환 중 오류 발생:", error);
+        // 오류 발생 시 폴백: 간단한 정규식 방식으로 변환 시도
+        processedContent = processedContent
+          .replace(/<table>/g, '\n')
+          .replace(/<\/table>/g, '\n')
+          .replace(/<tr>/g, '| ')
+          .replace(/<\/tr>/g, ' |')
+          .replace(/<th>(.*?)<\/th>/g, ' $1 | ')
+          .replace(/<td>(.*?)<\/td>/g, ' $1 | ');
+      }
+    }
+    
+    // 닫히지 않은 br 태그 처리
+    processedContent = processedContent.replace(/<br\s*\/?>/g, '\n');
+    
+    // p 태그 변환
+    processedContent = processedContent.replace(/<p.*?>(.*?)<\/p>/g, '\n$1\n');
+    
+    // 기타 일반적인 태그 처리
+    processedContent = processedContent
+      .replace(/<b>(.*?)<\/b>/g, '**$1**')
+      .replace(/<i>(.*?)<\/i>/g, '*$1*')
+      .replace(/<strong>(.*?)<\/strong>/g, '**$1**')
+      .replace(/<em>(.*?)<\/em>/g, '*$1*')
+      .replace(/<ul>/g, '\n')
+      .replace(/<\/ul>/g, '\n')
+      .replace(/<li>(.*?)<\/li>/g, '- $1\n')
+      .replace(/<ol>/g, '\n')
+      .replace(/<\/ol>/g, '\n');
+    
+    // 색상 태그 처리 (font color)
+    processedContent = processedContent.replace(/<font color="(.*?)">(.*?)<\/font>/g, '**$2**');
+    
+    // 남은 모든 HTML 태그 제거
+    const remainingTags = processedContent.match(/<[^>]+>/g);
+    if (remainingTags) {
+      console.log('남은 HTML 태그:', remainingTags);
+      processedContent = processedContent.replace(/<[^>]+>/g, '');
+    }
+    
+    return processedContent;
+  };
+
   // 마크다운 컴포넌트 생성
   const MarkdownContent = useMemo(() => {
     // 헤딩에 ID 추가하는 함수
@@ -847,14 +985,17 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
       });
     };
     
+    // 콘텐츠 전처리
+    const processedContent = escapeHtmlTags(message.content);
+    
     // 헤딩이 있는 경우 ID 추가
-    const contentWithIds = headings.length > 0 ? addHeadingIds(message.content) : message.content;
+    const contentWithIds = headings.length > 0 ? addHeadingIds(processedContent) : processedContent;
     
     return (
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeHighlight, rehypeKatex, rehypeRaw]}
-                components={{
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeHighlight, rehypeKatex]}
+        components={{
           h1: ({ node, ...props }) => (
             <h1 className="text-xl font-bold mt-6 mb-3 pb-1 border-b border-gray-700/30 text-gray-100" {...props} />
           ),
@@ -1118,6 +1259,45 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
                   MarkdownContent
                 )}
               </div>
+              
+              {/* 출처 표시 부분 추가 */}
+              {!isUser && message.sources && message.sources.length > 0 && (
+                <div className="mt-2">
+                  <button
+                    onClick={toggleSourcesVisible}
+                    className="flex items-center text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                  >
+                    {sourcesVisible ? (
+                      <FiChevronDown size={14} className="mr-1" />
+                    ) : (
+                      <FiChevronRight size={14} className="mr-1" />
+                    )}
+                    <span>출처 {message.sources.length}개</span>
+                  </button>
+                  
+                  {sourcesVisible && (
+                    <div className="mt-1.5 space-y-1.5 text-xs text-gray-400 pl-1">
+                      {message.sources.map((source, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-start hover:bg-gray-700/30 p-1 -mx-1 rounded cursor-pointer"
+                          onClick={() => handlePreviewSource(source)}
+                        >
+                          <FiFile size={12} className="mt-0.5 mr-1.5 text-indigo-300 flex-shrink-0" />
+                          <div className="overflow-hidden">
+                            <div className="truncate">
+                              {source.title || source.path}
+                            </div>
+                            {source.page && (
+                              <div className="text-gray-500 text-[10px]">페이지 {source.page}</div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* 액션 버튼 */}
