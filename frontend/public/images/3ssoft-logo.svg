@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="360" height="100" xmlns="http://www.w3.org/2000/svg">
+  <!-- 큐브 로고 -->
+  <g transform="translate(10, 10)">
+    <path d="M40 10L70 25L40 40L10 25L40 10Z" fill="#A5C8EF" stroke="#0B3C71" stroke-width="1.2"/>
+    <path d="M70 25L70 55L40 70L40 40L70 25Z" fill="#4280B0" stroke="#0B3C71" stroke-width="1.2"/>
+    <path d="M40 40L40 70L10 55L10 25L40 40Z" fill="#0B3C71" stroke="#0B3C71" stroke-width="1.2"/>
+    <path d="M40 10L40 40M70 25L40 40M40 40L10 25" stroke="#0B3C71" stroke-width="0.8" stroke-opacity="0.6"/>
+  </g>
+  
+  <!-- 3SSOFT 텍스트 -->
+  <g transform="translate(100, 50)">
+    <!-- 3S -->
+    <path d="M10,0 C15,0 20,5 20,10 C20,15 15,15 15,20 C15,25 20,30 10,30 L5,30 L5,25 L10,25 C15,25 10,20 10,20 L5,20 L5,15 L10,15 C15,15 15,5 10,5 L5,5 L5,0 L10,0 Z" fill="#003366"/>
+    <path d="M25,0 C30,0 35,5 35,10 C35,15 30,15 30,20 C30,25 35,30 25,30 L20,30 L20,25 L25,25 C30,25 25,20 25,20 L20,20 L20,15 L25,15 C30,15 30,5 25,5 L20,5 L20,0 L25,0 Z" fill="#003366"/>
+    
+    <!-- SOFT -->
+    <path d="M40,0 C45,0 50,5 50,10 L50,15 L45,15 L45,10 C45,7 43,5 40,5 L40,10 L45,10 L45,15 L40,15 C35,15 35,25 40,25 L40,20 L45,20 L45,25 L40,25 C35,25 30,20 30,15 L30,10 C30,5 35,0 40,0 Z" fill="#4D4D4D"/>
+    <path d="M55,0 C60,0 65,5 65,10 L65,30 L60,30 L60,20 L55,20 C50,20 50,10 55,10 L60,10 L60,5 C60,3 58,5 55,5 L55,0 Z M60,15 L55,15 C53,15 55,18 55,18 L60,18 L60,15 Z" fill="#4D4D4D"/>
+    <path d="M70,10 L80,10 L80,15 L75,15 L75,30 L70,30 L70,10 Z" fill="#4D4D4D"/>
+    <path d="M85,10 L95,10 L95,15 L90,15 L90,30 L85,30 L85,10 Z" fill="#4D4D4D"/>
+  </g>
+  
+  <!-- 서브텍스트 -->
+  <text x="100" y="85" font-family="Arial" font-size="11" fill="#666666">Server consulting, Solution &amp; Systems software</text>
+</svg> 

@@ -18,8 +18,63 @@ import {
   FiInfo,
   FiHelpCircle,
   FiMoon,
-  FiSun
+  FiSun,
+  FiMenu
 } from "react-icons/fi";
+import { LOGO_IMAGE, createLogoIcon } from "../assets/3ssoft-logo.js";
+
+// 로고 컴포넌트 - 이미지 로드 상태를 관리
+const Logo = () => {
+  const [imageLoaded, setImageLoaded] = useState(true);
+  const [isHovered, setIsHovered] = useState(false);
+  
+  const handleImageError = () => {
+    // 콘솔 오류 메시지 제거
+    setImageLoaded(false);
+  };
+  
+  // 외부 이미지가 로드되지 않을 경우 대체 URL
+  const fallbackLogoUrl = "https://3ssoft.co.kr/wp-content/uploads/2023/06/cropped-logo-300x104.png";
+  
+  return (
+    <div 
+      className="flex flex-col items-center justify-center w-full"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {imageLoaded ? (
+        <div className="flex flex-col items-center">
+          <img 
+            src={LOGO_IMAGE || fallbackLogoUrl}
+            alt="3S소프트 로고" 
+            className={`w-32 h-auto ${isHovered ? 'brightness-110' : ''} transition-all duration-200`}
+            onError={handleImageError}
+            style={{ objectFit: 'contain' }}
+          />
+          <p className="text-[8px] text-gray-400 mt-0 text-center tracking-tight opacity-80" style={{ marginTop: '-3px', letterSpacing: '-0.02em', paddingLeft: '15px' }}>
+            Server consulting, Solution & Systems software
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center">
+          <div className="flex items-center justify-center">
+            <div 
+              className="h-8 w-8 flex items-center justify-center mr-2"
+              dangerouslySetInnerHTML={{ __html: createLogoIcon('#0B3C71', 32) }} 
+            />
+            <div className="flex items-baseline">
+              <span className="font-bold text-xl tracking-tight" style={{ fontFamily: "'Arial', 'Helvetica', sans-serif", color: '#0A2F65', letterSpacing: '-0.02em' }}>3S</span>
+              <span className="font-bold text-xl tracking-tight" style={{ fontFamily: "'Arial', 'Helvetica', sans-serif", color: '#4A4A4A', letterSpacing: '-0.02em' }}>소프트</span>
+            </div>
+          </div>
+          <p className="text-[8px] text-gray-400 mt-0 text-center tracking-tight opacity-80" style={{ marginTop: '1px', letterSpacing: '-0.02em', paddingLeft: '18px' }}>
+            Server consulting, Solution & Systems software
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
 
 function Sidebar({
   collapsed = false,
@@ -133,40 +188,20 @@ function Sidebar({
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-gray-900">
-      {/* 헤더 */}
-      <div className="p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-600 to-indigo-500 flex items-center justify-center shadow-md">
-              <FiMessageSquare size={18} className="text-white" />
-            </div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-500 to-indigo-400 bg-clip-text text-transparent">
-              쓰리에스소프트
-            </h1>
-          </div>
-          
-          {/* 새 대화 시작 버튼 - 현재 대화가 없을 때만 보이도록 수정 */}
-          {conversations.length === 0 && (
-            <button
-              onClick={onNewConversation}
-              className="p-2 bg-gradient-to-r from-indigo-600 to-indigo-500 rounded-xl text-white hover:from-indigo-700 hover:to-indigo-600 transition-all duration-300 shadow-sm hover:shadow transform hover:scale-105 focus:outline-none"
-              title="새 대화 시작"
-            >
-              <FiPlus size={20} />
-            </button>
-          )}
-        </div>
+      {/* 브랜딩 헤더 - 로고만 표시 */}
+      <div className="h-16 py-2 px-4 flex items-center justify-center border-b border-gray-800">
+        <Logo />
       </div>
 
-      {/* 검색 입력 필드 추가 */}
-      <div className="px-4 pb-2">
+      {/* 검색 입력 필드 */}
+      <div className="px-4 py-3">
         <div className="relative">
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="대화 검색..."
-            className="w-full bg-gray-800/50 border border-gray-700 rounded-lg py-2 pl-9 pr-3 text-sm text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+            className="w-full bg-gray-800/70 border border-gray-700/50 rounded-xl py-2.5 pl-10 pr-4 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all duration-200 shadow-sm"
           />
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <FiSearch className="h-4 w-4 text-gray-500" />

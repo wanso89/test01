@@ -9,7 +9,9 @@ import {
   FiX,
   FiLoader,
   FiCheckCircle,
-  FiFile
+  FiFile,
+  FiMenu,
+  FiAlignLeft
 } from "react-icons/fi";
 
 const SIDEBAR_WIDTH = 320;
@@ -738,15 +740,17 @@ function App() {
           marginLeft: sidebarOpen ? `${sidebarWidth}px` : 0,
         }}
       >
-        {/* 사이드바 토글 버튼 */}
+        {/* 사이드바 토글 버튼 - 햄버거 메뉴로 변경 */}
         <button
-          className="fixed top-4 left-4 z-30 p-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 shadow-lg"
+          className="fixed top-4 left-4 z-30 p-2.5 rounded-xl bg-gray-800/70 hover:bg-gray-700/90 text-gray-300 shadow-md backdrop-blur-md transition-all duration-200 border border-gray-700/50"
           onClick={handleToggleSidebar}
+          aria-label={sidebarOpen ? "사이드바 닫기" : "사이드바 열기"}
+          title={sidebarOpen ? "사이드바 닫기" : "사이드바 열기"}
         >
           {sidebarOpen ? (
-            <FiChevronLeft size={20} />
+            <FiChevronLeft size={18} className="text-gray-300" />
           ) : (
-            <FiChevronRight size={20} />
+            <FiAlignLeft size={18} className="text-gray-300" />
           )}
         </button>
 
@@ -763,6 +767,7 @@ function App() {
           onNewConversation={handleNewConversation}
           fileManagerOpen={fileManagerOpen}
           setFileManagerOpen={setFileManagerOpen}
+          sidebarOpen={sidebarOpen}
         />
       </div>
 

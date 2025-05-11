@@ -2,7 +2,7 @@ import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 // FiExternalLink 아이콘 추가
-import { FiLoader, FiArrowUp, FiList, FiX, FiExternalLink, FiTrash2, FiHardDrive, FiFile, FiFolder, FiSearch, FiMessageSquare, FiBookmark, FiUploadCloud } from "react-icons/fi"; 
+import { FiLoader, FiArrowUp, FiList, FiX, FiExternalLink, FiTrash2, FiHardDrive, FiFile, FiFolder, FiSearch, FiMessageSquare, FiBookmark, FiUploadCloud, FiPlus } from "react-icons/fi"; 
 import { FiAlertCircle } from "react-icons/fi";
 
 // 로딩 인디케이터 컴포넌트 추가
@@ -750,7 +750,8 @@ function ChatContainer({
   onUploadSuccess,
   onNewConversation,
   fileManagerOpen,
-  setFileManagerOpen
+  setFileManagerOpen,
+  sidebarOpen
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -1209,41 +1210,44 @@ function ChatContainer({
       )}
       
       {/* 헤더 */}
-      <div className="flex items-center justify-between py-4 px-6 bg-gray-900 z-10">
-        <div className="flex items-center">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 mr-3 flex items-center justify-center shadow-glow-sm">
-            <FiMessageSquare size={16} className="text-white" />
+      <div className="h-16 flex items-center justify-between px-6 bg-gray-900 border-b border-gray-800 shadow-sm z-10">
+        <div className={`flex items-center ${!sidebarOpen ? 'ml-12' : ''} transition-all duration-300`}>
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 mr-4 flex items-center justify-center shadow-md">
+            <FiMessageSquare size={20} className="text-white" />
           </div>
-          <h2 className="text-lg font-medium text-gray-100">
-            지식검색 어시스턴트
-          </h2>
+          <div>
+            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-blue-500 bg-clip-text text-transparent">
+              지식 QnA 어시스턴트
+            </h1>
+            <p className="text-xs text-gray-400 mt-0.5">AI 기반 업무 지능화 솔루션</p>
+          </div>
         </div>
         {/* 헤더 버튼 그룹 */}
         <div className="flex gap-2">
           <button
             onClick={handleStartNewChat}
-            className="p-2.5 rounded-full text-gray-400 hover:text-indigo-400 hover:bg-gray-800/70 transition-colors flex items-center gap-2 group"
+            className="p-2 rounded-xl bg-blue-600/80 text-white hover:bg-blue-600 transition-colors flex items-center gap-2 group shadow-sm"
             title="새 대화 시작"
             disabled={isEmbedding}
           >
-            <FiMessageSquare size={16} className="group-hover:scale-110 transition-transform" />
-            <span className="text-sm hidden sm:inline-block">새 대화</span>
+            <FiPlus size={18} className="group-hover:scale-110 transition-transform" />
+            <span className="text-sm font-medium hidden sm:inline-block">새 대화</span>
           </button>
           <button
             onClick={handleBookmarkClick}
-            className="p-2.5 rounded-full text-gray-400 hover:text-yellow-500 hover:bg-gray-800/70 transition-colors flex items-center gap-2 group"
+            className="p-2 rounded-xl text-gray-400 hover:text-blue-400 hover:bg-gray-800/70 transition-colors flex items-center gap-2 group"
             title="북마크 보기"
           >
-            <FiBookmark size={16} className="group-hover:scale-110 transition-transform" />
+            <FiBookmark size={18} className="group-hover:scale-110 transition-transform" />
             <span className="text-sm hidden sm:inline-block">북마크</span>
           </button>
           <button
             onClick={handleFileManager}
-            className="p-2.5 rounded-full text-gray-400 hover:text-indigo-400 hover:bg-gray-800/70 transition-colors flex items-center gap-2 group"
+            className="p-2 rounded-xl text-gray-400 hover:text-blue-400 hover:bg-gray-800/70 transition-colors flex items-center gap-2 group"
             title="인덱싱된 파일 관리"
             disabled={isEmbedding}
           >
-            <FiHardDrive size={16} className="group-hover:scale-110 transition-transform" />
+            <FiHardDrive size={18} className="group-hover:scale-110 transition-transform" />
             <span className="text-sm hidden sm:inline-block">파일 관리</span>
           </button>
         </div>
