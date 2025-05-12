@@ -40,8 +40,56 @@ import {
   FiAlertCircle,
   FiFrown,
   FiHelpCircle,
-  FiFile
+  FiFile,
+  FiSearch
 } from "react-icons/fi";
+
+// 키워드 하이라이트 애니메이션을 위한 키프레임 스타일 정의
+const keyframesStyle = `
+@keyframes highlightPulse {
+  0% { background-color: rgba(253, 224, 71, 0.75); box-shadow: 0 0 3px rgba(250, 204, 21, 0.4); }
+  50% { background-color: rgba(250, 204, 21, 0.9); box-shadow: 0 0 5px rgba(250, 204, 21, 0.6); }
+  100% { background-color: rgba(253, 224, 71, 0.75); box-shadow: 0 0 3px rgba(250, 204, 21, 0.4); }
+}
+
+.animate-highlight-pulse {
+  animation: highlightPulse 2.5s ease-in-out infinite;
+}
+
+.highlight-keyword {
+  background-color: rgba(253, 224, 71, 0.8);
+  color: rgba(0, 0, 0, 0.95);
+  text-shadow: 0 0 0 rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+  padding: 2px 4px;
+  margin: 0 -1px;
+  font-weight: 600;
+  position: relative;
+  box-shadow: 0 0 3px rgba(250, 204, 21, 0.7);
+  display: inline-block;
+  border-bottom: 1px solid rgba(234, 179, 8, 0.3);
+}
+
+/* 다크 모드 스타일 */
+@media (prefers-color-scheme: dark) {
+  .highlight-keyword {
+    background-color: rgba(253, 224, 71, 0.7);
+    color: rgba(0, 0, 0, 0.9);
+    box-shadow: 0 0 3px rgba(250, 204, 21, 0.7);
+  }
+}
+`;
+
+// 스타일을 문서에 주입하는 함수
+const injectStyleOnce = (id, css) => {
+  if (!document.getElementById(id)) {
+    const head = document.head || document.getElementsByTagName('head')[0];
+    const style = document.createElement('style');
+    style.id = id;
+    style.appendChild(document.createTextNode(css));
+    head.appendChild(style);
+  }
+};
 
 const KOREAN_STOPWORDS = new Set([
   "이",
@@ -508,7 +556,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
   const [star, setStar] = useState(0); // 별점(1~5)
   const [feedbackSent, setFeedbackSent] = useState(false); // 피드백 전송 여부
   const [loadingContent, setLoadingContent] = useState(false);
-  const [highlightKeywords, setHighlightKeywords] = useState(""); // 모달 하이라이트용 키워드
+  const [highlightKeywords, setHighlightKeywords] = useState([]); // 모달 하이라이트용 키워드
   const [sourcesVisible, setSourcesVisible] = useState(false);
   const [isTypingComplete, setIsTypingComplete] = useState(true); // 기본값 true로 설정
   const [showTypeWriter, setShowTypeWriter] = useState(false); // 타이핑 효과 비활성화 (기본값 false)
@@ -525,6 +573,15 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
   const [showThreadLine, setShowThreadLine] = useState(false);
   const [threadEndLine, setThreadEndLine] = useState(false);
   const [showTableOfContents, setShowTableOfContents] = useState(false);
+  
+  // 출처 미리보기 관련 상태 추가
+  const [sourceKeywords, setSourceKeywords] = useState([]);
+  const [sourceFilterText, setSourceFilterText] = useState("");
+  
+  // 키워드 하이라이트 스타일 주입
+  useEffect(() => {
+    injectStyleOnce('highlight-animation-style', keyframesStyle);
+  }, []);
   
   // 같은 화자의 연속 메시지인지 확인 - 위치 이동
   const isPrevSameSender = useMemo(() => {
@@ -649,6 +706,8 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     setPreviewContent("");
     setPreviewImage(null);
     setHighlightKeywords([]);
+    setSourceKeywords([]);
+    setSourceFilterText("");
   }, []);
 
   const handleCopy = useCallback(() => {
@@ -786,6 +845,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
 
     setLoadingContent(true);
     setPreviewSource(source); 
+    setSourceFilterText(""); // 필터 초기화
 
     try {
       const sourcePath = source.path;
@@ -814,20 +874,27 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
         // 이미지 소스인 경우
         setPreviewImage(data.image_url);
         setPreviewContent(null);
+        setSourceKeywords([]);
+        setHighlightKeywords([]);
       } else {
         // 텍스트 소스인 경우
         setPreviewContent(data.content || "내용을 불러올 수 없습니다.");
         setPreviewImage(null);
         
-        // 검색어가 있는 경우, 하이라이트 키워드 설정
+        // 백엔드에서 제공한 키워드 설정
         if (data.keywords && Array.isArray(data.keywords)) {
+          setSourceKeywords(data.keywords);
           setHighlightKeywords(data.keywords);
+        } else {
+          setSourceKeywords([]);
+          setHighlightKeywords([]);
         }
       }
     } catch (error) {
       console.error("소스 미리보기 오류:", error);
       setPreviewContent("소스를 불러오는 중 오류가 발생했습니다.");
       setPreviewImage(null);
+      setSourceKeywords([]);
     } finally {
       setLoadingContent(false);
     }
@@ -836,6 +903,170 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
   const toggleSourcesVisible = useCallback(() => {
     setSourcesVisible((prevVisible) => !prevVisible);
   }, []);
+
+  // 소스 콘텐츠 필터링 함수
+  const filterSourceContent = useCallback((content, filterText) => {
+    if (!filterText || !content) return content;
+    
+    const lines = content.split('\n');
+    const filteredLines = lines.filter(line => 
+      line.toLowerCase().includes(filterText.toLowerCase())
+    );
+    
+    // 검색 결과가 없으면 원본 반환
+    if (filteredLines.length === 0) return content;
+    
+    // 필터링된 라인에 하이라이트 적용
+    return filteredLines.join('\n\n');
+  }, []);
+
+  // 소스 콘텐츠에 키워드 하이라이트 적용 함수
+  const applyKeywordHighlighting = useCallback((content, keywords) => {
+    if (!content || !keywords || keywords.length === 0) return content;
+    
+    // 문자열로 확실하게 변환
+    let processedContent = String(content);
+    
+    // 정규식 특수문자 이스케이프
+    const escapedKeywords = keywords.map(kw => String(kw).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    
+    // 정규식 패턴 생성
+    const pattern = new RegExp(`(${escapedKeywords.join('|')})`, 'gi');
+    
+    // 마크다운 볼드체로 변환
+    return processedContent.replace(pattern, '**$1**');
+  }, []);
+
+  // 마크다운으로 콘텐츠 렌더링 함수 - 출처 미리보기용
+  const renderMarkdownContent = useCallback((content) => {
+    if (!content) return null;
+    
+    // 스타일 주입 (한 번만)
+    injectStyleOnce('highlight-style', keyframesStyle);
+    
+    // 필터 적용
+    let displayContent = sourceFilterText ? filterSourceContent(content, sourceFilterText) : content;
+    
+    return (
+      <div className="prose prose-sm dark:prose-invert max-w-none">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeHighlight]}
+          components={{
+            // 코드 블록 커스텀 렌더링
+            code({ node, inline, className, children, ...props }) {
+              const match = /language-(\w+)/.exec(className || "");
+              return !inline && match ? (
+                <div className="relative">
+                  <div className="absolute top-2 right-2 flex space-x-2">
+                    <div className="text-xs text-gray-500 mr-2">
+                      {match[1]}
+                    </div>
+                    <button
+                      onClick={() => {
+                        const code = String(children).replace(/\n$/, "");
+                        navigator.clipboard.writeText(code);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      className="p-1 rounded-md bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                      title="코드 복사"
+                    >
+                      {copied ? <FiCheck size={14} /> : <FiCopy size={14} />}
+                    </button>
+                  </div>
+                  <SyntaxHighlighter
+                    style={oneDark}
+                    language={match[1]}
+                    PreTag="div"
+                    className="rounded-md overflow-hidden !my-3"
+                    showLineNumbers
+                    wrapLines
+                    {...props}
+                  >
+                    {String(children).replace(/\n$/, "")}
+                  </SyntaxHighlighter>
+                </div>
+              ) : (
+                <code
+                  className={`${className || ''} rounded-md bg-gray-800/80 dark:bg-gray-900/80 px-1.5 py-0.5 text-gray-200 dark:text-gray-200`}
+                  {...props}
+                >
+                  {children}
+                </code>
+              );
+            },
+            // 키워드 하이라이트를 위한 텍스트 처리
+            p({ node, children, ...props }) {
+              // 소스 키워드가 있으면 하이라이트 적용
+              if (highlightKeywords.length > 0 && typeof children === 'string') {
+                // 정규식으로 키워드 하이라이트
+                const parts = [];
+                let lastIndex = 0;
+                
+                // 정규식 특수문자 이스케이프
+                const escapedKeywords = highlightKeywords.map(kw => String(kw).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+                const pattern = new RegExp(`(${escapedKeywords.join('|')})`, 'gi');
+                
+                // 키워드 매칭 및 하이라이트 처리
+                let match;
+                const text = String(children);
+                
+                // 정규식 매칭 결과 처리
+                while ((match = pattern.exec(text)) !== null) {
+                  // 매치 이전 텍스트 추가
+                  if (match.index > lastIndex) {
+                    parts.push(text.substring(lastIndex, match.index));
+                  }
+                  
+                  // 매치된 키워드를 하이라이트 처리
+                  parts.push(
+                    <span 
+                      key={`kw-${match.index}`} 
+                      className="highlight-keyword animate-highlight-pulse"
+                    >
+                      {match[0]}
+                    </span>
+                  );
+                  
+                  lastIndex = pattern.lastIndex;
+                }
+                
+                // 마지막 텍스트 추가
+                if (lastIndex < text.length) {
+                  parts.push(text.substring(lastIndex));
+                }
+                
+                return <p {...props}>{parts.length > 0 ? parts : children}</p>;
+              }
+              
+              return <p {...props}>{children}</p>;
+            },
+            // 볼드체 텍스트 처리 (키워드 하이라이트용)
+            strong({ node, children, ...props }) {
+              if (highlightKeywords.some(kw => {
+                // 대소문자 구분 없이 비교
+                const kwRegex = new RegExp(`^${String(kw).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+                return typeof children === 'string' && kwRegex.test(children);
+              })) {
+                return (
+                  <span 
+                    className="highlight-keyword animate-highlight-pulse"
+                    {...props}
+                  >
+                    {children}
+                  </span>
+                );
+              }
+              return <strong {...props}>{children}</strong>;
+            }
+          }}
+        >
+          {displayContent}
+        </ReactMarkdown>
+      </div>
+    );
+  }, [sourceFilterText, filterSourceContent, highlightKeywords, copied, injectStyleOnce, keyframesStyle]);
 
   // 원시 HTML 태그를 이스케이프 처리하는 함수
   const escapeHtmlTags = (content) => {
@@ -979,7 +1210,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     return processedContent;
   };
 
-  // 마크다운 컴포넌트 생성
+  // 마크다운 컴포넌트 생성 - 채팅 메시지용
   const MarkdownContent = useMemo(() => {
     // 헤딩에 ID 추가하는 함수
     const addHeadingIds = (content) => {
@@ -996,132 +1227,58 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     const contentWithIds = headings.length > 0 ? addHeadingIds(processedContent) : processedContent;
     
     return (
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeHighlight, rehypeKatex]}
-        components={{
-          h1: ({ node, ...props }) => (
-            <h1 className="text-xl font-bold mt-6 mb-3 pb-1 border-b border-gray-700/30 text-gray-100" {...props} />
-          ),
-          h2: ({ node, ...props }) => (
-            <h2 className="text-lg font-semibold mt-5 mb-2 text-gray-100" {...props} />
-          ),
-          h3: ({ node, ...props }) => (
-            <h3 className="text-base font-medium mt-4 mb-1 text-gray-200" {...props} />
-          ),
-          code({ node, inline, className, children, ...props }) {
-            const match = /language-(\w+)/.exec(className || "");
-            return !inline && match ? (
-              <div className="relative">
-                <div className="absolute top-2 right-2 flex space-x-2">
-                  <div className="text-xs text-gray-500 mr-2">
-                    {match[1]}
+      <div className="prose prose-sm dark:prose-invert max-w-none">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm, remarkMath]}
+          rehypePlugins={[rehypeHighlight, rehypeKatex]}
+          components={{
+            code({ node, inline, className, children, ...props }) {
+              const match = /language-(\w+)/.exec(className || "");
+              return !inline && match ? (
+                <div className="relative">
+                  <div className="absolute top-2 right-2 flex space-x-2">
+                    <div className="text-xs text-gray-500 mr-2">
+                      {match[1]}
+                    </div>
+                    <button
+                      onClick={() => {
+                        const code = String(children).replace(/\n$/, "");
+                        navigator.clipboard.writeText(code);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      className="p-1 rounded-md bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                      title="코드 복사"
+                    >
+                      {copied ? <FiCheck size={14} /> : <FiCopy size={14} />}
+                    </button>
                   </div>
-                  <button
-                    onClick={() => {
-                      const code = String(children).replace(/\n$/, "");
-                      navigator.clipboard.writeText(code);
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 2000);
-                    }}
-                    className="p-1 rounded-md bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
-                    title="코드 복사"
+                  <SyntaxHighlighter
+                    style={oneDark}
+                    language={match[1]}
+                    PreTag="div"
+                    className="rounded-md overflow-hidden !my-3"
+                    showLineNumbers
+                    wrapLines
+                    {...props}
                   >
-                    {copied ? <FiCheck size={14} /> : <FiCopy size={14} />}
-                  </button>
+                    {String(children).replace(/\n$/, "")}
+                  </SyntaxHighlighter>
                 </div>
-                <SyntaxHighlighter
-                  style={oneDark}
-                  language={match[1]}
-                  PreTag="div"
-                  className="rounded-md overflow-hidden !my-3"
-                  showLineNumbers
-                  wrapLines
+              ) : (
+                <code
+                  className={`${className || ''} rounded-md bg-gray-800/80 dark:bg-gray-900/80 px-1.5 py-0.5 text-gray-200 dark:text-gray-200`}
                   {...props}
                 >
-                  {String(children).replace(/\n$/, "")}
-                </SyntaxHighlighter>
-              </div>
-            ) : (
-              <code
-                className={`${className} rounded-md bg-gray-800/80 dark:bg-gray-900/80 px-1.5 py-0.5 text-gray-200 dark:text-gray-200`}
-                {...props}
-              >
-                {children}
-              </code>
-            );
-          },
-          img({ src, alt, ...props }) {
-            return (
-              <img
-                src={src}
-                alt={alt}
-                className="max-w-full h-auto rounded-md"
-                {...props}
-              />
-            );
-          },
-          a({ node, ...props }) {
-            return (
-              <a
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
-                {...props}
-              />
-            );
-          },
-          ul({ node, ...props }) {
-            return <ul className="list-disc pl-5 my-2.5" {...props} />;
-          },
-          ol({ node, ...props }) {
-            return <ol className="list-decimal pl-5 my-2.5" {...props} />;
-          },
-          li({ node, ...props }) {
-            return <li className="my-0.5" {...props} />;
-          },
-          blockquote({ node, ...props }) {
-            return (
-              <blockquote
-                className="border-l-2 border-indigo-300 dark:border-indigo-700 pl-4 my-3 italic text-gray-700 dark:text-gray-300"
-                {...props}
-              />
-            );
-          },
-          table({ node, ...props }) {
-            return (
-              <div className="overflow-x-auto my-3 relative rounded-md border border-slate-700">
-                <table className="w-full text-sm border-collapse" {...props} />
-              </div>
-            );
-          },
-          thead({ node, ...props }) {
-            return <thead className="bg-slate-800" {...props} />;
-          },
-          tbody({ node, ...props }) {
-            return <tbody className="divide-y divide-slate-700" {...props} />;
-          },
-          tr({ node, isHeader, ...props }) {
-            const className = isHeader 
-              ? "bg-slate-800" 
-              : "border-b border-slate-700 hover:bg-slate-800/50 transition-colors";
-            return <tr className={className} {...props} />;
-          },
-          th({ node, ...props }) {
-            return (
-              <th 
-                className="px-4 py-3 text-left font-medium text-slate-300 border-b border-slate-600"
-                {...props} 
-              />
-            );
-          },
-          td({ node, ...props }) {
-            return <td className="px-4 py-3 border-slate-700" {...props} />;
-          },
-        }}
-      >
-        {contentWithIds}
-      </ReactMarkdown>
+                  {children}
+                </code>
+              );
+            }
+          }}
+        >
+          {contentWithIds}
+        </ReactMarkdown>
+      </div>
     );
   }, [message.content, headings, copied]);
 
@@ -1155,35 +1312,83 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
       {previewSource && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fade-in">
           <div className="bg-gradient-to-br from-gray-800 to-gray-850 rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-soft-2xl border border-gray-700/50">
-            <div className="flex items-center justify-between p-4 border-b border-gray-700/50 bg-gradient-to-r from-gray-800/90 to-gray-850/90">
-              <h3 className="font-medium flex items-center text-gray-200">
-                <FiEye className="mr-2 text-indigo-500" />
-                <span className="truncate max-w-md">{previewSource.title || previewSource.path}</span>
-                {previewSource.page && <span className="ml-2 text-gray-400 text-sm">(페이지 {previewSource.page})</span>}
-              </h3>
-              <button 
-                onClick={handleClosePreview}
-                className="p-2 rounded-full hover:bg-gray-700 transition-colors text-gray-400"
-              >
-                <FiX size={20} />
-              </button>
-            </div>
-            
-            <div className="flex-1 overflow-auto p-6 custom-scrollbar bg-gradient-to-b from-gray-800/90 to-gray-850/95">
-              {loadingContent ? (
-                <div className="flex flex-col justify-center items-center h-32 space-y-3">
-                  <FiLoader className="animate-spin text-indigo-500" size={24} />
-                  <span className="text-gray-400 text-sm">내용을 불러오는 중...</span>
-                </div>
-              ) : previewContent ? (
-                <div className="prose prose-sm dark:prose-invert max-w-none">
-                  {previewContent}
-                </div>
-              ) : (
-                <div className="text-center text-gray-400 py-8">
-                  미리보기를 불러올 수 없습니다.
+            <div className="sticky top-0 z-10 flex flex-col bg-gradient-to-r from-gray-800/95 to-gray-850/95 border-b border-gray-700/50 backdrop-blur-md">
+              {/* 헤더 */}
+              <div className="flex items-center justify-between p-4">
+                <h3 className="font-medium flex items-center text-gray-200">
+                  <FiEye className="mr-2 text-indigo-500" />
+                  <span className="truncate max-w-md">{previewSource.title || previewSource.display_name || previewSource.path.split('/').pop()}</span>
+                  {previewSource.page && <span className="ml-2 text-gray-400 text-sm">(페이지 {previewSource.page})</span>}
+                </h3>
+                <button 
+                  onClick={handleClosePreview}
+                  className="p-2 rounded-full hover:bg-gray-700 transition-colors text-gray-400"
+                >
+                  <FiX size={20} />
+                </button>
+              </div>
+              
+              {/* 검색 필터 및 키워드 표시 */}
+              {sourceKeywords.length > 0 && (
+                <div className="px-4 pb-3 flex flex-col">
+                  {/* 검색어 필터 */}
+                  <div className="relative mb-2">
+                    <input 
+                      type="text"
+                      value={sourceFilterText}
+                      onChange={(e) => setSourceFilterText(e.target.value)}
+                      placeholder="문서 내용 검색..."
+                      className="w-full px-3 py-1.5 pl-9 bg-gray-700/50 border border-gray-600/50 rounded-md text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/70 focus:border-indigo-500/50"
+                    />
+                    <FiSearch className="absolute left-3 top-2 text-gray-500" size={15} />
+                    {sourceFilterText && (
+                      <button 
+                        onClick={() => setSourceFilterText("")}
+                        className="absolute right-3 top-2 text-gray-500 hover:text-gray-300"
+                      >
+                        <FiX size={14} />
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* 키워드 태그 */}
+                  <div className="flex flex-wrap gap-1.5 mb-1">
+                    <span className="text-xs text-gray-400 self-center mr-1">주요 키워드:</span>
+                    {sourceKeywords.map((keyword, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setSourceFilterText(keyword)}
+                        className={`px-2 py-0.5 text-xs rounded-full transition-colors ${
+                          sourceFilterText === keyword
+                            ? 'bg-indigo-600/80 text-white' 
+                            : 'bg-gray-700/80 text-gray-300 hover:bg-gray-700'
+                        }`}
+                      >
+                        {keyword}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
+            </div>
+            
+            <div className="flex-1 overflow-auto custom-scrollbar">
+              <div className="p-6 bg-gradient-to-b from-gray-800/90 to-gray-850/95">
+                {loadingContent ? (
+                  <div className="flex flex-col justify-center items-center h-32 space-y-3">
+                    <FiLoader className="animate-spin text-indigo-500" size={24} />
+                    <span className="text-gray-400 text-sm">내용을 불러오는 중...</span>
+                  </div>
+                ) : previewContent ? (
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    {renderMarkdownContent(previewContent)}
+                  </div>
+                ) : (
+                  <div className="text-center text-gray-400 py-8">
+                    미리보기를 불러올 수 없습니다.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -1181,6 +1181,111 @@ async def source_preview_endpoint(request: SourcePreviewRequest = Body(...)):
             "size": 1
         })
         
+        # 키워드 추출 및 문서 콘텐츠 포맷팅 함수
+        def extract_keywords_from_text(text, max_keywords=12):
+            """텍스트에서 주요 키워드 추출"""
+            try:
+                # 한글, 영문, 숫자 단어 추출 (특수문자 및 공백 기준 분리)
+                words = re.findall(r'[가-힣a-zA-Z0-9]{2,}', text)
+                
+                # 불용어 제거 (한국어 기준)
+                stopwords = {
+                    '이', '그', '저', '것', '수', '등', '및', '에서', '에게', '으로', '로', '을', '를',
+                    '이다', '있다', '하다', '이런', '저런', '그런', '어떤', '무슨', '어떻게', '왜',
+                    'the', 'a', 'an', 'is', 'are', 'was', 'were', 'in', 'on', 'at', 'to', 'for', 'of',
+                    '있는', '없는', '경우', '때문', '위해', '통해', '따라', '의해', '의한', '때는',
+                    '있습니다', '없습니다', '합니다', '입니다', '됩니다', '관련', '때문에', '위하여',
+                    '만약', '그러나', '하지만', '또한', '그리고', '따라서', '이러한', '그러한', 
+                    '이것', '그것', '저것', '무엇', '어디', '언제', '누구'
+                }
+                
+                # 중복 제거 및 단어 개수 세기
+                word_counts = {}
+                for word in words:
+                    word_lower = word.lower()
+                    if len(word) >= 2 and word_lower not in stopwords:
+                        # 특수 가중치 적용 - 특정 길이 범위의 단어에 가중치 부여
+                        weight = 1.0
+                        if 3 <= len(word) <= 8:  # 보통 의미있는 단어 길이 범위
+                            weight = 1.5
+                        if word[0].isupper() and len(word) > 1 and not word.isupper():  # 대문자로 시작하는 단어 (고유명사 가능성)
+                            weight = 2.0
+                        
+                        word_counts[word] = word_counts.get(word, 0) + weight
+                
+                # 빈도수 기준 상위 키워드 추출 (가중치 적용)
+                keywords = sorted(word_counts.items(), key=lambda x: x[1], reverse=True)
+                
+                # 중복 단어 제거 (소문자화하여 비교)
+                unique_keywords = []
+                added_lower = set()
+                
+                for kw, _ in keywords:
+                    kw_lower = kw.lower()
+                    if kw_lower not in added_lower and len(kw) >= 2:
+                        unique_keywords.append(kw)
+                        added_lower.add(kw_lower)
+                    
+                    if len(unique_keywords) >= max_keywords:
+                        break
+                
+                return unique_keywords
+            except Exception as e:
+                print(f"키워드 추출 중 오류: {e}")
+                return []
+        
+        def format_content(content):
+            """내용 서식 개선"""
+            if not content:
+                return ""
+            
+            # 여러 개의 연속 공백을 하나로 압축
+            formatted = re.sub(r'\s+', ' ', content).strip()
+            
+            # 문장 구분자 후 개행 추가 (문단 구분)
+            formatted = re.sub(r'([.!?])\s+', r'\1\n\n', formatted)
+            
+            # 중복 개행 제거 (3개 이상 → 2개)
+            formatted = re.sub(r'\n{3,}', '\n\n', formatted)
+            
+            return formatted
+        
+        def highlight_keywords(content, keywords):
+            """내용에서 키워드 하이라이트"""
+            if not content or not keywords:
+                return content
+                
+            # 각 키워드를 처리
+            for keyword in keywords:
+                try:
+                    # 키워드가 None이거나 빈 문자열이면 건너뜀
+                    if not keyword:
+                        continue
+                    
+                    # 키워드가 문자열이 아니면 문자열로 변환
+                    if not isinstance(keyword, str):
+                        keyword = str(keyword)
+                
+                    # 빈 문자열 확인
+                    if not keyword.strip():
+                        continue
+                    
+                    # 특수문자 이스케이프
+                    escaped_kw = re.escape(keyword)
+                    
+                    # 단어 경계가 있는 키워드만 매칭 (부분 단어 매칭 방지)
+                    content = re.sub(
+                        fr'\b{escaped_kw}\b', 
+                        f'**{keyword}**',  # 마크다운 볼드체
+                        content, 
+                        flags=re.IGNORECASE
+                    )
+                except Exception as e:
+                    print(f"키워드 '{keyword}' 하이라이트 중 오류: {e}")
+            
+            # 결과 반환
+            return content
+            
         # 순차적으로 검색 시도
         for i, search_body in enumerate(search_attempts):
             # 기본 _source 필드 추가
@@ -1198,14 +1303,38 @@ async def source_preview_endpoint(request: SourcePreviewRequest = Body(...)):
                 hit = hits[0]["_source"]
                 result_msg = f"검색 성공 (시도 {i+1}/{len(search_attempts)})"
                 
+                # 원본 텍스트 내용 가져오기
+                content = hit.get("text", "내용을 찾을 수 없습니다.")
+                
+                # 내용 서식 개선
+                formatted_content = format_content(content)
+                
+                # 키워드 추출
+                keywords = extract_keywords_from_text(formatted_content)
+                
+                # 로그 추가
+                print(f"추출된 키워드: {keywords}")
+                
+                # 유효한 키워드인지 확인
+                valid_keywords = [k for k in keywords if k and isinstance(k, str) and len(k.strip()) > 0]
+                
+                # 키워드가 유효하지 않으면 로그
+                if len(valid_keywords) < len(keywords):
+                    print(f"유효하지 않은 키워드 제거됨: {set(keywords) - set(valid_keywords)}")
+                
+                # 키워드 하이라이트 적용
+                highlighted_content = highlight_keywords(formatted_content, valid_keywords)
+                
                 # 모든 필드가 문자열로 변환되도록 보장
                 result = {
                     "status": "success",
-                    "content": hit.get("text", "내용을 찾을 수 없습니다."),
+                    "content": highlighted_content,  # 하이라이트 적용된 내용
+                    "original_content": formatted_content,  # 원본 포맷팅된 내용
                     "source": os.path.basename(hit.get("source", "N/A")),
                     "page": hit.get("page", 0),
                     "chunk_id": str(hit.get("chunk_id", "N/A")),  # 명시적 문자열 변환
-                    "message": result_msg
+                    "message": result_msg,
+                    "keywords": valid_keywords  # 추출된 키워드
                 }
                 
                 # 첫 번째 시도가 아니라면 알림 메시지 추가
@@ -1219,9 +1348,11 @@ async def source_preview_endpoint(request: SourcePreviewRequest = Body(...)):
             "status": "not_found",
             "message": "해당 문서 내용을 찾을 수 없습니다.",
             "content": "",
+            "original_content": "",
             "source": os.path.basename(request.path),
             "page": request.page,
             "chunk_id": str(request.chunk_id),  # 명시적 문자열 변환
+            "keywords": []
         }
     except Exception as e:
         print(f"참고 문서 미리보기 중 오류 발생: {e}")
@@ -1230,9 +1361,11 @@ async def source_preview_endpoint(request: SourcePreviewRequest = Body(...)):
             "status": "error",
             "message": f"참고 문서 미리보기 중 오류 발생: {str(e)}",
             "content": "",
+            "original_content": "",
             "source": os.path.basename(request.path),
             "page": request.page,
             "chunk_id": str(request.chunk_id),  # 명시적 문자열 변환
+            "keywords": []
         }
 
 
