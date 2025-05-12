@@ -1273,7 +1273,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
               </div>
               
               {/* 출처 표시 부분 추가 */}
-              {!isUser && message.sources && message.sources.length > 0 && (
+              {!isUser && message.sources && (
                 <div className="mt-2">
                   <button
                     onClick={toggleSourcesVisible}
@@ -1284,12 +1284,14 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
                     ) : (
                       <FiChevronRight size={14} className="mr-1" />
                     )}
-                    <span>출처 {message.sources.length}개</span>
+                    {/* 인용된 출처만 표시 */}
+                    <span>출처 {(message.cited_sources?.length || message.sources.filter(s => s.is_cited).length || 0)}개</span>
                   </button>
                   
                   {sourcesVisible && (
                     <div className="mt-1.5 space-y-1.5 text-xs text-gray-400 pl-1">
-                      {message.sources.map((source, idx) => (
+                      {/* 인용된 출처만 사용하는 로직으로 변경 */}
+                      {(message.cited_sources || message.sources.filter(s => s.is_cited)).map((source, idx) => (
                         <div
                           key={idx}
                           className="flex items-start hover:bg-gray-700/30 p-1 -mx-1 rounded cursor-pointer"
@@ -1298,7 +1300,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
                           <FiFile size={12} className="mt-0.5 mr-1.5 text-indigo-300 flex-shrink-0" />
                           <div className="overflow-hidden">
                             <div className="truncate">
-                              {source.title || source.path}
+                              {source.title || source.display_name || source.path.split('/').pop()}
                             </div>
                             {source.page && (
                               <div className="text-gray-500 text-[10px]">페이지 {source.page}</div>

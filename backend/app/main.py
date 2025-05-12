@@ -17,6 +17,7 @@ from app.utils.indexing_utils import process_and_index_file, ES_INDEX_NAME, chec
 from fastapi.responses import FileResponse, StreamingResponse
 import mimetypes  # 파일 타입 감지용
 from collections import Counter  # 피드백 통계용
+import re  # 정규식 사용을 위한 모듈
 
 # 검색 개선 모듈 import
 from app.utils.search_enhancer import EnhancedSearchPipeline
@@ -802,10 +803,19 @@ async def search_and_combine(
             chunk_text = doc.page_content.strip()
             chunk_text = " ".join(chunk_text.split())
 
+            # 파일명에서 UUID 제거 (UUID_파일명.확장자 형식 가정)
+            clean_filename = os.path.basename(source_path)
+            # UUID_ 패턴 감지 (UUID는 일반적으로 8-4-4-4-12 형식의 16진수 문자)
+            if '_' in clean_filename:
+                uuid_parts = clean_filename.split('_', 1)
+                if len(uuid_parts) > 1 and len(uuid_parts[0]) >= 8:  # UUID로 추정되는 부분이 있으면 제거
+                    clean_filename = uuid_parts[1]
+
             if chunk_text:
                 context_chunks.append(f"[문서 {i+1}] {chunk_text}")
                 source_metadata.append({
                     "path": source_path,
+                    "display_name": clean_filename,  # 화면 표시용 정제된 파일명 추가
                     "page": page_num,
                     "chunk_id": chunk_id,
                     "score": doc.metadata.get("relevance_score", 0),
@@ -822,11 +832,25 @@ async def search_and_combine(
         
         # 소스 텍스트가 LLM 출력에 직접 인용된 경우를 확인
         cited_sources = []
+        
+        # 인용 감지를 위한 간단한 키워드 추출
+        def extract_keywords(text, min_length=3, max_keywords=20):
+            # 특수문자, 공백 등을 기준으로 단어 분리
+            words = re.findall(r'\b[가-힣a-zA-Z0-9]+\b', text)
+            # 길이가 min_length 이상인 단어만 필터링
+            filtered_words = [w for w in words if len(w) >= min_length]
+            # 중복 제거 및 최대 개수 제한
+            unique_words = list(set(filtered_words))[:max_keywords]
+            return unique_words
+            
+        # 응답에서 키워드 추출
+        answer_keywords = extract_keywords(answer)
+        
         for i, meta in enumerate(source_metadata):
             cited = False
             source_text = context_chunks[i] if i < len(context_chunks) else ""
             
-            # 소스 텍스트의 일부 (최소 30자 이상)가 답변에 포함되어 있는지 확인
+            # 1. 기존 방식: 연속된 텍스트 일치 여부 확인 (최소 30자)
             if len(source_text) > 50:
                 for j in range(0, len(source_text) - 30, 10):
                     snippet = source_text[j:j+30]
@@ -834,14 +858,26 @@ async def search_and_combine(
                         cited = True
                         break
             
+            # 2. 개선된 방식: 키워드 기반 매칭 (기존 방식으로 감지되지 않은 경우)
+            if not cited and source_text:
+                # 소스에서 키워드 추출
+                source_keywords = extract_keywords(source_text)
+                # 키워드 일치율 계산
+                if source_keywords:
+                    matches = [k for k in source_keywords if k in answer]
+                    match_ratio = len(matches) / len(source_keywords)
+                    # 키워드의 30% 이상이 응답에 포함되어 있으면 인용으로 간주
+                    if match_ratio > 0.3:
+                        cited = True
+            
+            # 메타데이터에 인용 여부 저장
+            meta["is_cited"] = cited
             if cited:
-                meta["is_cited"] = True
                 cited_sources.append(meta)
-            else:
-                meta["is_cited"] = False
 
         llm_time = time.time() - llm_start
         print(f"LLM generation time: {llm_time:.2f}s")
+        print(f"응답에 포함된 출처 수: {len(cited_sources)}")
 
         # 최종 응답 생성
         return {
@@ -1555,6 +1591,7 @@ async def chat(request: QuestionRequest = Body(...)):
         return {
             "bot_response": result["answer"],
             "sources": result["sources"],
+            "cited_sources": result["cited_sources"],  # 인용된 출처 정보 추가
             "questionContext": request.question,
         }
 
