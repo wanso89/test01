@@ -2167,3 +2167,235 @@ async def get_frequently_asked_questions(min_count: int = 3):
         raise HTTPException(
             status_code=500, detail=f"자주 묻는 질문 조회 중 오류 발생: {str(e)}"
         )
+
+# SQL 관련 모델 정의
+class SQLQueryRequest(BaseModel):
+    question: str
+    
+class SQLAndLLMRequest(BaseModel):
+    question: str
+
+# SQL 관련 엔드포인트 추가
+@app.get("/api/db-schema")
+async def get_db_schema():
+    """데이터베이스 스키마 정보를 반환합니다."""
+    try:
+        from app.utils.get_mariadb_schema import get_mariadb_schema
+        schema = get_mariadb_schema()
+        return {"status": "success", "schema": schema}
+    except Exception as e:
+        print(f"DB 스키마 조회 중 오류 발생: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"DB 스키마 조회 중 오류 발생: {str(e)}")
+
+@app.post("/api/sql-query")
+async def process_sql_query(request: SQLQueryRequest = Body(...)):
+    """자연어 질문을 SQL로 변환하고 실행 결과를 반환합니다."""
+    try:
+        from app.utils.sql_utils import generate_sql_from_question, run_sql_query
+        from app.utils.get_mariadb_schema import get_mariadb_schema
+        
+        # 스키마 정보 가져오기
+        schema = get_mariadb_schema()
+        
+        # SQL 생성
+        print(f"자연어 질문: {request.question}")
+        sql = generate_sql_from_question(request.question, schema, state=app.state)
+        
+        if not sql:
+            return {
+                "sql": "SELECT 1;",
+                "results": "⚠️ SQL을 생성할 수 없습니다. 질문을 더 구체적으로 작성해주세요."
+            }
+        
+        # SQL 실행
+        results = run_sql_query(sql)
+        
+        # 결과가 에러인 경우
+        if isinstance(results, dict) and "error" in results:
+            error_msg = results["error"]
+            return {
+                "sql": sql,
+                "results": f"❌ SQL 실행 오류: {error_msg}"
+            }
+        
+        # 결과가 비어있는 경우
+        if not results or len(results) == 0:
+            return {
+                "sql": sql,
+                "results": "⚠️ 쿼리 결과가 없습니다."
+            }
+        
+        # 테이블 형태로 결과 변환
+        try:
+            # 결과를 마크다운 테이블로 변환
+            headers = list(results[0].keys())
+            markdown_table = "| " + " | ".join(headers) + " |\n"
+            markdown_table += "| " + " | ".join(["---"] * len(headers)) + " |\n"
+            
+            for row in results:
+                row_values = []
+                for header in headers:
+                    value = row[header]
+                    # None 값 처리
+                    if value is None:
+                        value = "NULL"
+                    # 긴 문자열 처리
+                    elif isinstance(value, str) and len(value) > 50:
+                        value = value[:47] + "..."
+                    row_values.append(str(value))
+                markdown_table += "| " + " | ".join(row_values) + " |\n"
+                
+            return {
+                "sql": sql,
+                "results": markdown_table
+            }
+        except Exception as e:
+            print(f"결과 포맷팅 오류: {str(e)}")
+            # JSON 형태로 반환
+            return {
+                "sql": sql,
+                "results": str(results)
+            }
+            
+    except Exception as e:
+        print(f"SQL 쿼리 처리 중 오류 발생: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"SQL 쿼리 처리 중 오류 발생: {str(e)}")
+
+@app.post("/api/sql-and-llm")
+async def process_sql_and_llm(request: SQLAndLLMRequest = Body(...)):
+    """자연어 질문을 SQL로 변환 실행하고, LLM으로 설명을 추가합니다."""
+    try:
+        from app.utils.sql_utils import generate_sql_from_question, run_sql_query
+        from app.utils.get_mariadb_schema import get_mariadb_schema
+        
+        # 스키마 정보 가져오기
+        schema = get_mariadb_schema()
+        
+        # SQL 생성 및 실행
+        sql_query = generate_sql_from_question(request.question, schema, state=app.state)
+        
+        if not sql_query:
+            return {
+                "sql_query": "SELECT 1;", 
+                "sql_result": "⚠️ SQL을 생성할 수 없습니다.",
+                "bot_response": "죄송합니다. 질문에서 SQL을 생성할 수 없었습니다. 질문을 더 구체적으로 작성해주시거나 다른 방식으로 문의해주세요."
+            }
+        
+        # SQL 실행
+        sql_results = run_sql_query(sql_query)
+        
+        # 결과 처리
+        result_error = None
+        formatted_results = None
+        
+        if isinstance(sql_results, dict) and "error" in sql_results:
+            result_error = sql_results["error"]
+            formatted_results = f"❌ SQL 실행 오류: {result_error}"
+        elif not sql_results or len(sql_results) == 0:
+            formatted_results = "⚠️ 쿼리 결과가 없습니다."
+        else:
+            # 마크다운 테이블 생성
+            headers = list(sql_results[0].keys())
+            markdown_table = "| " + " | ".join(headers) + " |\n"
+            markdown_table += "| " + " | ".join(["---"] * len(headers)) + " |\n"
+            
+            for row in sql_results:
+                row_values = []
+                for header in headers:
+                    value = row[header]
+                    if value is None:
+                        value = "NULL"
+                    elif isinstance(value, str) and len(value) > 50:
+                        value = value[:47] + "..."
+                    row_values.append(str(value))
+                markdown_table += "| " + " | ".join(row_values) + " |\n"
+            
+            formatted_results = markdown_table
+        
+        # LLM으로 SQL 결과 설명 생성
+        bot_response = "데이터베이스 조회 결과입니다."
+        
+        try:
+            # LLM 모델 활용하여 응답 생성 (시간 제약 상 간단 구현)
+            # app.state에서 모델 로드 및 사용
+            llm_model = getattr(app.state, "llm_model", None)
+            tokenizer = getattr(app.state, "tokenizer", None)
+            
+            if llm_model and tokenizer:
+                # 프롬프트 생성
+                prompt = f"""
+질문: {request.question}
+
+SQL 쿼리:
+```sql
+{sql_query}
+```
+
+쿼리 결과:
+{formatted_results if not result_error else '쿼리 실행 중 오류가 발생했습니다.'}
+
+위 SQL 쿼리와 결과를 바탕으로 사용자의 질문에 대한 응답을 생성해주세요.
+결과를 요약하고 통찰력 있는 설명을 추가해주세요.
+"""
+
+                # 모델 실행
+                inputs = tokenizer(prompt, return_tensors="pt")
+                
+                # 모델이 CUDA를 사용할 수 있으면 GPU로 이동
+                if torch.cuda.is_available():
+                    inputs = {k: v.to('cuda') for k, v in inputs.items()}
+                    llm_model.to('cuda')
+                
+                # 추론 실행
+                with torch.no_grad():
+                    output = llm_model.generate(
+                        **inputs,
+                        max_new_tokens=512,
+                        do_sample=True,
+                        temperature=0.3,
+                        top_p=0.95,
+                        pad_token_id=tokenizer.eos_token_id,
+                    )
+                
+                # 결과 디코딩
+                generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
+                
+                # 입력 프롬프트 제거
+                if generated_text.startswith(prompt):
+                    bot_response = generated_text[len(prompt):].strip()
+                else:
+                    # 다른 방식으로 응답 추출 시도
+                    response_start = generated_text.find("위 SQL 쿼리와 결과를 바탕으로")
+                    if response_start > 0:
+                        potential_response = generated_text[response_start:].strip()
+                        
+                        # "응답:" 또는 "설명:" 같은 마커 검색
+                        markers = ["응답:", "설명:", "결과:", "분석:"]
+                        for marker in markers:
+                            if marker in potential_response:
+                                marker_pos = potential_response.find(marker) + len(marker)
+                                bot_response = potential_response[marker_pos:].strip()
+                                break
+                    else:
+                        # 기본 응답
+                        bot_response = "데이터베이스 조회 결과입니다. 위 테이블을 참고해주세요."
+            else:
+                bot_response = "데이터베이스 조회 결과입니다. 위 테이블을 참고해주세요."
+                
+        except Exception as llm_err:
+            print(f"LLM 응답 생성 오류: {str(llm_err)}")
+            bot_response = "데이터베이스 조회 결과입니다. 위 테이블을 참고해주세요."
+        
+        # 최종 결과 반환
+        return {
+            "sql_query": sql_query,
+            "sql_result": formatted_results,
+            "bot_response": bot_response
+        }
+        
+    except Exception as e:
+        print(f"SQL+LLM 쿼리 처리 중 오류 발생: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"SQL+LLM 쿼리 처리 중 오류 발생: {str(e)}")

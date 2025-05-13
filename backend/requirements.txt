@@ -1,0 +1,8 @@
+# 기존 내용 유지 (만약 파일이 이미 존재한다면)
+# MariaDB 연결을 위한 패키지 추가
+mysql-connector-python==8.0.33 
+# Vanna AI 및 관련 패키지 추가
+vanna>=0.7.9
+sqlalchemy>=2.0.0 
+# PyMySQL 패키지 추가 (Vanna에서 SQLAlchemy + MySQL 연결용)
+pymysql>=1.1.0 

@@ -29,3 +29,21 @@ try:
     )
 except ImportError:
     pass
+
+# Vanna AI 관련 유틸리티 임포트
+try:
+    from app.utils.vanna_interface import (
+        VannaInterface,
+        get_vanna_interface
+    )
+    from app.utils.get_mariadb_schema import (
+        get_mariadb_schema,
+        get_schema_for_vanna,
+        test_db_connection
+    )
+    from app.utils.vanna_local import (
+        VannaLocal,
+        get_vanna_local
+    )
+except ImportError:
+    pass

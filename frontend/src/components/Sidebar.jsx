@@ -20,7 +20,8 @@ import {
   FiMoon,
   FiSun,
   FiMenu,
-  FiChevronUp
+  FiChevronUp,
+  FiDatabase
 } from "react-icons/fi";
 import { LOGO_IMAGE, createLogoIcon } from "../assets/3ssoft-logo.js";
 
@@ -88,11 +89,13 @@ function Sidebar({
   onTogglePinConversation,
   onToggleTheme,
   isDarkMode,
+  onToggleMode
 }) {
-  const [searchQuery, setSearchQuery] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
   const [dropdownMenu, setDropdownMenu] = useState(null);
+  // 대화 목록 접기/펼치기 상태
+  const [showAllConversations, setShowAllConversations] = useState(false);
 
   // 날짜 포맷팅 함수
   const formatDate = (timestamp) => {
@@ -170,22 +173,31 @@ function Sidebar({
     };
   }, []);
 
-  // 대화 검색 필터링
-  const filteredConversations = useMemo(() => {
-    return conversations
-      .filter((conv) => {
-        // title이 문자열이 아닌 경우에 대한 안전한 처리
-        const title = typeof conv.title === 'string' ? conv.title : '';
-        return title.toLowerCase().includes(searchQuery.toLowerCase());
-      })
-      .sort((a, b) => {
-        // 고정된 대화 우선
-        if (a.pinned && !b.pinned) return -1;
-        if (!a.pinned && b.pinned) return 1;
-        // 그 다음 최신순
-        return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
-      });
-  }, [conversations, searchQuery]);
+  // 대화 필터링 및 정렬
+  const sortedConversations = useMemo(() => {
+    return [...conversations].sort((a, b) => {
+      // 고정된 대화 우선
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      // 그 다음 최신순
+      return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
+    });
+  }, [conversations]);
+
+  // 고정된 대화와 일반 대화 분리
+  const pinnedConversations = useMemo(() => {
+    return sortedConversations.filter(conv => conv.pinned);
+  }, [sortedConversations]);
+
+  const unpinnedConversations = useMemo(() => {
+    return sortedConversations.filter(conv => !conv.pinned);
+  }, [sortedConversations]);
+
+  // 표시할 일반 대화 수 제한 (6개)
+  const MAX_VISIBLE_CONVERSATIONS = 6;
+  const visibleUnpinnedConversations = showAllConversations 
+    ? unpinnedConversations 
+    : unpinnedConversations.slice(0, MAX_VISIBLE_CONVERSATIONS);
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-gray-900">
@@ -194,104 +206,120 @@ function Sidebar({
         <Logo />
       </div>
 
-      {/* 새 대화 버튼 */}
+      {/* 새 대화 버튼 - 오른쪽 정렬로 변경 */}
       <div className="px-4 py-2.5 border-b border-gray-800/50">
-        <button
-          onClick={onNewConversation}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-gray-300 hover:text-white bg-transparent hover:bg-gray-800/70 rounded-md transition-all duration-200 text-sm ml-auto float-right"
-        >
-          <FiPlus size={15} className="text-gray-400" />
-          <span>새 대화</span>
-        </button>
+        <div className="flex justify-end">
+          <button
+            onClick={onNewConversation}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-gray-300 hover:text-white bg-transparent hover:bg-gray-800/70 rounded-md transition-all duration-200 text-sm"
+            title="새 대화 시작하기"
+          >
+            <FiPlus size={15} className="text-gray-400" />
+            <span>새 대화</span>
+          </button>
+        </div>
       </div>
 
-      {/* 대화 목록 */}
-      <div className="flex-1 overflow-hidden px-3 relative">
-        {/* 장식 요소 - 시각적인 흥미 추가 */}
-        <div 
-          className="absolute -right-8 top-20 w-16 h-16 rounded-full bg-indigo-200 opacity-20"
-          style={{ filter: 'blur(20px)' }}
-        ></div>
-        <div 
-          className="absolute -left-8 bottom-40 w-20 h-20 rounded-full bg-indigo-300 opacity-10"
-          style={{ filter: 'blur(25px)' }}
-        ></div>
-        
-        {/* 스크롤 영역 */}
-        <div 
-          className="overflow-y-auto h-full pr-1 custom-scrollbar relative z-10"
-          style={{
-            maskImage: 'linear-gradient(to bottom, transparent, black 10px, black calc(100% - 10px), transparent)',
-            WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 10px, black calc(100% - 10px), transparent)'
-          }}
-        >
-          {/* 핀된 대화 목록 */}
-          {filteredConversations.some(conv => conv.pinned) && (
-            <div className="mb-4">
-              <div className="flex items-center px-2 py-1.5 text-xs text-indigo-400 font-medium">
-                <FiStar size={12} className="mr-1.5" />
-                <span>핀 고정</span>
+      {/* 대화 목록 스크롤 영역 */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden py-2 custom-scrollbar">
+        {/* 대화 목록이 비어있을 때 */}
+        {conversations.length === 0 ? (
+          <div className="px-4 py-4 text-center text-gray-500 text-sm">
+            대화 내역이 없습니다.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* 핀 고정된 대화 목록 */}
+            {pinnedConversations.length > 0 && (
+              <div className="mb-2">
+                <div className="flex items-center px-3 py-1.5 text-xs text-indigo-400 font-medium">
+                  <FiStar size={12} className="mr-1.5" />
+                  <span>핀 고정</span>
+                </div>
+                <div className="space-y-1.5 mt-1.5 px-2">
+                  {pinnedConversations.map((conv) => (
+                    <ConversationItem
+                      key={conv.id}
+                      conversation={conv}
+                      isActive={conv.id === activeConversationId}
+                      onClick={() => onSelectConversation(conv.id)}
+                      onRename={(newTitle) => onRenameConversation(conv.id, newTitle)}
+                      onDelete={() => onDeleteConversation(conv.id)}
+                      onTogglePin={() => onTogglePinConversation(conv.id)}
+                      animationDelay={0}
+                    />
+                  ))}
+                </div>
               </div>
-              <div className="space-y-1.5 mt-1.5">
-                {filteredConversations.filter(conv => conv.pinned).map((conversation, index) => (
+            )}
+
+            {/* 일반 대화 목록 */}
+            <div>
+              <div className="flex items-center justify-between px-3 py-1.5">
+                <div className="flex items-center text-xs text-gray-500 font-medium">
+                  <FiClock size={12} className="mr-1.5" />
+                  <span>최근 대화</span>
+                </div>
+                {unpinnedConversations.length > MAX_VISIBLE_CONVERSATIONS && (
+                  <button 
+                    onClick={() => setShowAllConversations(!showAllConversations)}
+                    className="text-xs text-gray-500 hover:text-gray-300 flex items-center"
+                  >
+                    {showAllConversations ? (
+                      <>
+                        <FiChevronUp size={14} className="mr-1" />
+                        <span>접기</span>
+                      </>
+                    ) : (
+                      <>
+                        <FiChevronDown size={14} className="mr-1" />
+                        <span>더보기 ({unpinnedConversations.length - MAX_VISIBLE_CONVERSATIONS})</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+              <div className="space-y-1.5 mt-1.5 px-2">
+                {visibleUnpinnedConversations.map((conv) => (
                   <ConversationItem
-                    key={conversation.id}
-                    conversation={conversation}
-                    isActive={conversation.id === activeConversationId}
-                    onClick={() => onSelectConversation(conversation.id)}
-                    onRename={(newTitle) => onRenameConversation(conversation.id, newTitle)}
-                    onDelete={() => onDeleteConversation(conversation.id)}
-                    onTogglePin={() => onTogglePinConversation(conversation.id)}
-                    animationDelay={index * 0.05}
+                    key={conv.id}
+                    conversation={conv}
+                    isActive={conv.id === activeConversationId}
+                    onClick={() => onSelectConversation(conv.id)}
+                    onRename={(newTitle) => onRenameConversation(conv.id, newTitle)}
+                    onDelete={() => onDeleteConversation(conv.id)}
+                    onTogglePin={() => onTogglePinConversation(conv.id)}
+                    animationDelay={0}
                   />
                 ))}
               </div>
             </div>
-          )}
-
-          {/* 최근 대화 목록 - 접기/펼치기 기능 추가 */}
-          <ConversationGroup
-            title="최근 대화"
-            icon={<FiClock size={12} className="mr-1.5" />}
-            conversations={filteredConversations.filter(conv => !conv.pinned)}
-            activeConversationId={activeConversationId}
-            onSelect={onSelectConversation}
-            onRename={onRenameConversation}
-            onDelete={onDeleteConversation}
-            onTogglePin={onTogglePinConversation}
-            maxVisible={6}
-          />
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* 푸터 - 유용한 정보 추가 */}
-      <div className="p-4 bg-gray-800/30 rounded-lg mx-3 mb-3 shadow-inner">
-        <div className="flex flex-col">
-          {/* 유용한 단축키 */}
-          <div>
-            <div className="text-xs font-medium text-indigo-400 mb-2.5 flex items-center">
-              <FiHelpCircle size={12} className="mr-1.5" />
-              <span>유용한 단축키</span>
-            </div>
-            <div className="grid grid-cols-2 gap-y-2 gap-x-3 text-xs text-gray-300">
-              <div className="flex items-center">
-                <span className="inline-flex items-center justify-center min-w-[24px] h-5 px-1 mr-1.5 bg-gray-700/70 rounded text-indigo-300 font-mono">↑</span>
-                <span>이전 질문</span>
-              </div>
-              <div className="flex items-center">
-                <span className="inline-flex items-center justify-center min-w-[24px] h-5 px-1 mr-1.5 bg-gray-700/70 rounded text-indigo-300 font-mono">↓</span>
-                <span>다음 질문</span>
-              </div>
-              <div className="flex items-center">
-                <span className="inline-flex items-center justify-center min-w-[24px] h-5 px-1 mr-1.5 bg-gray-700/70 rounded text-indigo-300 font-mono">Tab</span>
-                <span>자동 완성</span>
-              </div>
-              <div className="flex items-center">
-                <span className="inline-flex items-center justify-center min-w-[24px] h-5 px-1 mr-1.5 bg-gray-700/70 rounded text-indigo-300 font-mono">Esc</span>
-                <span>입력 취소</span>
-              </div>
-            </div>
-          </div>
+      {/* 모드 전환 아이콘 영역 (하단 고정) */}
+      <div className="border-t border-gray-800/50 py-3 px-4">
+        <div className="flex justify-around items-center">
+          <button 
+            onClick={() => onToggleMode('chat')}
+            className="flex flex-col items-center justify-center p-2 rounded-lg hover:bg-gray-800 transition-colors"
+            title="챗봇 모드"
+          >
+            <FiMessageSquare size={20} className="text-blue-400 mb-1" />
+            <span className="text-xs text-gray-400">챗봇</span>
+          </button>
+          
+          <div className="h-8 border-r border-gray-700/50"></div>
+          
+          <button 
+            onClick={() => onToggleMode('sql')}
+            className="flex flex-col items-center justify-center p-2 rounded-lg hover:bg-gray-800 transition-colors"
+            title="SQL 질의 모드"
+          >
+            <FiDatabase size={20} className="text-indigo-400 mb-1" />
+            <span className="text-xs text-gray-400">SQL 질의</span>
+          </button>
         </div>
       </div>
     </div>
@@ -426,7 +454,7 @@ function ConversationItem({ conversation, isActive, onClick, onRename, onDelete,
             
             {/* 드롭다운 메뉴 - z-index 높임, 위치 조정 */}
             {showMenu && (
-              <div className="fixed right-4 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-lg py-1 w-36 z-50">
+              <div className="absolute right-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-lg py-1 w-36 z-50">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -463,91 +491,6 @@ function ConversationItem({ conversation, isActive, onClick, onRename, onDelete,
               </div>
             )}
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// 대화 그룹 컴포넌트 - 접기/펼치기 기능을 가진 대화 목록
-function ConversationGroup({ title, icon, conversations, activeConversationId, onSelect, onRename, onDelete, onTogglePin, maxVisible = 6 }) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [showAll, setShowAll] = useState(false);
-  
-  // 보여줄 대화 목록 결정
-  const visibleConversations = showAll
-    ? conversations
-    : conversations.slice(0, maxVisible);
-    
-  // 더 보기 버튼이 필요한지 여부
-  const needsMoreButton = conversations.length > maxVisible;
-  
-  // 대화 목록이 비어있으면 빈 UI 반환
-  if (conversations.length === 0) {
-    return (
-      <div className="mb-3">
-        <div className="flex items-center justify-between px-2 py-1.5">
-          <div className="flex items-center text-xs text-gray-500 font-medium">
-            {icon}
-            <span>{title}</span>
-          </div>
-        </div>
-        <div className="px-3 py-6 text-center">
-          <div className="text-gray-400 text-sm">대화 기록이 없습니다</div>
-        </div>
-      </div>
-    );
-  }
-  
-  return (
-    <div className="mb-3">
-      {/* 그룹 헤더 - 접기/펼치기 토글 버튼 */}
-      <div className="flex items-center justify-between px-2 py-1.5 cursor-pointer" onClick={() => setIsCollapsed(!isCollapsed)}>
-        <div className="flex items-center text-xs text-gray-500 font-medium">
-          {icon}
-          <span>{title}</span>
-        </div>
-        <button className="text-gray-500 hover:text-gray-300 p-0.5">
-          {isCollapsed ? <FiChevronRight size={14} /> : <FiChevronDown size={14} />}
-        </button>
-      </div>
-      
-      {/* 대화 목록 */}
-      {!isCollapsed && (
-        <div className="space-y-1.5 mt-1.5">
-          {/* 대화 항목들 */}
-          {visibleConversations.map((conversation, index) => (
-            <ConversationItem
-              key={conversation.id}
-              conversation={conversation}
-              isActive={conversation.id === activeConversationId}
-              onClick={() => onSelect(conversation.id)}
-              onRename={(newTitle) => onRename(conversation.id, newTitle)}
-              onDelete={() => onDelete(conversation.id)}
-              onTogglePin={() => onTogglePin(conversation.id)}
-              animationDelay={index * 0.05}
-            />
-          ))}
-          
-          {/* 더 보기/접기 버튼 */}
-          {needsMoreButton && (
-            <button
-              onClick={() => setShowAll(!showAll)}
-              className="w-full flex items-center justify-center py-1.5 px-3 mt-2 text-xs text-gray-400 hover:text-gray-300 hover:bg-gray-800/50 rounded-lg transition-colors"
-            >
-              {showAll ? (
-                <>
-                  <FiChevronUp size={14} className="mr-1.5" />
-                  <span>접기</span>
-                </>
-              ) : (
-                <>
-                  <FiChevronDown size={14} className="mr-1.5" />
-                  <span>더 보기 ({conversations.length - maxVisible})</span>
-                </>
-              )}
-            </button>
-          )}
         </div>
       )}
     </div>

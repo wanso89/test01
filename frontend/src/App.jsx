@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import Sidebar from "./components/Sidebar";
 import ChatContainer from "./components/ChatContainer";
+import SQLQueryPage from "./components/SQLQueryPage";
 import {
   FiChevronLeft,
   FiChevronRight,
@@ -11,7 +12,8 @@ import {
   FiCheckCircle,
   FiFile,
   FiMenu,
-  FiAlignLeft
+  FiAlignLeft,
+  FiDatabase
 } from "react-icons/fi";
 
 const SIDEBAR_WIDTH = 320;
@@ -114,6 +116,11 @@ function App() {
   const [isEmbedding, setIsEmbedding] = useState(false);
   const [embeddingStatus, setEmbeddingStatus] = useState(null);
   const [embeddedFiles, setEmbeddedFiles] = useState([]);
+  
+  // SQL 쿼리 페이지 표시 여부 상태 추가
+  const [showSQLPage, setShowSQLPage] = useState(false);
+  // 파일 매니저 상태 추가
+  const [fileManagerOpen, setFileManagerOpen] = useState(false);
 
   // 테마 변경 함수
   const toggleTheme = useCallback(() => {
@@ -226,19 +233,22 @@ function App() {
 
   // 인덱싱된 파일 목록 새로고침을 위한 이벤트 리스너 추가
   useEffect(() => {
-    const handleRefreshFiles = () => {
+    const handleRefreshFilesEvent = () => {
       setFileManagerOpen(true);
     };
     
-    window.addEventListener('refreshIndexedFiles', handleRefreshFiles);
+    window.addEventListener('refreshIndexedFiles', handleRefreshFilesEvent);
     
     return () => {
-      window.removeEventListener('refreshIndexedFiles', handleRefreshFiles);
+      window.removeEventListener('refreshIndexedFiles', handleRefreshFilesEvent);
     };
   }, []);
 
-  // 파일 목록 표시 상태
-  const [fileManagerOpen, setFileManagerOpen] = useState(false);
+  // 파일 목록 새로고침 함수 추가
+  const handleRefreshFiles = () => {
+    setFileManagerOpen(true);
+    console.log('파일 목록 새로고침');
+  };
 
   // 파일 업로드 완료 핸들러 추가
   const handleUploadSuccess = (files) => {
@@ -757,16 +767,33 @@ function App() {
     }
   };
 
+  // 모드 전환 함수 - 챗봇 <-> SQL 질의 모드 전환
+  const onToggleMode = (mode) => {
+    if (mode === 'sql') {
+      setShowSQLPage(true);
+    } else if (mode === 'chat') {
+      setShowSQLPage(false);
+    } else {
+      // 모드가 지정되지 않은 경우 토글
+      setShowSQLPage(!showSQLPage);
+    }
+  };
+
   return (
-    <div className="h-screen overflow-hidden bg-gray-900 dark:bg-gray-900 text-gray-300 dark:text-gray-300 transition-colors duration-200">
-      {/* Sidebar */}
+    <div className="flex flex-col md:flex-row h-screen bg-gray-900 text-gray-100 overflow-hidden relative">
+      {/* 임베딩 처리 오버레이 */}
+      <EmbeddingOverlay 
+        isActive={isEmbedding} 
+        status={embeddingStatus} 
+        files={embeddedFiles}
+      />
+      
+      {/* 사이드바 */}
       <div
-        className={`fixed left-0 top-0 h-full z-10 transition-all duration-300 ${
-          sidebarOpen
-            ? `w-[${sidebarWidth}px] translate-x-0`
-            : "w-0 -translate-x-full"
-        }`}
-        style={{ width: sidebarOpen ? `${sidebarWidth}px` : 0 }}
+        className={`absolute md:relative inset-y-0 left-0 z-20 transform ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        } md:translate-x-0 transition-transform duration-300 ease-in-out flex-shrink-0 w-${sidebarWidth}px flex flex-col border-r border-gray-800 h-full bg-gray-900`}
+        style={{ width: `${sidebarWidth}px` }}
       >
         <Sidebar
           conversations={conversations}
@@ -778,64 +805,46 @@ function App() {
           onTogglePinConversation={handleTogglePinConversation}
           onToggleTheme={toggleTheme}
           isDarkMode={theme === "dark"}
+          onToggleMode={onToggleMode}
         />
-      </div>
-
-      {/* Sidebar 드래그 리사이즈 핸들 */}
-      {sidebarOpen && (
         <div
-          className="fixed left-0 top-0 h-full z-20 w-1 cursor-ew-resize flex items-center justify-center"
-          style={{ left: `${sidebarWidth}px` }}
+          className="absolute top-0 -right-3 h-full w-3 cursor-ew-resize z-10"
           onMouseDown={handleMouseDown}
-        >
-          <div className="h-8 w-1 bg-gray-900 rounded-full"></div>
-        </div>
-      )}
-
-      {/* 메인 콘텐츠 */}
-      <div
-        className="h-full transition-all duration-300"
-        style={{
-          marginLeft: sidebarOpen ? `${sidebarWidth}px` : 0,
-        }}
-      >
-        {/* 사이드바 토글 버튼 - 햄버거 메뉴로 변경 */}
-        <button
-          className="fixed top-4 left-4 z-30 p-2.5 rounded-xl bg-gray-800/70 hover:bg-gray-700/90 text-gray-300 shadow-md backdrop-blur-md transition-all duration-200 border border-gray-700/50"
-          onClick={handleToggleSidebar}
-          aria-label={sidebarOpen ? "사이드바 닫기" : "사이드바 열기"}
-          title={sidebarOpen ? "사이드바 닫기" : "사이드바 열기"}
-        >
-          {sidebarOpen ? (
-            <FiChevronLeft size={18} className="text-gray-300" />
-          ) : (
-            <FiAlignLeft size={18} className="text-gray-300" />
-          )}
-        </button>
-
-        {/* 대화 컨테이너 */}
-        <ChatContainer
-          scrollLocked={scrollLocked}
-          activeConversationId={activeConversationId}
-          messages={currentMessages}
-          searchTerm={searchTerm}
-          filteredMessages={filteredMessages}
-          onUpdateMessages={handleUpdateMessages}
-          isEmbedding={isEmbedding}
-          onUploadSuccess={handleUploadSuccess}
-          onNewConversation={handleNewConversation}
-          fileManagerOpen={fileManagerOpen}
-          setFileManagerOpen={setFileManagerOpen}
-          sidebarOpen={sidebarOpen}
-        />
+        ></div>
       </div>
 
-      {/* 임베딩 알림 오버레이 */}
-      <EmbeddingOverlay 
-        isActive={isEmbedding} 
-        status={embeddingStatus} 
-        files={embeddedFiles}
-      />
+      {/* 채팅 컨테이너 또는 SQL 쿼리 페이지 */}
+      <div className="flex-grow relative overflow-hidden">
+        {showSQLPage ? (
+          <SQLQueryPage />
+        ) : (
+          <>
+            {/* 사이드바 토글 버튼 (모바일) */}
+            {!sidebarOpen && (
+              <button
+                className="absolute left-4 top-4 z-10 md:hidden p-2 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
+                onClick={handleToggleSidebar}
+              >
+                <FiMenu size={20} />
+              </button>
+            )}
+            <ChatContainer
+              scrollLocked={scrollLocked}
+              activeConversationId={activeConversationId}
+              messages={currentMessages}
+              searchTerm={searchTerm}
+              filteredMessages={filteredMessages}
+              onUpdateMessages={handleUpdateMessages}
+              isEmbedding={isEmbedding}
+              onUploadSuccess={handleUploadSuccess}
+              onNewConversation={handleNewConversation}
+              fileManagerOpen={fileManagerOpen}
+              setFileManagerOpen={setFileManagerOpen}
+              sidebarOpen={sidebarOpen}
+            />
+          </>
+        )}
+      </div>
     </div>
   );
 }

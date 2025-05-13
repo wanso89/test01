@@ -1183,7 +1183,9 @@ function ChatContainer({
 
   // 파일 관리 버튼 클릭 핸들러
   const handleFileManager = () => {
-    setFileManagerOpen(true);
+    if (setFileManagerOpen) {
+      setFileManagerOpen(true);
+    }
   };
 
   // 후속 질문 핸들러
