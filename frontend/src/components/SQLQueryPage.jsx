@@ -88,7 +88,18 @@ const SQLQueryPage = () => {
         }
         
         const data = await response.json();
-        setDbSchema(data.schema || '스키마 정보가 없습니다.');
+        
+        // 응답 형식 변경에 따른 처리 추가
+        if (data.status === 'error') {
+          console.error('DB 스키마 로딩 오류:', data.error);
+          setErrorMessage('데이터베이스 스키마를 불러올 수 없습니다.');
+          // 오류가 있어도 schema 필드에 메시지가 들어있으면 표시
+          if (data.schema) {
+            setDbSchema(data.schema);
+          }
+        } else {
+          setDbSchema(data.schema || '스키마 정보가 없습니다.');
+        }
       } catch (error) {
         console.error('DB 스키마 로딩 오류:', error);
         setErrorMessage('데이터베이스 스키마를 불러올 수 없습니다.');
@@ -196,17 +207,24 @@ const SQLQueryPage = () => {
   
   return (
     <div className="flex flex-col h-full bg-gray-900 text-gray-100">
-      {/* 헤더 - 더 어둡게 수정 */}
-      <div className="bg-gray-900 border-b border-gray-800 p-4 flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <FiDatabase className="text-indigo-400" size={20} />
-          <h1 className="text-lg font-semibold text-white">SQL 쿼리 도우미</h1>
+      {/* 헤더 - 더 모던한 디자인으로 수정 */}
+      <div className="h-16 flex items-center justify-between px-6 bg-gray-900 border-b border-gray-800 shadow-sm z-10">
+        <div className="flex items-center">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 mr-4 flex items-center justify-center shadow-md">
+            <FiDatabase size={20} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-400 to-purple-500 bg-clip-text text-transparent">
+              SQL 쿼리 도우미
+            </h1>
+            <p className="text-xs text-gray-400 mt-0.5">데이터베이스 질의 인터페이스</p>
+          </div>
         </div>
         
         <button 
           onClick={() => setShowSchema(!showSchema)}
-          className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm 
-                    flex items-center gap-2 transition-colors"
+          className="px-3 py-1.5 rounded-lg text-gray-400 hover:text-gray-200 transition-colors
+                    flex items-center gap-2"
         >
           <FiInfo size={16} />
           <span>DB 스키마 {showSchema ? '숨기기' : '보기'}</span>

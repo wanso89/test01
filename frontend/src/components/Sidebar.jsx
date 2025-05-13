@@ -193,8 +193,8 @@ function Sidebar({
     return sortedConversations.filter(conv => !conv.pinned);
   }, [sortedConversations]);
 
-  // 표시할 일반 대화 수 제한 (6개)
-  const MAX_VISIBLE_CONVERSATIONS = 6;
+  // 표시할 일반 대화 수 제한 (9개)
+  const MAX_VISIBLE_CONVERSATIONS = 9;
   const visibleUnpinnedConversations = showAllConversations 
     ? unpinnedConversations 
     : unpinnedConversations.slice(0, MAX_VISIBLE_CONVERSATIONS);

@@ -1228,14 +1228,14 @@ function ChatContainer({
         </div>
       )}
       
-      {/* 헤더 */}
+      {/* 헤더 - 스타일 업데이트 */}
       <div className="h-16 flex items-center justify-between px-6 bg-gray-900 border-b border-gray-800 shadow-sm z-10">
         <div className={`flex items-center ${!sidebarOpen ? 'ml-12' : ''} transition-all duration-300`}>
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 mr-4 flex items-center justify-center shadow-md">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 mr-4 flex items-center justify-center shadow-md">
             <FiMessageSquare size={20} className="text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-blue-500 bg-clip-text text-transparent">
+            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-500 bg-clip-text text-transparent">
               지식 QnA 어시스턴트
             </h1>
             <p className="text-xs text-gray-400 mt-0.5">AI 기반 업무 지능화 솔루션</p>
@@ -1245,12 +1245,13 @@ function ChatContainer({
         <div className="flex gap-2">
           <button
             onClick={handleFileManager}
-            className="p-2 rounded-xl text-gray-400 hover:text-blue-400 hover:bg-gray-800/70 transition-colors flex items-center gap-2 group"
+            className="px-3 py-1.5 rounded-lg text-gray-400 hover:text-gray-200 transition-colors
+                     flex items-center gap-2"
             title="인덱싱된 파일 관리"
             disabled={isEmbedding}
           >
-            <FiHardDrive size={18} className="group-hover:scale-110 transition-transform" />
-            <span className="text-sm hidden sm:inline-block">파일 관리</span>
+            <FiHardDrive size={16} />
+            <span className="hidden sm:inline">파일 관리</span>
           </button>
         </div>
       </div>

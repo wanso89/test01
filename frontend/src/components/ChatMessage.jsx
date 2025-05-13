@@ -561,6 +561,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
   const [isTypingComplete, setIsTypingComplete] = useState(true); // 기본값 true로 설정
   const [showTypeWriter, setShowTypeWriter] = useState(false); // 타이핑 효과 비활성화 (기본값 false)
   const contentRef = useRef(null);
+  const messageContainerRef = useRef(null); // 메시지 컨테이너 ref 추가
   const [showImagePreview, setShowImagePreview] = useState(false);
   // 피드백 모달 상태 추가
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -574,9 +575,21 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
   const [threadEndLine, setThreadEndLine] = useState(false);
   const [showTableOfContents, setShowTableOfContents] = useState(false);
   
+  // 피드백 버튼 상호작용 상태
+  const [hasInteractedWithButtons, setHasInteractedWithButtons] = useState(false);
+  
   // 출처 미리보기 관련 상태 추가
   const [sourceKeywords, setSourceKeywords] = useState([]);
   const [sourceFilterText, setSourceFilterText] = useState("");
+  
+  // 추천 질문 관련 상태 추가
+  const suggestedQuestions = useMemo(() => {
+    // 메시지 내용에서 추천 질문을 추출하거나 기본 배열 반환
+    return message.suggestedQuestions || [];
+  }, [message.suggestedQuestions]);
+  
+  // 메시지 ID 생성
+  const messageId = useMemo(() => `message-${message.timestamp || Date.now()}-${Math.random().toString(36).substr(2, 9)}`, [message.timestamp]);
   
   // 키워드 하이라이트 스타일 주입
   useEffect(() => {
@@ -660,44 +673,57 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
   }, [message.timestamp]);
 
   const formatMessageTime = (timestamp) => {
-    if (!timestamp) return '';
+    if (!timestamp) return '방금 전';
     
     // timestamp가 숫자 또는 문자열인 경우 처리
     let dateObj;
-    if (typeof timestamp === 'number' || !isNaN(parseInt(timestamp))) {
-      dateObj = new Date(timestamp);
-    } else if (typeof timestamp === 'string') {
-      dateObj = new Date(timestamp);
-    } else {
-      return '';
-    }
-    
-    // 올바른 날짜가 아닌 경우 빈 문자열 반환
-    if (isNaN(dateObj.getTime())) return '';
-    
-    // 현재 시간과의 차이 계산
-    const now = new Date();
-    const diffMs = now - dateObj;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-    
-    // 상대적 시간 표시
-    if (diffMins < 1) {
+    try {
+      if (typeof timestamp === 'number' || !isNaN(parseInt(timestamp))) {
+        dateObj = new Date(timestamp);
+      } else if (typeof timestamp === 'string') {
+        dateObj = new Date(timestamp);
+      } else {
+        return '방금 전';
+      }
+      
+      // 올바른 날짜가 아닌 경우 (Invalid Date) 현재 시간으로 대체
+      if (isNaN(dateObj.getTime())) {
+        console.warn('Invalid date detected, using current time');
+        dateObj = new Date();
+      }
+      
+      // 현재 시간과의 차이 계산
+      const now = new Date();
+      const diffMs = now - dateObj;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+      
+      // 미래 시간인 경우 처리
+      if (diffMs < 0) {
+        return '방금 전';
+      }
+      
+      // 상대적 시간 표시
+      if (diffMins < 1) {
+        return '방금 전';
+      } else if (diffMins < 60) {
+        return `${diffMins}분 전`;
+      } else if (diffHours < 24) {
+        return `${diffHours}시간 전`;
+      } else if (diffDays < 7) {
+        return `${diffDays}일 전`;
+      } else {
+        // 7일 이상 지난 경우 날짜 표시
+        return dateObj.toLocaleDateString('ko-KR', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      }
+    } catch (e) {
+      console.error('Error formatting timestamp:', e);
       return '방금 전';
-    } else if (diffMins < 60) {
-      return `${diffMins}분 전`;
-    } else if (diffHours < 24) {
-      return `${diffHours}시간 전`;
-    } else if (diffDays < 7) {
-      return `${diffDays}일 전`;
-    } else {
-      // 7일 이상 지난 경우 날짜 표시
-      return dateObj.toLocaleDateString('ko-KR', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
     }
   };
 
@@ -776,6 +802,9 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
       // 피드백 모달 열기
       setCurrentFeedbackType(type);
       setShowFeedbackModal(true);
+      
+      // 버튼 상호작용 상태 업데이트
+      setHasInteractedWithButtons(true);
     },
     [feedbackSent]
   );
@@ -1307,224 +1336,131 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
   };
   
   return (
-    <>
-      {/* 소스 프리뷰 모달 */}
-      {previewSource && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-gradient-to-br from-gray-800 to-gray-850 rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-soft-2xl border border-gray-700/50">
-            <div className="sticky top-0 z-10 flex flex-col bg-gradient-to-r from-gray-800/95 to-gray-850/95 border-b border-gray-700/50 backdrop-blur-md">
-              {/* 헤더 */}
-              <div className="flex items-center justify-between p-4">
-                <h3 className="font-medium flex items-center text-gray-200">
-                  <FiEye className="mr-2 text-indigo-500" />
-                  <span className="truncate max-w-md">{previewSource.title || previewSource.display_name || previewSource.path.split('/').pop()}</span>
-                  {previewSource.page && <span className="ml-2 text-gray-400 text-sm">(페이지 {previewSource.page})</span>}
-                </h3>
-                <button 
-                  onClick={handleClosePreview}
-                  className="p-2 rounded-full hover:bg-gray-700 transition-colors text-gray-400"
-                >
-                  <FiX size={20} />
-                </button>
-              </div>
-              
-              {/* 검색 필터 및 키워드 표시 */}
-              {sourceKeywords.length > 0 && (
-                <div className="px-4 pb-3 flex flex-col">
-                  {/* 검색어 필터 */}
-                  <div className="relative mb-2">
-                    <input 
-                      type="text"
-                      value={sourceFilterText}
-                      onChange={(e) => setSourceFilterText(e.target.value)}
-                      placeholder="문서 내용 검색..."
-                      className="w-full px-3 py-1.5 pl-9 bg-gray-700/50 border border-gray-600/50 rounded-md text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/70 focus:border-indigo-500/50"
-                    />
-                    <FiSearch className="absolute left-3 top-2 text-gray-500" size={15} />
-                    {sourceFilterText && (
-                      <button 
-                        onClick={() => setSourceFilterText("")}
-                        className="absolute right-3 top-2 text-gray-500 hover:text-gray-300"
-                      >
-                        <FiX size={14} />
-                      </button>
-                    )}
-                  </div>
-                  
-                  {/* 키워드 태그 */}
-                  <div className="flex flex-wrap gap-1.5 mb-1">
-                    <span className="text-xs text-gray-400 self-center mr-1">주요 키워드:</span>
-                    {sourceKeywords.map((keyword, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setSourceFilterText(keyword)}
-                        className={`px-2 py-0.5 text-xs rounded-full transition-colors ${
-                          sourceFilterText === keyword
-                            ? 'bg-indigo-600/80 text-white' 
-                            : 'bg-gray-700/80 text-gray-300 hover:bg-gray-700'
-                        }`}
-                      >
-                        {keyword}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+    <div ref={messageContainerRef} id={messageId}>
+      <div 
+        className={`py-4 px-4 ${
+          isGrouped ? 'pt-1' : ''
+        } relative group transition-colors hover:bg-gray-800/40`}
+      >
+        {/* 메시지 시간 및 컨트롤 영역 */}
+        <div className={`flex items-center justify-${isUser ? 'end' : 'start'} text-xs text-gray-500 mb-1.5 ${isGrouped ? 'opacity-0 group-hover:opacity-100' : ''}`}>
+          <time dateTime={(() => {
+            try {
+              // timestamp가 유효한지 확인
+              const timestamp = message.timestamp ? new Date(message.timestamp) : new Date();
+              // Invalid Date 확인
+              return isNaN(timestamp.getTime()) ? new Date().toISOString() : timestamp.toISOString();
+            } catch (e) {
+              console.error('Invalid timestamp:', message.timestamp);
+              return new Date().toISOString();
+            }
+          })()}>{formatMessageTime(message.timestamp)}</time>
+        </div>
+        
+        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+          {/* 사용자 메시지는 오른쪽 정렬, AI 응답은 왼쪽 정렬 */}
+          <div className={`flex ${isUser ? 'flex-row-reverse' : 'flex-row'} items-start`}>
+            {/* 프로필 아바타 */}
+            <ProfileAvatar role={message.role} isGrouped={isGrouped} />
             
-            <div className="flex-1 overflow-auto custom-scrollbar">
-              <div className="p-6 bg-gradient-to-b from-gray-800/90 to-gray-850/95">
-                {loadingContent ? (
-                  <div className="flex flex-col justify-center items-center h-32 space-y-3">
-                    <FiLoader className="animate-spin text-indigo-500" size={24} />
-                    <span className="text-gray-400 text-sm">내용을 불러오는 중...</span>
-                  </div>
-                ) : previewContent ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    {renderMarkdownContent(previewContent)}
-                  </div>
-                ) : (
-                  <div className="text-center text-gray-400 py-8">
-                    미리보기를 불러올 수 없습니다.
-                  </div>
-                )}
+            {/* 메시지 컨텐츠 */}
+            <div 
+              className={`relative mx-3 ${isUser ? 'mr-3 ml-12' : 'ml-3 mr-12'} flex-1`}
+              style={{ maxWidth: 'calc(100% - 80px)' }}
+            >
+              {/* 메시지 말풍선 */}
+              <div 
+                className={`rounded-2xl py-3 px-4 ${
+                  isUser 
+                    ? 'bg-blue-600 text-white rounded-tr-md' 
+                    : 'bg-gray-800 text-gray-100 rounded-tl-md'
+                }`}
+              >
+                {/* 메시지 내용 */}
+                <div className="prose dark:prose-invert max-w-none marker:text-indigo-400" ref={contentRef}>
+                  {!isUser && showTypeWriter ? (
+                    <TypeWriter 
+                      text={message.content} 
+                      speed={1} 
+                      onComplete={() => {
+                        setIsTypingComplete(true);
+                        setShowTypeWriter(false);
+                      }}
+                    />
+                  ) : (
+                    MarkdownContent
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
-      )}
-
-      {/* 메시지 컨테이너 */}
-      <div 
-        className={`flex w-full mb-4 relative animate-fade-in group ${
-          isUser ? "justify-end" : "justify-start"
-        }`}
-      >
-        {/* 스레드 인디케이터 - 어시스턴트 메시지만 표시 */}
-        {!isUser && (
-          <div className="absolute left-4 top-0 bottom-0 w-0.5">
-            {/* 상단 스레드 라인 */}
-            {threadStartLine && (
-              <div className="absolute top-0 left-0 w-0.5 h-4 bg-gradient-to-b from-transparent to-indigo-500/30"></div>
-            )}
-            
-            {/* 중간 스레드 라인 */}
-            {showThreadLine && (
-              <div className="absolute top-0 left-0 w-0.5 h-full bg-indigo-500/30"></div>
-            )}
-            
-            {/* 하단 스레드 라인 */}
-            {threadEndLine && (
-              <div className="absolute bottom-0 left-0 w-0.5 h-4 bg-gradient-to-t from-transparent to-indigo-500/30"></div>
-            )}
-          </div>
-        )}
         
-        {/* 프로필 아이콘 (어시스턴트만) */}
-        {!isUser && !isPrevSameSender && (
-          <div className="flex-shrink-0 mr-3 mt-1">
-            <ProfileAvatar role={message.role} isGrouped={isGrouped} />
-          </div>
-        )}
-        
-        {/* 어시스턴트 메시지 들여쓰기 - 스레드 효과 */}
-        {!isUser && isPrevSameSender && <div className="w-12"></div>}
-        
-        <div
-          className={`flex ${
-            isUser ? "flex-row-reverse" : "flex-row"
-          } max-w-[85%] sm:max-w-[75%]`}
-        >
-          <div
-            className={`flex flex-col ${
-              isUser
-                ? "items-end"
-                : "items-start"
-            }`}
-          >
-            {/* 메시지 시간 표시 */}
-            {!isPrevSameSender && (
-              <div className="text-xs text-gray-400 mb-1 px-1">
-                {formatMessageTime(messageTime)}
-              </div>
-            )}
-            
-            {/* 목차 섹션 - 어시스턴트 메시지이고 제목이 있는 경우에만 표시 */}
-            {showTableOfContents && (
-              <TableOfContents headings={headings} onClickHeading={scrollToHeading} />
-            )}
-            
-            {/* 메시지 내용 */}
-            <div
-              className={`message-bubble relative px-4 py-3 rounded-2xl ${
-                isUser
-                  ? "bg-indigo-600 text-white"
-                  : "bg-gray-800 text-gray-100"
-              } ${isPrevSameSender ? "mt-1" : "mt-0"}`}
-            >
-              <div className="prose dark:prose-invert max-w-none marker:text-indigo-400" ref={contentRef}>
-                {!isUser && showTypeWriter ? (
-                  <TypeWriter 
-                    text={message.content} 
-                    speed={1} 
-                    onComplete={() => {
-                      setIsTypingComplete(true);
-                      setShowTypeWriter(false);
-                    }}
-                  />
-                ) : (
-                  MarkdownContent
+        {/* 출처 및 피드백 영역 */}
+        {message.role === 'assistant' && (
+          <div className="ml-11 mt-2">
+            {/* 출처 카드 (토글형) */}
+            {!isLastInGroup && message.sources && (
+              <div className="mt-1">
+                <button
+                  onClick={toggleSourcesVisible}
+                  className="flex items-center text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                >
+                  {sourcesVisible ? (
+                    <FiChevronDown size={14} className="mr-1" />
+                  ) : (
+                    <FiChevronRight size={14} className="mr-1" />
+                  )}
+                  {/* 인용된 출처만 표시 */}
+                  <span>출처 {(message.cited_sources?.length || message.sources.filter(s => s.is_cited).length || 0)}개</span>
+                </button>
+                
+                {sourcesVisible && (
+                  <div className="mt-1.5 space-y-1.5 text-xs text-gray-400 pl-1">
+                    {(message.cited_sources || message.sources.filter(s => s.is_cited)).map((source, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-start hover:bg-gray-700/30 p-1 -mx-1 rounded cursor-pointer"
+                        onClick={() => handlePreviewSource(source)}
+                      >
+                        <FiFile size={12} className="mt-0.5 mr-1.5 text-indigo-300 flex-shrink-0" />
+                        <div className="overflow-hidden">
+                          <div className="truncate">
+                            {source.title || source.display_name || source.path.split('/').pop()}
+                          </div>
+                          {source.page && (
+                            <div className="text-gray-500 text-[10px]">페이지 {source.page}</div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
-              
-              {/* 출처 표시 부분 추가 */}
-              {!isUser && message.sources && (
-                <div className="mt-2">
-                  <button
-                    onClick={toggleSourcesVisible}
-                    className="flex items-center text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-                  >
-                    {sourcesVisible ? (
-                      <FiChevronDown size={14} className="mr-1" />
-                    ) : (
-                      <FiChevronRight size={14} className="mr-1" />
-                    )}
-                    {/* 인용된 출처만 표시 */}
-                    <span>출처 {(message.cited_sources?.length || message.sources.filter(s => s.is_cited).length || 0)}개</span>
-                  </button>
-                  
-                  {sourcesVisible && (
-                    <div className="mt-1.5 space-y-1.5 text-xs text-gray-400 pl-1">
-                      {/* 인용된 출처만 사용하는 로직으로 변경 */}
-                      {(message.cited_sources || message.sources.filter(s => s.is_cited)).map((source, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-start hover:bg-gray-700/30 p-1 -mx-1 rounded cursor-pointer"
-                          onClick={() => handlePreviewSource(source)}
-                        >
-                          <FiFile size={12} className="mt-0.5 mr-1.5 text-indigo-300 flex-shrink-0" />
-                          <div className="overflow-hidden">
-                            <div className="truncate">
-                              {source.title || source.display_name || source.path.split('/').pop()}
-                            </div>
-                            {source.page && (
-                              <div className="text-gray-500 text-[10px]">페이지 {source.page}</div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+            )}
+            
+            {/* 후속 질문 영역 */}
+            {suggestedQuestions.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <p className="text-xs text-gray-400 ml-1">후속 질문 추천:</p>
+                <div className="flex flex-wrap gap-2">
+                  {suggestedQuestions.map((question, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => onAskFollowUp(question)}
+                      className="px-2 py-1 text-xs rounded-full transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    >
+                      {question}
+                    </button>
+                  ))}
                 </div>
-              )}
-            </div>
-
-            {/* 액션 버튼 */}
-            <div
-              className={`flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity ${
-                isUser ? "justify-start" : "justify-end"
-              }`}
-            >
+              </div>
+            )}
+            
+            {/* 피드백 버튼 영역 */}
+            <div className={`mt-2 flex items-center text-xs gap-3 transition-opacity ${
+              hasInteractedWithButtons ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            }`}>
               <button
                 onClick={handleCopy}
                 className="p-1.5 rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 transition-colors"
@@ -1561,84 +1497,36 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
               )}
             </div>
           </div>
-          
-          {/* 프로필 아이콘 (사용자만) */}
-          {isUser && !isPrevSameSender && (
-          <div className="flex-shrink-0 ml-3 mt-1">
-              <ProfileAvatar role={message.role} isGrouped={isGrouped} />
-            </div>
-          )}
-          
-          {/* 사용자 메시지 오른쪽 여백 처리 */}
-          {isUser && isPrevSameSender && <div className="w-12"></div>}
+        )}
+        
+        {/* 콘텐츠 목차 */}
+        {showTableOfContents && (
+          <div className="ml-11 mt-3 max-w-2xl">
+            <TableOfContents 
+              headings={headings} 
+              onClickHeading={scrollToHeading}
+            />
           </div>
+        )}
       </div>
-
-      {/* 이미지 미리보기 모달 */}
-      {showImagePreview && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-gradient-to-br from-gray-800 to-gray-850 rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-soft-2xl border border-gray-700/50">
-            <div className="flex items-center justify-between p-4 border-b border-gray-700/50 bg-gradient-to-r from-gray-800/90 to-gray-850/90">
-              <h3 className="font-medium flex items-center text-gray-200">
-                <FiImage className="mr-2 text-indigo-500" />
-                <span className="truncate max-w-md">{previewImage ? previewImage : "이미지 미리보기"}</span>
-              </h3>
-              <button 
-                onClick={() => setShowImagePreview(false)}
-                className="p-2 rounded-full hover:bg-gray-700 transition-colors text-gray-400"
-              >
-                <FiX size={20} />
-              </button>
-            </div>
-            
-            <div className="flex-1 overflow-auto p-6 custom-scrollbar bg-gradient-to-b from-gray-800/90 to-gray-850/95">
-              {previewImage ? (
-                <div className="relative group">
-                  <img 
-                    src={previewImage}
-                    alt="미리보기"
-                    className={`rounded-lg shadow-md transition-all duration-300 ${
-                      showImagePreview ? 'max-w-none' : 'max-w-md'
-                    }`}
-                  />
-                  <button
-                    onClick={() => setShowImagePreview(false)}
-                    className="absolute top-2 right-2 p-2 bg-gray-800/80 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    {showImagePreview ? (
-                      <FiMinimize2 className="text-white" size={16} />
-                    ) : (
-                      <FiMaximize2 className="text-white" size={16} />
-                    )}
-                  </button>
-                </div>
-              ) : (
-                <div className="text-center text-gray-400 py-8">
-                  이미지를 불러올 수 없습니다.
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
+      
       {/* 피드백 모달 */}
       <FeedbackModal
         isOpen={showFeedbackModal}
         onClose={() => setShowFeedbackModal(false)}
         messageContent={message.content}
-        feedbackType={currentFeedbackType}
         onSubmit={handleSubmitFeedback}
+        feedbackType={currentFeedbackType}
       />
       
-      {/* 피드백 결과 토스트 */}
-      <FeedbackToast
+      {/* 피드백 토스트 */}
+      <FeedbackToast 
         isVisible={toast.visible}
         message={toast.message}
         type={toast.type}
         onClose={handleCloseToast}
       />
-    </>
+    </div>
   );
 }
 

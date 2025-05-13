@@ -2182,11 +2182,27 @@ async def get_db_schema():
     try:
         from app.utils.get_mariadb_schema import get_mariadb_schema
         schema = get_mariadb_schema()
+        
+        # 오류 메시지가 반환된 경우 (ERROR로 시작하는 문자열)
+        if isinstance(schema, str) and schema.startswith("ERROR:"):
+            print(f"DB 스키마 조회 오류: {schema}")
+            # 오류가 발생했지만 200 OK와 함께 오류 메시지 전달
+            return {
+                "status": "error", 
+                "schema": "# 데이터베이스 연결 오류\n\n데이터베이스에 연결할 수 없습니다. 관리자에게 문의하세요.",
+                "error": schema
+            }
+            
         return {"status": "success", "schema": schema}
     except Exception as e:
         print(f"DB 스키마 조회 중 오류 발생: {str(e)}")
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"DB 스키마 조회 중 오류 발생: {str(e)}")
+        # 500 에러가 아닌 200 OK 응답으로 변경하여 클라이언트 오류 처리 개선
+        return {
+            "status": "error",
+            "schema": "# 데이터베이스 스키마 로딩 오류\n\n시스템 오류로 스키마를 불러올 수 없습니다. 관리자에게 문의하세요.",
+            "error": str(e)
+        }
 
 @app.post("/api/sql-query")
 async def process_sql_query(request: SQLQueryRequest = Body(...)):

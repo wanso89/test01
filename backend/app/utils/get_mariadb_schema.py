@@ -3,12 +3,14 @@ import traceback
 import mysql.connector
 from typing import Dict, Optional, Any
 
-# MariaDB 연결 설정 (기본값)
+# MariaDB 연결 설정 (환경 변수에서 가져오기)
 DEFAULT_DB_CONFIG = {
-    "host": "localhost",
-    "user": "root",
-    "password": "3Ssoft1!",
-    "database": "chatbot"
+    "host": os.environ.get("DB_HOST", "localhost"),
+    "user": os.environ.get("DB_USER", "root"),
+    "password": os.environ.get("DB_PASSWORD", "3Ssoft1!"),
+    "database": os.environ.get("DB_NAME", "chatbot"),
+    "port": int(os.environ.get("DB_PORT", "3306")),
+    "connect_timeout": 10  # 연결 타임아웃 설정 추가
 }
 
 def get_mariadb_schema(db_config: Optional[Dict[str, Any]] = None) -> str:
@@ -25,12 +27,21 @@ def get_mariadb_schema(db_config: Optional[Dict[str, Any]] = None) -> str:
         db_config = DEFAULT_DB_CONFIG
         
     try:
+        # 연결 테스트 추가
+        print(f"MariaDB 연결 시도 - 호스트: {db_config['host']}, 사용자: {db_config['user']}, DB: {db_config['database']}")
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor()
+        
+        # 연결 테스트 쿼리
+        cursor.execute("SELECT 1")
+        cursor.fetchone()
 
         # 모든 테이블 조회
         cursor.execute("SHOW TABLES")
         tables = [row[0] for row in cursor.fetchall()]
+        
+        if not tables:
+            return "데이터베이스에 테이블이 없습니다."
 
         schema_parts = []
         
