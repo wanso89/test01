@@ -41,6 +41,95 @@ const getRandomColor = () => {
   return CHART_COLORS[Math.floor(Math.random() * CHART_COLORS.length)];
 };
 
+// 클립보드 복사 안전하게 처리하는 함수 추가 (로그 제거 및 토스트 피드백 추가)
+const safeCopyToClipboard = (text) => {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => {
+          // 복사 성공 시 시각적 피드백 표시
+          showToast("클립보드에 복사되었습니다.");
+        })
+        .catch(err => {
+          // 조용히 실패 처리하고 대체 방법 시도
+          fallbackCopyToClipboard(text);
+        });
+    } else {
+      // 클립보드 API 미지원 시 대체 방법 사용
+      fallbackCopyToClipboard(text);
+    }
+  } catch (err) {
+    // 모든 방법 실패 시 대체 방법 시도
+    fallbackCopyToClipboard(text);
+  }
+};
+
+// 대체 복사 방식을 별도 함수로 분리
+const fallbackCopyToClipboard = (text) => {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';  // 화면 밖으로
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  try {
+    const successful = document.execCommand('copy');
+    if (successful) {
+      showToast("클립보드에 복사되었습니다.");
+    }
+  } catch (err) {
+    // 실패 시 조용히 처리 (사용자 경험에 영향 없도록)
+  }
+  document.body.removeChild(textarea);
+};
+
+// 간단한 토스트 메시지 표시 함수
+const showToast = (message) => {
+  // 이미 토스트가 있으면 제거
+  const existingToast = document.getElementById('clipboard-toast');
+  if (existingToast) {
+    document.body.removeChild(existingToast);
+  }
+  
+  // 새 토스트 생성
+  const toast = document.createElement('div');
+  toast.id = 'clipboard-toast';
+  toast.style.position = 'fixed';
+  toast.style.bottom = '20px';
+  toast.style.left = '50%';
+  toast.style.transform = 'translateX(-50%)';
+  toast.style.backgroundColor = 'rgba(79, 70, 229, 0.9)';
+  toast.style.color = 'white';
+  toast.style.padding = '8px 16px';
+  toast.style.borderRadius = '4px';
+  toast.style.fontSize = '0.875rem';
+  toast.style.zIndex = '9999';
+  toast.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.25)';
+  toast.textContent = message;
+  
+  // 토스트 애니메이션
+  toast.style.opacity = '0';
+  toast.style.transition = 'opacity 0.3s ease-in-out';
+  
+  // 문서에 추가
+  document.body.appendChild(toast);
+  
+  // 애니메이션 시작
+  setTimeout(() => {
+    toast.style.opacity = '1';
+  }, 10);
+  
+  // 토스트 자동 제거
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    setTimeout(() => {
+      if (document.body.contains(toast)) {
+        document.body.removeChild(toast);
+      }
+    }, 300);
+  }, 2000);
+};
+
 // DB 스키마를 사용자 친화적으로 파싱하는 함수
 const parseDBSchema = (schemaText) => {
   if (!schemaText) return null;
@@ -108,7 +197,7 @@ const parseDBSchema = (schemaText) => {
               <span 
                 key={idx} 
                 className="inline-flex items-center px-2 py-1 rounded-md bg-indigo-700/30 text-xs text-indigo-200 hover:bg-indigo-700/50 hover:text-white cursor-pointer transition-colors border border-indigo-600/30"
-                onClick={() => navigator.clipboard.writeText(table.tableName)}
+                onClick={() => safeCopyToClipboard(table.tableName)}
                 title="클릭하여 테이블명 복사"
               >
                 <FiTable size={10} className="mr-1" />
@@ -125,7 +214,7 @@ const parseDBSchema = (schemaText) => {
               <div className="flex items-center gap-2">
                 <FiTable size={14} className="text-indigo-400" />
                 <span className="text-sm text-indigo-300 font-medium cursor-pointer" 
-                  onClick={() => navigator.clipboard.writeText(table.tableName)} 
+                  onClick={() => safeCopyToClipboard(table.tableName)} 
                   title="클릭하여 테이블명 복사"
                 >
                   {table.tableName}
@@ -150,7 +239,7 @@ const parseDBSchema = (schemaText) => {
                     <tr 
                       key={colIdx} 
                       className={`${colIdx % 2 === 0 ? 'bg-gray-800/10' : 'bg-gray-800/5'} border-t border-gray-700/20 hover:bg-gray-800/30 cursor-pointer`}
-                      onClick={() => navigator.clipboard.writeText(`${table.tableName}.${column.columnName}`)}
+                      onClick={() => safeCopyToClipboard(`${table.tableName}.${column.columnName}`)}
                       title="클릭하여 테이블.컬럼명 복사"
                     >
                       <td className="py-1.5 px-3 text-gray-400 font-mono text-[10px]">{colIdx + 1}</td>
@@ -1155,7 +1244,7 @@ const SQLQueryPage = () => {
     }
   };
   
-  // SQL 쿼리 제출 함수 - handleSubmit에서 분리하여 재사용 가능하게 함
+  // SQL 쿼리 제출 함수 개선
   const submitSqlQuery = async (questionText, e) => {
     if (e) e.preventDefault();
     
@@ -1174,8 +1263,7 @@ const SQLQueryPage = () => {
       setIsLoading(true);
       setErrorMessage('');
       
-      // SQL만 생성 API 호출 - 상대 경로로 변경 (vite 프록시 사용)
-      // 백엔드 API에서 기대하는 파라미터 이름을 'query'에서 'question'으로 변경
+      // SQL 변환 API 호출
       const response = await fetch('/api/sql-query', {
         method: 'POST',
         headers: {
@@ -1192,15 +1280,28 @@ const SQLQueryPage = () => {
       
       // 히스토리에 추가
       if (result.sql) {
-        addToHistory(queryText, result.sql, result.results || result.result || "");
+        addToHistory(queryText, result.sql, result.results);
       }
       
       // 응답 메시지 추가
+      const isError = result.results && result.results.includes('❌');
+      const isEmpty = result.results && result.results.includes('⚠️ 결과가 없습니다');
+      
+      let responseContent = '';
+      
+      if (isError) {
+        responseContent = '쿼리 실행 중 오류가 발생했습니다. SQL 문법을 확인해주세요.';
+      } else if (isEmpty) {
+        responseContent = '조건에 맞는 데이터를 찾을 수 없습니다.';
+      } else {
+        responseContent = '쿼리 결과입니다:';
+      }
+      
       const newAssistantMessage = {
         type: 'assistant',
-        content: '아래는 요청하신 SQL 쿼리입니다:',
+        content: responseContent,
         sql: result.sql,
-        result: result.results || result.result || "",
+        result: result.results,
         timestamp: new Date().toISOString()
       };
       
@@ -1211,8 +1312,8 @@ const SQLQueryPage = () => {
       }
       
       // 결과에서 테이블 데이터 파싱 (차트 준비)
-      if (result.results || result.result) {
-        const parsedData = parseTableData(result.results || result.result);
+      if (result.results && !isError && !isEmpty) {
+        const parsedData = parseTableData(result.results);
         setTableData(parsedData);
       }
       
@@ -1225,7 +1326,7 @@ const SQLQueryPage = () => {
     }
   };
   
-  // SQL + LLM 쿼리 제출 함수 - handleSqlLlmQuery에서 분리하여 재사용 가능하게 함
+  // SQL + LLM 쿼리 제출 함수 개선
   const submitSqlLlmQuery = async (questionText) => {
     const queryText = questionText || question;
     if (!queryText.trim() || isLoading) return;
@@ -1242,8 +1343,7 @@ const SQLQueryPage = () => {
       setIsLoading(true);
       setErrorMessage('');
       
-      // SQL + LLM 응답 생성 API 호출 - 상대 경로로 변경 (vite 프록시 사용)
-      // 백엔드 API에서 기대하는 파라미터 이름을 'query'에서 'question'으로 변경
+      // SQL + LLM 응답 생성 API 호출
       const response = await fetch('/api/sql-and-llm', {
         method: 'POST',
         headers: {
@@ -1269,9 +1369,25 @@ const SQLQueryPage = () => {
       }
       
       // 응답 메시지 추가
+      const isError = results && results.includes('❌');
+      const isEmpty = results && results.includes('⚠️ 결과가 없습니다');
+      
+      // 오류나 빈 결과가 아니라면 응답 그대로 표시, 아니면 상태에 맞는 보조 메시지 추가
+      let finalContent = explanation;
+      
+      if (!explanation || explanation.length < 5) {
+        if (isError) {
+          finalContent = '쿼리 실행 중 오류가 발생했습니다. SQL 문법을 확인해주세요.';
+        } else if (isEmpty) {
+          finalContent = '조건에 맞는 데이터를 찾을 수 없습니다.';
+        } else {
+          finalContent = '쿼리 결과입니다:';
+        }
+      }
+      
       const newAssistantMessage = {
         type: 'assistant',
-        content: explanation || '쿼리 결과입니다:',
+        content: finalContent,
         sql: sql,
         result: results,
         timestamp: new Date().toISOString()
@@ -1284,7 +1400,7 @@ const SQLQueryPage = () => {
       }
       
       // 결과에서 테이블 데이터 파싱 (차트 준비)
-      if (results) {
+      if (results && !isError && !isEmpty) {
         const parsedData = parseTableData(results);
         setTableData(parsedData);
       }
@@ -1304,7 +1420,11 @@ const SQLQueryPage = () => {
   };
   
   // API 호출 함수 - SQL 변환 + LLM 설명 요청 (폼 제출용 핸들러)
-  const handleSqlLlmQuery = () => {
+  const handleSqlLlmQuery = (e) => {
+    // 이벤트 객체가 존재하면 기본 동작 방지
+    if (e) {
+      e.preventDefault();
+    }
     submitSqlLlmQuery();
   };
   
@@ -1350,6 +1470,19 @@ const SQLQueryPage = () => {
     });
   };
   
+  // AI 응답 탭 전환 로직 수정
+  const handleTabChange = (tab) => {
+    // 이미 같은 탭이면 변경하지 않음
+    if (activeTab === tab) return;
+    
+    // 탭 변경
+    setActiveTab(tab);
+    
+    // 새 탭이 'sql'이면, 기존 작성 중인 내용 유지
+    // 'ai'로 변경 시 이전 상태 유지
+    console.log(`탭 변경: ${activeTab} -> ${tab}`);
+  };
+
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-gray-900 via-[#111827] to-indigo-900/20 text-gray-100">
       {/* 헤더 */}
@@ -1369,9 +1502,7 @@ const SQLQueryPage = () => {
         <div className="mt-3 md:mt-0 md:ml-auto flex items-center gap-2 flex-wrap">
           <div className="flex px-2 py-1 rounded-lg bg-gray-800/50 border border-gray-700/30">
             <button
-              onClick={() => {
-                setActiveTab('sql');
-              }}
+              onClick={() => handleTabChange('sql')}
               className={`px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 transition-colors ${
                 activeTab === 'sql' 
                   ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-sm' 
@@ -1384,9 +1515,7 @@ const SQLQueryPage = () => {
             </button>
             
             <button
-              onClick={() => {
-                setActiveTab('ai');
-              }}
+              onClick={() => handleTabChange('ai')}
               className={`px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 transition-colors ${
                 activeTab === 'ai' 
                   ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-sm' 
@@ -1635,51 +1764,51 @@ const SQLQueryPage = () => {
             
             {/* 입력창 */}
             <div className="px-4 py-3 border-t border-gray-800/50 bg-gray-900/70 backdrop-blur-sm">
-              <form onSubmit={activeTab === 'sql' ? handleSubmit : handleSqlLlmQuery} className="max-w-3xl mx-auto">
-                <div className="relative rounded-xl shadow-md group focus-within:ring-2 focus-within:ring-indigo-500/50 transition-all duration-300">
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                activeTab === 'sql' ? handleSubmit(e) : handleSqlLlmQuery(e);
+              }} className="max-w-3xl mx-auto">
+                <div className="relative">
                   <input
-                    ref={inputRef}
                     type="text"
                     value={question}
                     onChange={(e) => setQuestion(e.target.value)}
-                    placeholder="데이터베이스에 질문하세요..."
-                    className="w-full pl-5 pr-24 py-3.5 bg-gray-800/80 border border-gray-700/60 focus:border-indigo-500/70
-                            focus:ring-0 rounded-xl outline-none transition-all text-white text-sm group-hover:border-indigo-500/40"
-                    disabled={isLoading}
+                    placeholder={activeTab === 'sql' ? "자연어로 질문하면 SQL로 변환해 드립니다" : "SQL 변환 + AI 응답 생성"}
+                    className="w-full bg-gray-800/30 border border-gray-700/50 focus:border-indigo-500/60 rounded-full pl-4 pr-36 py-3 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
                   />
                   
-                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
+                  <div className="absolute right-2 top-2 flex items-center gap-1.5">
+                    {/* 모드 전환 버튼 */}
                     <button
                       type="button"
                       onClick={() => {
+                        // 현재 탭 토글
                         if (activeTab === 'sql') {
-                          setActiveTab('ai');
-                          handleSqlLlmQuery();
+                          handleTabChange('ai');
                         } else {
-                          setActiveTab('sql');
-                          handleSubmit(new Event('submit'));
+                          handleTabChange('sql');
                         }
                       }}
-                      disabled={isLoading || !question.trim()}
-                      className="p-2 text-gray-400 hover:text-indigo-400 disabled:opacity-50 disabled:hover:text-gray-400 transition-colors"
+                      className="px-2 py-1.5 bg-gray-700/50 hover:bg-indigo-600/20 rounded-md text-gray-400 hover:text-indigo-300 transition-colors"
                       title={activeTab === 'sql' ? "AI 응답 생성으로 전환" : "SQL 생성으로 전환"}
                     >
                       {activeTab === 'sql' ? <FiZap size={16} /> : <FiCode size={16} />}
                     </button>
                     
+                    {/* 전송 버튼 */}
                     <button
                       type="submit"
-                      disabled={isLoading || !question.trim()}
-                      className="p-2 rounded-md bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white disabled:opacity-50 disabled:from-gray-700 disabled:to-gray-800 transition-colors"
+                      className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 rounded-md text-white font-medium transition-colors flex items-center gap-1.5"
+                      disabled={isLoading}
                     >
-                      {isLoading ? <FiLoader size={16} className="animate-spin" /> : <FiSend size={16} />}
+                      <span className="mr-1">{activeTab === 'sql' ? "SQL 생성 모드" : "AI 응답 모드"}</span>
+                      {isLoading ? (
+                        <FiLoader size={14} className="animate-spin" />
+                      ) : (
+                        <FiSend size={14} />
+                      )}
                     </button>
                   </div>
-                </div>
-                <div className="text-xs text-right mt-1.5 text-gray-500">
-                  <span className="mr-1">{activeTab === 'sql' ? "SQL 생성 모드" : "AI 응답 모드"}</span>
-                  <kbd className="px-1.5 py-0.5 bg-gray-800 rounded border border-gray-700 text-gray-400">Enter</kbd>
-                  <span className="mx-1">키를 눌러 질문하세요</span>
                 </div>
               </form>
             </div>

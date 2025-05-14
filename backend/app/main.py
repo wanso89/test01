@@ -2275,79 +2275,193 @@ async def process_sql_and_llm(request: SQLAndLLMRequest = Body(...)):
             
             formatted_results = markdown_table
         
+        # 결과 검증 - AI 응답 생성 기준
+        has_valid_results = (formatted_results and 
+                             "오류" not in formatted_results and 
+                             "쿼리 결과가 없습니다" not in formatted_results)
+        
         # LLM으로 SQL 결과 설명 생성
-        bot_response = "데이터베이스 조회 결과입니다."
+        bot_response = ""
         
         try:
-            # LLM 모델 활용하여 응답 생성 (시간 제약 상 간단 구현)
-            # app.state에서 모델 로드 및 사용
+            # LLM 모델 활용하여 응답 생성
             llm_model = getattr(app.state, "llm_model", None)
             tokenizer = getattr(app.state, "tokenizer", None)
             
             if llm_model and tokenizer:
-                # 프롬프트 생성
-                prompt = f"""
-질문: {request.question}
+                try:
+                    from app.utils.llm_utils import generate_text_with_local_llm
+                    
+                    # 프롬프트 생성 - 더 구체적인 지시사항과 분석 요구 포함
+                    prompt = f"""# SQL 쿼리 결과 분석 및 응답 생성
 
-SQL 쿼리:
+## 질문
+{request.question}
+
+## SQL 쿼리
 ```sql
 {sql_query}
 ```
 
-쿼리 결과:
+## 쿼리 결과
 {formatted_results if not result_error else '쿼리 실행 중 오류가 발생했습니다.'}
 
-위 SQL 쿼리와 결과를 바탕으로 사용자의 질문에 대한 응답을 생성해주세요.
-결과를 요약하고 통찰력 있는 설명을 추가해주세요.
-"""
+## 임무
+위 SQL 쿼리와 결과를 철저히 분석하여 사용자의 질문에 대한 명확하고 상세한 응답을 생성해주세요.
+단순히 "몇 개의 결과가 있습니다"와 같은 피상적인 답변이 아닌, 데이터의 의미와 통찰력을 전달해야 합니다.
 
-                # 모델 실행
-                inputs = tokenizer(prompt, return_tensors="pt")
-                
-                # 모델이 CUDA를 사용할 수 있으면 GPU로 이동
-                if torch.cuda.is_available():
-                    inputs = {k: v.to('cuda') for k, v in inputs.items()}
-                    llm_model.to('cuda')
-                
-                # 추론 실행
-                with torch.no_grad():
-                    output = llm_model.generate(
-                        **inputs,
-                        max_new_tokens=512,
-                        do_sample=True,
-                        temperature=0.3,
-                        top_p=0.95,
-                        pad_token_id=tokenizer.eos_token_id,
+## 응답 요구사항
+1. 결과에 대한 종합적인 분석과 해석을 제공하세요
+2. 데이터의 패턴, 추세, 특이점 등을 포함한 심층 분석을 해주세요
+3. 질문에 직접적으로 답하는 명확한 결론을 제시하세요
+4. 수치 데이터의 경우, 그 의미와 중요성을 설명하세요
+5. 응답은 최소 3-4문단으로 구성하여 충분히 상세하게 작성하세요
+6. 정보의 우선순위를 고려하여 가장 중요한 정보부터 체계적으로 구성하세요
+
+## 주의사항
+- 쿼리 자체에 대한 기술적 설명은 포함하지 마세요
+- "쿼리 결과에 따르면"과 같은 불필요한 참조 문구는 생략하세요
+- 결과가 없거나 오류가 있는 경우, 가능한 원인과 대안을 제시하세요
+- 응답은 사용자 친화적인 자연스러운 문체로 작성하세요"""
+
+                    # 개선된 generate_text_with_local_llm 함수 사용
+                    print(f"[SQL+LLM] LLM 모델로 향상된 응답 생성 시작 - 질문: '{request.question}'")
+                    print(f"[SQL+LLM] 향상된 프롬프트 길이: {len(prompt)} 문자")
+                    
+                    # 시스템 프롬프트 추가
+                    system_prompt = """당신은 데이터 분석 전문가이자 SQL 전문가입니다. 
+데이터베이스 쿼리 결과를 분석하고 사용자 질문에 대한 통찰력 있는 답변을 제공하는 것이 당신의 역할입니다.
+응답은 항상 풍부한 맥락과 세부 정보를 포함해야 하며, 단순히 결과를 반복하는 것이 아니라 의미 있는 해석을 제공해야 합니다."""
+                    
+                    bot_response = generate_text_with_local_llm(
+                        prompt=prompt,
+                        temperature=0.4,
+                        max_tokens=1024,
+                        system_prompt=system_prompt
                     )
-                
-                # 결과 디코딩
-                generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
-                
-                # 입력 프롬프트 제거
-                if generated_text.startswith(prompt):
-                    bot_response = generated_text[len(prompt):].strip()
-                else:
-                    # 다른 방식으로 응답 추출 시도
-                    response_start = generated_text.find("위 SQL 쿼리와 결과를 바탕으로")
-                    if response_start > 0:
-                        potential_response = generated_text[response_start:].strip()
+                    
+                    print(f"[SQL+LLM] 생성된 응답 길이: {len(bot_response)} 문자")
+                    print(f"[SQL+LLM] 응답 미리보기: {bot_response[:100]}...")
+                    
+                    # 응답 유효성 검사
+                    if not bot_response or len(bot_response) < 50:
+                        print(f"[SQL+LLM] 경고: 응답이 너무 짧습니다 - '{bot_response}'")
+                        raise ValueError("응답이 너무 짧거나 유효하지 않습니다")
                         
-                        # "응답:" 또는 "설명:" 같은 마커 검색
-                        markers = ["응답:", "설명:", "결과:", "분석:"]
-                        for marker in markers:
-                            if marker in potential_response:
-                                marker_pos = potential_response.find(marker) + len(marker)
-                                bot_response = potential_response[marker_pos:].strip()
-                                break
+                except Exception as generate_err:
+                    print(f"[SQL+LLM] 텍스트 생성 오류: {str(generate_err)}")
+                    # 오류 발생 시 기존 방식으로 폴백
+                    with torch.no_grad():
+                        output = llm_model.generate(
+                            **tokenizer(prompt, return_tensors="pt").to(llm_model.device),
+                            max_new_tokens=512,
+                            do_sample=True,
+                            temperature=0.4,
+                            top_p=0.95,
+                            pad_token_id=tokenizer.eos_token_id,
+                        )
+                    
+                    # 결과 디코딩
+                    generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
+                    print(f"[SQL+LLM] 폴백 방식으로 응답 생성 완료, 결과 길이: {len(generated_text)} 문자")
+                    
+                    # 입력 프롬프트 제거 시도
+                    if prompt in generated_text:
+                        bot_response = generated_text[len(prompt):].strip()
                     else:
-                        # 기본 응답
-                        bot_response = "데이터베이스 조회 결과입니다. 위 테이블을 참고해주세요."
+                        # 다른 방식으로 응답 추출 시도
+                        response_start = generated_text.find("## 응답 요구사항")
+                        if response_start > 0:
+                            potential_response = generated_text[response_start:].strip()
+                            
+                            # 다양한 마커 검색
+                            markers = ["답변:", "분석:", "결과:", "설명:", "분석 결과:", "결론:", "다음과 같습니다:"]
+                            for marker in markers:
+                                if marker in potential_response:
+                                    marker_pos = potential_response.find(marker) + len(marker)
+                                    bot_response = potential_response[marker_pos:].strip()
+                                    print(f"[SQL+LLM] 마커('{marker}') 기반 추출")
+                                    break
+                            else:
+                                bot_response = generated_text  # 마커가 없으면 전체 텍스트 사용
+                
+                # 유효한 응답이 생성되지 않은 경우
+                if not bot_response or len(bot_response) < 10:
+                    print(f"[SQL+LLM] 응답 추출 실패 또는 너무 짧은 응답: '{bot_response}'")
+                    if has_valid_results:
+                        # 쿼리 결과가 있는 경우 기본 정보 제공
+                        rows_count = len(sql_results) if sql_results else 0
+                        cols = list(sql_results[0].keys()) if sql_results and len(sql_results) > 0 else []
+                        
+                        if rows_count > 0:
+                            # 데이터 샘플 추출 및 응답 생성
+                            first_row = sql_results[0]
+                            sample_data = []
+                            
+                            # 첫 번째 행의 주요 데이터 포함
+                            for col in cols[:min(4, len(cols))]:
+                                if first_row[col] is not None:
+                                    sample_data.append(f"{col}: {first_row[col]}")
+                            
+                            bot_response = f"조회 결과로 {rows_count}개의 데이터가 확인되었습니다. "
+                            
+                            # 몇 가지 주요 열 이름 추출
+                            col_names = ", ".join([f"'{col}'" for col in cols[:min(3, len(cols))]])
+                            if len(cols) > 3:
+                                col_names += f" 등 총 {len(cols)}개 항목"
+                                
+                            # 첫 번째 행 데이터 샘플 포함
+                            if sample_data:
+                                bot_response += f"데이터는 {col_names}으로 구성되어 있으며, 첫 번째 항목은 {', '.join(sample_data)} 등의 정보를 포함하고 있습니다."
+                            else:
+                                bot_response += f"데이터는 {col_names}으로 구성되어 있습니다."
+                                
+                            # SQL 질의 의도에 따른 부가 설명 추가
+                            if "COUNT" in sql_query.upper() or "SUM" in sql_query.upper() or "AVG" in sql_query.upper():
+                                bot_response += " 위 테이블은 집계 결과를 보여줍니다."
+                            elif "ORDER BY" in sql_query.upper() and "DESC" in sql_query.upper():
+                                bot_response += " 데이터는 내림차순으로 정렬되어 있어 상위 항목들을 확인할 수 있습니다."
+                            elif "GROUP BY" in sql_query.upper():
+                                bot_response += " 데이터는 특정 기준으로 그룹화되어 있습니다."
+                        else:
+                            bot_response = "조회 결과로 데이터가 확인되었으나, 상세 정보를 분석하는 데 어려움이 있습니다. 테이블을 직접 확인해주세요."
+                    else:
+                        # 오류가 있거나 결과가 없는 경우
+                        bot_response = "데이터베이스에서 해당 질문에 대한 결과를 찾을 수 없습니다. 조건을 변경하여 다시 시도해보세요."
+                
+                print(f"[SQL+LLM] 최종 응답: '{bot_response[:100]}...'")
+                
             else:
-                bot_response = "데이터베이스 조회 결과입니다. 위 테이블을 참고해주세요."
+                # LLM 모델이 없는 경우 기본 응답 생성
+                print("[SQL+LLM] LLM 모델 또는 토크나이저가 초기화되지 않음")
+                if has_valid_results:
+                    rows_count = len(sql_results) if sql_results else 0
+                    cols = list(sql_results[0].keys()) if sql_results and len(sql_results) > 0 else []
+                    
+                    if rows_count > 0:
+                        col_names = ", ".join([f"'{col}'" for col in cols[:min(3, len(cols))]])
+                        if len(cols) > 3:
+                            col_names += f" 등 총 {len(cols)}개 항목"
+                            
+                        bot_response = f"조회 결과로 {rows_count}개의 데이터가 확인되었습니다. 데이터는 {col_names}으로 구성되어 있습니다."
+                    else:
+                        bot_response = f"조회 결과로 {rows_count}개의 데이터가 확인되었습니다. 테이블 내용을 참고해주세요."
+                else:
+                    bot_response = "데이터베이스에서 해당 질문에 대한 결과를 찾을 수 없습니다. 다른 질문을 시도해보세요."
                 
         except Exception as llm_err:
             print(f"LLM 응답 생성 오류: {str(llm_err)}")
-            bot_response = "데이터베이스 조회 결과입니다. 위 테이블을 참고해주세요."
+            
+            # 오류 발생시 기본 메시지 제공
+            if has_valid_results:
+                rows_count = len(sql_results) if sql_results else 0
+                bot_response = f"조회 결과, 총 {rows_count}개의 데이터가 확인되었습니다. 테이블 내용을 참고해주세요."
+            else:
+                bot_response = "데이터베이스에서 해당 질문에 대한 결과를 찾을 수 없습니다. 다른 질문을 시도해보세요."
+        
+        # 응답이 없는 경우 기본 메시지
+        if not bot_response:
+            bot_response = "데이터베이스 조회 결과입니다. 테이블 내용을 참고해주세요."
         
         # 최종 결과 반환
         return {

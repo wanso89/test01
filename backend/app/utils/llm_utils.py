@@ -156,3 +156,95 @@ def generate_response(prompt, max_tokens=1000, temperature=0.1):
     loop.close()
     
     return response 
+
+def generate_text_with_local_llm(prompt, max_tokens=1024, temperature=0.5, top_p=0.95, top_k=50, system_prompt=None):
+    """
+    로컬 LLM 모델을 사용하여 텍스트를 생성하는 함수입니다.
+    
+    Args:
+        prompt (str): 프롬프트 텍스트
+        max_tokens (int): 생성할 최대 토큰 수 (기본값 1024로 증가)
+        temperature (float): 생성 다양성 조절 (0.5로 증가하여 더 창의적인 응답)
+        top_p (float): 누적 확률 임계값 (nucleus sampling)
+        top_k (int): 상위 k개 토큰만 고려
+        system_prompt (str): 시스템 프롬프트 (지정하지 않으면 기본값 사용)
+        
+    Returns:
+        str: 생성된 텍스트
+    """
+    import fastapi
+    from app.main import app
+    
+    print(f"[LLM_UTILS] 로컬 LLM 모델로 텍스트 생성 시작")
+    print(f"[LLM_UTILS] 프롬프트 길이: {len(prompt)} 문자")
+    print(f"[LLM_UTILS] 프롬프트 미리보기: {prompt[:100]}...")
+    
+    # 기본 시스템 프롬프트 설정
+    if system_prompt is None:
+        system_prompt = """당신은 전문적인 AI 어시스턴트입니다. 다음 지침을 항상 따르세요:
+1. 질문에 대해 정확하고 상세한 답변을 제공하세요.
+2. 핵심 정보를 단순하게 요약하는 대신, 풍부한 맥락과 설명을 제공하세요.
+3. 사용자가 요청한 내용을 깊이 있게 분석하고, 관련 정보를 포괄적으로 다루세요.
+4. 답변은 명확한 구조로 논리적으로 구성하고, 필요한 세부 사항과 예시를 포함하세요.
+5. 단순한 일반화나 피상적인 응답은 피하고, 구체적이고 실용적인 통찰을 제공하세요.
+6. 항상 사용자의 질문 의도를 정확히 파악하여 해당 주제에 대한 전문적인 지식을 보여주세요."""
+    
+    # 생성 지시사항 추가하여 프롬프트 강화
+    enhanced_prompt = f"""{prompt}
+
+답변 지침:
+- 응답은 반드시 충분히 길고 상세하게 작성해주세요.
+- 단답형으로 응답하지 말고 충분한 설명과 분석을 포함해주세요.
+- 필요한 경우 예시를 들거나 단계별로 설명해주세요.
+- 주제에 관한 중요한 세부 정보를 빠짐없이 포함시켜주세요."""
+    
+    # FastAPI 앱 객체에서 모델과 토크나이저 가져오기
+    model = getattr(app.state, "llm_model", None)
+    tokenizer = getattr(app.state, "tokenizer", None)
+    
+    if model is None or tokenizer is None:
+        print("[LLM_UTILS] 모델 또는 토크나이저가 초기화되지 않았습니다.")
+        return "모델 준비 중입니다. 잠시 후 다시 시도해주세요."
+    
+    try:
+        # 비동기 루프 생성 및 함수 실행
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # 모델마다 시스템 프롬프트 적용 방식 다를 수 있음 (Gemma는 시스템 프롬프트를 따로 지원하지 않음)
+        # 실제 모델이 Gemma인 경우 시스템 프롬프트를 프롬프트 앞에 추가
+        if "gemma" in str(model.__class__).lower() or "gemma" in (getattr(tokenizer, "name_or_path", "").lower()):
+            print("[LLM_UTILS] Gemma 모델 감지: 시스템 프롬프트를 직접 프롬프트에 통합")
+            full_prompt = f"{system_prompt}\n\n사용자: {enhanced_prompt}\n\n응답:"
+        else:
+            # 다른 모델들은 generate_text_with_llm 내부에서 시스템 프롬프트를 적용할 것으로 가정
+            full_prompt = enhanced_prompt
+            
+        print(f"[LLM_UTILS] 최종 프롬프트 길이: {len(full_prompt)} 문자")
+        
+        response = loop.run_until_complete(
+            generate_text_with_llm(
+                model=model,
+                tokenizer=tokenizer,
+                prompt=full_prompt,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+        )
+        loop.close()
+        
+        print(f"[LLM_UTILS] 응답 길이: {len(response)} 문자")
+        print(f"[LLM_UTILS] 응답 미리보기: {response[:100]}...")
+        
+        # 응답이 너무 짧은 경우 오류 피드백
+        if len(response) < 20:
+            print(f"[LLM_UTILS] 경고: 응답이 너무 짧습니다 - '{response}'")
+            if "error" in response.lower() or "오류" in response:
+                return response
+            return f"답변을 생성하는 데 문제가 발생했습니다. 응답이 너무 짧습니다: {response}"
+        
+        return response
+    except Exception as e:
+        print(f"[LLM_UTILS] 로컬 LLM 텍스트 생성 중 오류: {e}")
+        traceback.print_exc()
+        return f"응답 생성 중 오류가 발생했습니다: {str(e)}" 

@@ -1245,6 +1245,46 @@ def generate_sql_from_question(question, schema, state=None):
     log_prefix = f"[SQL 생성 - '{question}']"
     print(f"{log_prefix} SQL 변환 시작")
     
+    # 질문에서 핵심 키워드 추출
+    keywords = re.findall(r'[가-힣a-zA-Z0-9_]+', question)
+    question_lower = question.lower()
+    
+    # 테이블 매핑 정보 (쿼리 생성 품질 향상을 위해 사용)
+    table_mappings = {
+        "user": ["유저", "사용자", "회원"],
+        "user_resource": ["리소스", "자원", "VM", "가상머신", "서버"],
+        "user_monthly_stats": ["통계", "월간", "월별", "로그인", "통계", "현황"],
+        "users": ["사용자", "회원", "고객", "유저"],
+        "products": ["제품", "상품", "물건", "아이템", "품목"],
+        "orders": ["주문", "구매", "결제", "주문서"],
+        "order_items": ["주문항목", "주문상품", "주문아이템", "주문내역"],
+        "reviews": ["리뷰", "후기", "평가", "평점"],
+        "deliveries": ["배송", "배달", "배송정보"],
+        "inquiries": ["문의", "질문", "문의사항"],
+        "categories": ["카테고리", "분류", "종류", "유형", "구분"]
+    }
+    
+    # 필드 매핑 정보
+    field_mappings = {
+        "user_resource": {
+            "vm_name": ["VM", "가상머신", "서버이름", "서버", "가상 서버"],
+            "cpu": ["CPU", "CPU 사용량", "CPU 사용"],
+            "memory": ["메모리", "메모리 사용량", "RAM", "메모리 사용"],
+            "io": ["IO", "입출력", "디스크 사용량"]
+        },
+        "user_monthly_stats": {
+            "login_count": ["로그인 수", "로그인 횟수", "접속"],
+            "month": ["월", "월간", "월별"],
+            "purchase_amount": ["구매액", "구매금액", "구매총액"]
+        },
+        "users": {
+            "name": ["이름", "성명"],
+            "email": ["이메일", "메일", "이메일 주소"],
+            "signup_date": ["가입일", "등록일", "가입날짜"],
+            "age": ["나이", "연령"]
+        }
+    }
+    
     # 스키마 검증 및 로깅
     if not schema or len(schema) < 50:
         print(f"{log_prefix} 경고: 스키마 정보가 없거나 불완전합니다 (길이: {len(schema) if schema else 0})")
@@ -1254,9 +1294,66 @@ def generate_sql_from_question(question, schema, state=None):
     else:
         print(f"{log_prefix} 유효한 스키마 정보가 제공됨 (길이: {len(schema)})")
     
-    # 스키마 요약 출력 (디버깅용)
-    schema_preview = schema[:200] + "..." if len(schema) > 200 else schema
-    print(f"{log_prefix} 스키마 미리보기: {schema_preview}")
+    # 확률이 높은 테이블 스키마만 필터링
+    relevant_tables = []
+    
+    # 테이블 매핑 기반 관련 테이블 찾기
+    for table, keywords_list in table_mappings.items():
+        for keyword in keywords_list:
+            if keyword in question:
+                relevant_tables.append(table)
+                break
+    
+    # 직접 테이블명이 언급된 경우
+    for table in table_mappings.keys():
+        if table.lower() in question_lower:
+            relevant_tables.append(table)
+    
+    # 중복 제거
+    relevant_tables = list(set(relevant_tables))
+    print(f"{log_prefix} 관련 테이블: {relevant_tables}")
+    
+    # 관련 테이블이 없으면 기본 테이블 사용
+    if not relevant_tables:
+        # 기본 테이블 설정 (일반적으로 user, users, products 등 기본 엔티티 테이블)
+        default_tables = ["user", "users", "products"]
+        
+        # 기본 테이블 중 스키마에 있는 테이블만 필터링
+        for table in default_tables:
+            if f"Table: {table}" in schema:
+                relevant_tables.append(table)
+                break
+        
+        if not relevant_tables:
+            relevant_tables = ["user"]  # 최소한 하나의 테이블은 지정
+            
+        print(f"{log_prefix} 관련 테이블을 찾을 수 없어 기본 테이블 사용: {relevant_tables}")
+    
+    # 필터링된 스키마 생성
+    filtered_schema = ""
+    
+    for table in relevant_tables:
+        # 테이블 정의 시작 부분 찾기
+        table_start = schema.find(f"Table: {table}")
+        if table_start == -1:
+            continue
+            
+        # 테이블 정의 끝 부분 찾기 (다음 테이블 시작 또는 파일 끝)
+        next_table = schema.find("Table:", table_start + 1)
+        
+        if next_table != -1:
+            table_schema = schema[table_start:next_table]
+        else:
+            table_schema = schema[table_start:]
+            
+        filtered_schema += table_schema.strip() + "\n\n"
+    
+    # 필터링된 스키마가 비어있으면 전체 스키마 사용
+    if not filtered_schema:
+        print(f"{log_prefix} 필터링된 스키마가 비어있어 전체 스키마 사용")
+        filtered_schema = schema
+    else:
+        print(f"{log_prefix} 필터링된 스키마 사용: {len(filtered_schema)} 바이트")
     
     # Vanna AI로 SQL 생성 시도
     print(f"{log_prefix} Vanna AI로 SQL 생성 시도")
@@ -1300,17 +1397,19 @@ def generate_sql_from_question(question, schema, state=None):
         prompt = f"""당신은 SQL 전문가입니다. 주어진 질문을 SQL 쿼리로 변환해주세요.
 
 ## 데이터베이스 스키마 정보:
-{schema}
+{filtered_schema}
 
 ## 질문:
 {question}
 
+## 관련 테이블 및 필드 힌트:
+관련 테이블: {', '.join(relevant_tables)}
+
 ## 규칙:
-1. 반드시 유효한 SQL 쿼리만 생성하세요.
-2. 테이블과 필드 이름은 제공된 스키마에 있는 것만 사용하세요.
-3. 사용자가 특정 테이블이나 필드를 언급하면 그에 맞는 테이블/필드를 사용하세요.
-4. 생성된 SQL은 SELECT 문만 허용합니다.
-5. 결과는 SQL 쿼리 코드만 반환하세요. 설명이나 주석을 포함하지 마세요.
+1. 반드시 유효한 SQL 쿼리만 생성하세요 (SELECT 문)
+2. 테이블과 필드 이름은 정확히 스키마에 있는 그대로 사용하세요
+3. 필요한 경우 JOIN을 사용하세요 (특히 여러 테이블의 데이터가 필요할 때)
+4. 결과는 SQL 쿼리 코드만 반환하세요. 설명이나 주석을 포함하지 마세요.
 
 ## SQL 쿼리:
 ```sql
@@ -1348,7 +1447,12 @@ def generate_sql_from_question(question, schema, state=None):
         return rule_sql
     else:
         print(f"{log_prefix} 경고: 모든 방식이 실패. 기본 SQL 반환")
-        return "SELECT * FROM users LIMIT 10;"
+        
+        # 관련 테이블에 따라 기본 SQL 생성
+        if relevant_tables and relevant_tables[0] in table_mappings:
+            return f"SELECT * FROM {relevant_tables[0]} LIMIT 10;"
+        else:
+            return "SELECT * FROM users LIMIT 10;"
 
 def get_compare_operator(compare_type):
     """비교 유형에 따라 적절한 SQL 연산자를 반환합니다."""
