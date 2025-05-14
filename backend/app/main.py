@@ -1273,324 +1273,187 @@ async def source_preview_endpoint(request: SourcePreviewRequest = Body(...)):
         def highlight_keywords(content, keywords, answer_text=None):
             """내용에서 문장 단위 하이라이트 - 답변과 일치하는 문장 강조 (개선된 버전)"""
             if not content:
-                return content
+                return content, []
                 
+            # 최종 결과와 관련 문단 저장 변수
+            highlighted_paragraphs = []
+            relevant_paragraphs = []
+            
             # 답변 텍스트가 있으면 문장 단위 매칭 적용 (개선된 버전)
             if answer_text and isinstance(answer_text, str) and len(answer_text.strip()) > 10:
                 print(f"[개선된] 응답 텍스트 기반 하이라이트 시작 - 응답 길이: {len(answer_text)}")
                 
-                # 문장 단위로 더 정확하게 분리 (콜론 포함)
-                # 1. 응답 텍스트 문장 분리 - 다양한 구분자와 콜론 처리 개선
-                answer_text = answer_text.replace(' : ', ': ')  # 콜론 정규화
-                raw_answer_sentences = []
+                # 1. 콘텐츠를 문단으로 분리
+                paragraphs = re.split(r'\n\s*\n|\r\n\s*\r\n', content)
                 
-                # 주요 구분점 먼저 처리 (예: "첫째,", "1.", "방법은 다음과 같습니다:" 등)
-                segments = re.split(r'(다음과\s*같습니다\s*:|\d+\.\s|\s*첫째,|\s*둘째,|\s*셋째,|\s*넷째,|\s*다섯째,)', answer_text)
+                # 2. 응답 텍스트에서 핵심 키워드 추출
+                answer_keywords = extract_keywords_from_text(answer_text, max_keywords=15)
+                print(f"응답 텍스트에서 추출한 키워드: {', '.join(answer_keywords)}")
                 
-                for i in range(len(segments)):
-                    segment = segments[i].strip()
-                    if not segment:
+                # 3. 각 문단의 관련성 점수 계산 및 하이라이트 적용
+                for paragraph in paragraphs:
+                    paragraph = paragraph.strip()
+                    if not paragraph:
                         continue
+                    
+                    # 짧은 문단은 건너뛰기 (의미 없는 헤더 등)
+                    if len(paragraph) < 15:
+                        continue
+                    
+                    # 문단에서 키워드 추출
+                    paragraph_keywords = extract_keywords_from_text(paragraph, max_keywords=10)
+                    
+                    # 키워드 일치 점수 계산
+                    matching_keywords = [k for k in paragraph_keywords if k.lower() in [ak.lower() for ak in answer_keywords]]
+                    keyword_score = len(matching_keywords) / max(1, len(paragraph_keywords))
+                    
+                    # 직접 텍스트 매칭 검사 (정확한 인용구 확인)
+                    direct_match = False
+                    if len(paragraph) > 30:
+                        for i in range(len(paragraph) - 30):
+                            snippet = paragraph[i:i+30]
+                            if snippet in answer_text:
+                                direct_match = True
+                                break
+                    
+                    # 관련성 높은 문단 선택 (키워드 일치 또는 직접 매칭)
+                    is_relevant = keyword_score > 0.3 or direct_match
+                    
+                    # 하이라이트 적용 및 관련 문단 표시
+                    if is_relevant:
+                        # 키워드 하이라이트 처리
+                        highlighted_paragraph = paragraph
+                        for keyword in matching_keywords:
+                            # 정규식 특수문자 이스케이프
+                            escaped_keyword = re.escape(keyword)
+                            # 키워드에 볼드체 적용
+                            highlighted_paragraph = re.sub(
+                                f'\\b{escaped_keyword}\\b', 
+                                f'**{keyword}**', 
+                                highlighted_paragraph, 
+                                flags=re.IGNORECASE
+                            )
                         
-                    # 구분점이면 다음 부분에 붙여서 처리
-                    if re.match(r'(다음과\s*같습니다\s*:|\d+\.\s|\s*첫째,|\s*둘째,|\s*셋째,|\s*넷째,|\s*다섯째,)', segment):
-                        if i + 1 < len(segments):
-                            raw_answer_sentences.append(segment + " " + segments[i+1].strip())
-                    # 일반 텍스트면 문장 단위로 분리
-                    elif i > 0 and re.match(r'(다음과\s*같습니다\s*:|\d+\.\s|\s*첫째,|\s*둘째,|\s*셋째,|\s*넷째,|\s*다섯째,)', segments[i-1].strip()):
-                        continue  # 이미 앞 단계에서 처리됨
+                        highlighted_paragraphs.append(highlighted_paragraph)
+                        relevant_paragraphs.append({
+                            'text': paragraph,
+                            'relevance': 'high' if direct_match else 'medium',
+                            'matching_keywords': matching_keywords
+                        })
                     else:
-                        # 일반 문장 분리
-                        sub_sentences = re.split(r'([.!?]\s+|\n\s*\n)', segment)
-                        for sub in sub_sentences:
-                            if sub.strip():
-                                raw_answer_sentences.append(sub.strip())
+                        # 관련성 낮은 문단은 그대로 추가
+                        highlighted_paragraphs.append(paragraph)
                 
-                # 최종 응답 문장 정제 (중복 제거, 최소 길이 필터)
-                answer_sentences = []
-                for sent in raw_answer_sentences:
-                    sent = sent.strip()
-                    # 유효한 문장만 추가 (길이 조건 완화)
-                    if sent and len(sent) > 4 and sent not in answer_sentences:
-                        answer_sentences.append(sent)
+                # 하이라이트된 내용을 다시 결합
+                highlighted_content = "\n\n".join(highlighted_paragraphs)
                 
-                # 2. 원본 콘텐츠 문장 분리 개선
-                raw_content_lines = []
+                # 하이라이트에 사용된 키워드 목록 (중복 제거)
+                all_matching_keywords = []
+                for para in relevant_paragraphs:
+                    all_matching_keywords.extend(para['matching_keywords'])
+                unique_keywords = list(set(all_matching_keywords))
                 
-                # 줄바꿈 기준 분리 후 처리
-                paragraphs = re.split(r'\n\s*\n', content)
-                for para in paragraphs:
-                    para = para.strip()
-                    if not para:
-                        continue
-                        
-                    # 문단 내 문장 분리
-                    lines = re.split(r'([.!?]\s+)', para)
-                    current_line = ""
-                    
-                    for i in range(len(lines)):
-                        line = lines[i].strip()
-                        if not line:
-                            continue
-                            
-                        if re.match(r'[.!?]\s+', line):
-                            # 문장 종결자 - 이전 문장과 합쳐서 저장
-                            raw_content_lines.append((current_line + line).strip())
-                            current_line = ""
-                        else:
-                            # 콜론 포함 문장은 별도 처리
-                            if ':' in line and len(line) > 10:
-                                colon_parts = line.split(':', 1)
-                                if colon_parts[0].strip() and colon_parts[1].strip():
-                                    raw_content_lines.append(line.strip())
-                                    # 현재 문장 초기화하지 않고 계속 유지
-                                    current_line = line
-                                else:
-                                    current_line = line
-                            else:
-                                current_line = line
-                    
-                    # 마지막 문장 처리
-                    if current_line:
-                        raw_content_lines.append(current_line.strip())
-                
-                # 빈 줄이나 너무 짧은 줄 제거
-                content_lines = [line for line in raw_content_lines if line and len(line.strip()) > 4]
-                
-                # 디버그 로그
-                print(f"[개선된] 분리된 응답 문장 수: {len(answer_sentences)}")
-                for i, sent in enumerate(answer_sentences[:5]):  # 처음 5개만 출력
-                    print(f"  응답 문장 {i+1}: {sent[:50]}...")
-                print(f"[개선된] 분리된 원본 문장 수: {len(content_lines)}")
-                
-                # 결과 저장용 배열 초기화
-                result = []
-                highlight_count = 0
-                max_highlights = 15  # 최대 하이라이트 수 증가
-                
-                # 매칭된 원본 문장 기록 (중복 하이라이트 방지)
-                highlighted_lines = set()
-                
-                # 3. 답변의 각 문장마다 매칭되는 원본 문장 찾기
-                for ans_sent in answer_sentences:
-                    ans_norm = re.sub(r'\s+', ' ', ans_sent.lower())
-                    
-                    # 응답 문장에서 불용어 제거하고 핵심 단어 추출
-                    ans_words = set(re.findall(r'\b\w+\b', ans_norm))
-                    stopwords = {'그', '이', '저', '것', '수', '를', '을', '에', '에서', '와', '과', '은', '는', '이다', '있다', '하다', '다음', '같습니다', '방법', '경우', '의', '및', '또는', '후', '전', '중', '내', '외', '상', '하', '좌', '우'}
-                    ans_keywords = ans_words - stopwords
-                    
-                    # 매칭 결과 저장 변수
-                    best_match_score = 0
-                    best_match_line_idx = -1
-                    
-                    # 모든 원본 문장 검사
-                    for line_idx, line in enumerate(content_lines):
-                        # 이미 하이라이트된 라인은 건너뜀
-                        if line_idx in highlighted_lines:
-                            continue
-                            
-                        line_norm = re.sub(r'\s+', ' ', line.lower())
-                        
-                        # 1. 정확히 일치하는 경우 (포함 관계)
-                        if ans_norm in line_norm or line_norm in ans_norm:
-                            best_match_score = 1.0
-                            best_match_line_idx = line_idx
-                            break
-                            
-                        # 2. 단어 유사도 계산
-                        line_words = set(re.findall(r'\b\w+\b', line_norm))
-                        if ans_keywords and line_words:
-                            # 응답 키워드가 원본 문장에 얼마나 포함되는지
-                            if len(ans_keywords) > 0:  # 분모가 0이 아닌지 확인
-                                match_score = len(ans_keywords.intersection(line_words)) / len(ans_keywords)
-                                
-                                # 더 나은 매치 발견 시 업데이트
-                                if match_score > best_match_score and match_score >= 0.6:  # 임계값 60%로 조정
-                                    best_match_score = match_score
-                                    best_match_line_idx = line_idx
-                    
-                    # 발견된 최적 매치 적용
-                    if best_match_line_idx >= 0 and best_match_score >= 0.6 and highlight_count < max_highlights:
-                        highlighted_lines.add(best_match_line_idx)
-                        highlight_count += 1
-                        
-                        # 최적 매치 로그 출력
-                        matched_line = content_lines[best_match_line_idx]
-                        log_line = matched_line[:70] + ("..." if len(matched_line) > 70 else "")
-                        log_ans = ans_sent[:50] + ("..." if len(ans_sent) > 50 else "")
-                        print(f"매치 발견: '{log_line}' ↔ '{log_ans}', 점수: {best_match_score:.2f}")
-                
-                # 4. 결과 생성 - 하이라이트 적용하여 원본 텍스트 재구성
-                current_text = content
-                
-                # 하이라이트할 원본 문장 목록 (인덱스로 정렬)
-                sorted_highlights = sorted(highlighted_lines)
-                
-                # 각 하이라이트 대상 문장에 대해 마크다운 볼드 적용
-                for line_idx in sorted_highlights:
-                    if line_idx < len(content_lines):
-                        line_to_highlight = content_lines[line_idx]
-                        
-                        # 정규식 특수문자 이스케이프 처리
-                        pattern_text = re.escape(line_to_highlight)
-                        
-                        # 원본 텍스트에서 해당 문장을 찾아 볼드 처리
-                        try:
-                            pattern = re.compile(f"(?<!\*){pattern_text}(?!\*)", re.DOTALL)
-                            current_text = pattern.sub(f"**{line_to_highlight}**", current_text)
-                        except re.error as e:
-                            print(f"정규식 오류: {e}, 문장: {line_to_highlight[:30]}...")
-                
-                print(f"[개선된] 하이라이트 완료 - 총 {len(sorted_highlights)}개 문장 하이라이트")
-                return current_text
+                return highlighted_content, unique_keywords
             
-            # 기존 키워드 기반 하이라이트 로직 (백업용)
-            elif keywords and isinstance(keywords, list) and any(keywords):
-                # 중복, 공백 제거
-                unique_keywords = [k.strip() for k in keywords if isinstance(k, str) and k.strip()]
-                if not unique_keywords:
-                    return content
-                    
-                print(f"키워드 기반 하이라이트 시작 - {len(unique_keywords)}개 키워드")
-                
-                # 내용을 문장으로 분리
-                content_lines = re.split(r'([.!?]\s+|\n\s*\n)', content)
-                result = []
-                
-                # 각 콘텐츠 줄에 대해 처리
-                i = 0
-                highlight_count = 0
-                while i < len(content_lines):
-                    line = content_lines[i]
-                    if not line.strip():
-                        result.append(line)
-                        i += 1
-                        continue
-                        
-                    # 문장 종결자가 다음에 있는 경우
-                    if i + 1 < len(content_lines) and re.match(r'[.!?]\s+', content_lines[i+1]):
-                        complete_line = line + content_lines[i+1]
-                        i += 2
-                    else:
-                        complete_line = line
-                        i += 1
-                    
-                    # 키워드와 매칭 여부 확인
-                    should_highlight = False
-                    matching_keywords = []
-                    
-                    for keyword in unique_keywords:
-                        if keyword.lower() in complete_line.lower():
-                            should_highlight = True
-                            matching_keywords.append(keyword)
-                    
-                    # 하이라이트 적용
-                    if should_highlight:
-                        result.append(f"**{complete_line}**")
-                        highlight_count += 1
-                        log_sent = complete_line[:70] + ("..." if len(complete_line) > 70 else "")
-                        print(f"하이라이트된 문장: '{log_sent}', 매칭 키워드: {matching_keywords}")
-                    else:
-                        result.append(complete_line)
-                
-                # 결과 합치기
-                result_text = "".join(result)
-                print(f"하이라이트 완료 - 총 {highlight_count}개 문장 하이라이트")
-                return result_text
+            # 답변 텍스트가 없는 경우, 기본 키워드 하이라이트만 적용
+            elif keywords and isinstance(keywords, list):
+                for keyword in keywords:
+                    # 정규식 특수문자 이스케이프
+                    escaped_keyword = re.escape(keyword)
+                    # 키워드에 볼드체 적용
+                    content = re.sub(
+                        f'\\b{escaped_keyword}\\b', 
+                        f'**{keyword}**', 
+                        content, 
+                        flags=re.IGNORECASE
+                    )
+                return content, keywords
             
-            # 아무 매칭 조건이 없으면 원본 반환
-            return content
-
-        # 순차적으로 검색 시도
-        for i, search_body in enumerate(search_attempts):
-            # 기본 _source 필드 추가
-            if "_source" not in search_body:
-                search_body["_source"] = ["text", "source", "page", "chunk_id"]
-
-            # 크기 지정이 없으면 기본값 설정
-            if "size" not in search_body:
-                search_body["size"] = 1
-
-            response = es_client.search(index=ES_INDEX_NAME, body=search_body)
-            hits = response["hits"]["hits"]
-
+            # 키워드나 답변 텍스트가 없을 경우 원본 콘텐츠 반환
+            return content, []
+    
+        # 시도 목록을 순회하며 검색 실행
+        doc = None
+        for i, query in enumerate(search_attempts):
+            response = es_client.search(index=ES_INDEX_NAME, body=query)
+            hits = response.get("hits", {}).get("hits", [])
+            
             if hits:
-                hit = hits[0]["_source"]
-                result_msg = f"검색 성공 (시도 {i+1}/{len(search_attempts)})"
-                
-                # 원본 텍스트 내용 가져오기
-                content = hit.get("text", "내용을 찾을 수 없습니다.")
-                
-                # 내용 서식 개선
-                formatted_content = format_content(content)
-                
-                # 프론트엔드에서 키워드를 전달한 경우 우선 사용, 없으면 자동 추출
-                if request.keywords and isinstance(request.keywords, list) and any(request.keywords):
-                    keywords = [str(k) for k in request.keywords if isinstance(k, str)]
-                    print(f"프론트엔드 전달 키워드 사용: {keywords}")
-                else:
-                    keywords = extract_keywords_from_text(formatted_content)
-                
-                # 로그 추가
-                print(f"추출된 키워드: {keywords}")
-                
-                # 유효한 키워드인지 확인
-                valid_keywords = [k for k in keywords if k and isinstance(k, str) and len(k.strip()) > 0]
-                
-                # 프론트엔드에서 전달한 답변 텍스트 사용
-                answer = request.answer_text if request.answer_text else None
-                if answer:
-                    print(f"프론트엔드에서 전달한 답변 텍스트 사용: {answer[:100]}...")
-                
-                # 키워드가 유효하지 않으면 로그
-                if len(valid_keywords) < len(keywords):
-                    print(f"유효하지 않은 키워드 제거됨: {set(keywords) - set(valid_keywords)}")
-                
-                # 키워드 하이라이트 적용
-                highlighted_content = highlight_keywords(formatted_content, valid_keywords, answer_text=answer)
-
-                # 모든 필드가 문자열로 변환되도록 보장
-                result = {
-                    "status": "success",
-                    "content": highlighted_content,  # 하이라이트 적용된 내용
-                    "original_content": formatted_content,  # 원본 포맷팅된 내용
-                    "source": os.path.basename(hit.get("source", "N/A")),
-                    "page": hit.get("page", 0),
-                    "chunk_id": str(hit.get("chunk_id", "N/A")),  # 명시적 문자열 변환
-                    "message": result_msg,
-                    "keywords": valid_keywords  # 추출된 키워드
-                }
-
-                # 첫 번째 시도가 아니라면 알림 메시지 추가
-                if i > 0:
-                    result["message"] = f"원본 chunk_id로 찾지 못해 대체 문서를 표시합니다. ({result_msg})"
-
-                return result
-
-        # 모든 시도 실패
+                doc = hits[0]
+                print(f"검색 시도 {i+1}번째 성공")
+                break
+            else:
+                print(f"검색 시도 {i+1}번째 실패")
+        
+        # 문서를 찾지 못한 경우
+        if not doc:
+            return {
+                "status": "error",
+                "message": "요청한 문서를 찾을 수 없습니다.",
+                "content": None,
+            }
+        
+        # 이미지 경로 확인
+        image_path = doc["_source"].get("image_path")
+        if image_path:
+            print(f"이미지 경로 발견: {image_path}")
+            # 이미지 URL 구성
+            image_url = f"/static/document_images/{os.path.basename(image_path)}"
+            return {
+                "status": "success",
+                "message": "이미지 콘텐츠를 찾았습니다.",
+                "content_type": "image/jpeg",  # 기본값, 실제로는 확장자에 따라 달라질 수 있음
+                "image_url": image_url,
+            }
+        
+        # 텍스트 콘텐츠 가져오기
+        content = doc["_source"].get("text", "")
+        if not content:
+            return {
+                "status": "error",
+                "message": "문서 내용을 찾을 수 없습니다.",
+                "content": None,
+            }
+        
+        # 원본 콘텐츠 포맷팅
+        formatted_content = format_content(content)
+        
+        # 프론트엔드에서 전달한 키워드 또는 자동 추출
+        use_keywords = []
+        if request.keywords and isinstance(request.keywords, list):
+            use_keywords = request.keywords
+        else:
+            # 자동으로 키워드 추출
+            use_keywords = extract_keywords_from_text(formatted_content)
+        
+        # 하이라이트 적용 및 관련 문단 추출
+        highlighted_content, highlighted_keywords = highlight_keywords(
+            formatted_content, 
+            use_keywords,
+            request.answer_text  # 챗봇 응답 텍스트 전달
+        )
+        
+        # 결과 반환
         return {
-            "status": "not_found",
-            "message": "해당 문서 내용을 찾을 수 없습니다.",
-            "content": "",
-            "original_content": "",
-            "source": os.path.basename(request.path),
-            "page": request.page,
-            "chunk_id": str(request.chunk_id),  # 명시적 문자열 변환
-            "keywords": []
+            "status": "success",
+            "message": "문서 콘텐츠를 찾았습니다.",
+            "content": highlighted_content,
+            "original_content": formatted_content,
+            "keywords": highlighted_keywords,  # 하이라이트된 키워드
+            "source_metadata": {
+                "filename": os.path.basename(request.path),
+                "page": request.page,
+                "chunk_id": request.chunk_id,
+            },
         }
+        
     except Exception as e:
-        print(f"참고 문서 미리보기 중 오류 발생: {e}")
+        print(f"문서 미리보기 처리 중 오류 발생: {e}")
         traceback.print_exc()
         return {
             "status": "error",
-            "message": f"참고 문서 미리보기 중 오류 발생: {str(e)}",
-            "content": "",
-            "original_content": "",
-            "source": os.path.basename(request.path),
-            "page": request.page,
-            "chunk_id": str(request.chunk_id),  # 명시적 문자열 변환
-            "keywords": []
+            "message": f"문서 미리보기 처리 중 오류 발생: {str(e)}",
+            "content": None,
         }
 
 
@@ -1945,6 +1808,13 @@ async def chat(request: QuestionRequest = Body(...)):
             category=request.category,
             conversation_history=request.history,
         )
+
+        # 응답 데이터 로깅 추가 - 특히 출처 정보 확인
+        print(f"API 응답 데이터 - 출처 정보: sources={len(result['sources'])}, cited_sources={len(result['cited_sources'])}")
+        if result['cited_sources']:
+            print(f"인용된 출처 샘플: {result['cited_sources'][0]}")
+        elif result['sources']:
+            print(f"전체 출처 샘플: {result['sources'][0]}")
 
         return {
             "bot_response": result["answer"],

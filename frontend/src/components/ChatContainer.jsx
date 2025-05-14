@@ -203,20 +203,29 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
   const [successMessage, setSuccessMessage] = useState(null);
   const [deleteAnimation, setDeleteAnimation] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoadingRef, setIsLoadingRef] = useState(false); // 로딩 상태 참조 추가
   
   const modalRef = useRef(null);
+  const hasLoadedRef = useRef(false); // 이미 로드했는지 체크하는 참조 추가
 
-  // 파일 목록 가져오기
+  // 파일 목록 가져오기 (최적화된 버전)
   useEffect(() => {
-    if (isOpen) {
+    // 모달이 열릴 때만 파일 목록을 가져오고, 한 번만 가져오도록 수정
+    if (isOpen && !hasLoadedRef.current && !isLoadingRef) {
       loadFiles();
+      hasLoadedRef.current = true; // 로드 완료 표시
+    } else if (!isOpen) {
+      // 모달이 닫힐 때 참조값 초기화
+      hasLoadedRef.current = false;
     }
-  }, [isOpen]);
+  }, [isOpen, isLoadingRef]);
   
-  // 외부에서 파일 목록 강제 새로고침 이벤트 처리
+  // 외부에서 파일 목록 강제 새로고침 이벤트 처리 (최적화)
   useEffect(() => {
     const handleForceRefresh = () => {
-      if (isOpen) {
+      // 모달이 열려있고 로딩 중이 아닐 때만 로드
+      if (isOpen && !isLoadingRef) {
+        hasLoadedRef.current = false; // 강제 새로고침 시 참조값 초기화
         loadFiles();
       }
     };
@@ -226,7 +235,7 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
     return () => {
       window.removeEventListener('forceRefreshFiles', handleForceRefresh);
     };
-  }, [isOpen]);
+  }, [isOpen, isLoadingRef]);
 
   // 모달 바깥 클릭 시 닫기
   useEffect(() => {
@@ -259,24 +268,36 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
   }, [successMessage, deleteError]);
 
   const loadFiles = async () => {
+    // 이미 로딩 중인 경우 중복 요청 방지
+    if (isLoadingRef) {
+      return;
+    }
+    
     setIsLoading(true);
+    setIsLoadingRef(true); // 로딩 상태 참조 업데이트
     setError(null);
+    
     try {
       console.log('파일 목록 로드 시도...');
+      const controller = new AbortController(); // 요청 취소 컨트롤러
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
+      
       const response = await fetch('http://172.10.2.70:8000/api/indexed-files', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
         },
-        // 타임아웃 설정
-        signal: AbortSignal.timeout(10000)
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId); // 타임아웃 제거
       
       const data = await response.json();
       
       if (response.ok && data.status === 'success') {
         console.log('파일 목록 로드 성공:', data.files?.length || 0, '개 항목');
         setFiles(data.files || []);
+        hasLoadedRef.current = true; // 로드 완료 표시
       } else {
         console.error('API 응답 오류:', data);
         throw new Error(data.detail || data.message || '파일 목록을 불러오는데 실패했습니다.');
@@ -298,6 +319,7 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
       setError(errorMsg);
     } finally {
       setIsLoading(false);
+      setIsLoadingRef(false); // 로딩 상태 참조 업데이트
     }
   };
 
@@ -962,7 +984,10 @@ function ChatContainer({
       console.log('사용할 응답 키:', {
         bot_response: data.bot_response,
         answer: data.answer,
-        sourceType: Array.isArray(data.sources) ? 'array' : typeof data.sources
+        sourceType: Array.isArray(data.sources) ? 'array' : typeof data.sources,
+        sourcesLength: Array.isArray(data.sources) ? data.sources.length : 0,
+        citedSourcesType: Array.isArray(data.cited_sources) ? 'array' : typeof data.cited_sources,
+        citedSourcesLength: Array.isArray(data.cited_sources) ? data.cited_sources.length : 0
       });
       
       // 응답 데이터 처리
@@ -970,6 +995,7 @@ function ChatContainer({
         role: "assistant",
         content: data.bot_response || data.answer || "응답을 불러오지 못했습니다.",
         sources: Array.isArray(data.sources) ? data.sources : [],
+        cited_sources: Array.isArray(data.cited_sources) ? data.cited_sources : [],
         timestamp: new Date().getTime(),
       };
       

@@ -97,11 +97,6 @@ function FileUpload({ onClose, categories = ['메뉴얼'], onUploadSuccess, init
           if (onUploadSuccess) {
             onUploadSuccess(files, category);
           }
-          
-          // 3초 후 모달 닫기 (사용자가 결과를 볼 수 있도록)
-          setTimeout(() => {
-            onClose();
-          }, 3000);
         } else {
           setUploadStatus(`${successCount}/${files.length} 파일 업로드 성공, ${skipCount}개 건너뜀`);
           

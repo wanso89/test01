@@ -546,6 +546,105 @@ const FeedbackToast = ({ isVisible, message, type, onClose }) => {
   );
 };
 
+// 출처 미리보기 모달 컴포넌트
+const SourcePreviewModal = ({ isOpen, onClose, source, content, image, isLoading, keywords }) => {
+  if (!isOpen) return null;
+  
+  const [copySuccess, setCopySuccess] = useState(false);
+  
+  const handleCopyContent = () => {
+    if (!content) return;
+    
+    navigator.clipboard.writeText(content);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2000);
+  };
+  
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+      <div className="bg-gray-900 rounded-xl max-w-3xl w-full max-h-[85vh] flex flex-col">
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+          <div className="flex items-center space-x-2">
+            <FiFile className="text-indigo-400" />
+            <h3 className="font-medium text-gray-200">
+              {source?.title || source?.display_name || (source?.path && source.path.split('/').pop().replace(/^[^_]*_/, ''))}
+            </h3>
+            {source?.page && (
+              <span className="text-xs text-gray-400 bg-gray-800 px-2 py-0.5 rounded">
+                페이지 {source.page}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleCopyContent}
+              className="p-2 rounded-full text-gray-400 hover:text-gray-200 hover:bg-gray-700"
+              title="내용 복사"
+              disabled={!content || isLoading}
+            >
+              {copySuccess ? <FiCheck /> : <FiCopy />}
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full text-gray-400 hover:text-gray-200 hover:bg-gray-700"
+            >
+              <FiX />
+            </button>
+          </div>
+        </div>
+        
+        {/* 본문 */}
+        <div className="flex-1 overflow-auto p-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-400"></div>
+            </div>
+          ) : image ? (
+            <div className="flex justify-center">
+              <img 
+                src={image} 
+                alt="문서 이미지" 
+                className="max-w-full max-h-[70vh] object-contain"
+              />
+            </div>
+          ) : content ? (
+            <div className="prose prose-sm dark:prose-invert max-w-none">
+              <ReactMarkdown 
+                remarkPlugins={[remarkGfm]} 
+                rehypePlugins={[rehypeHighlight]}
+              >
+                {content}
+              </ReactMarkdown>
+            </div>
+          ) : (
+            <div className="text-center text-gray-500 py-6">
+              내용을 불러올 수 없습니다.
+            </div>
+          )}
+        </div>
+        
+        {/* 키워드 표시 영역 */}
+        {keywords && keywords.length > 0 && (
+          <div className="px-4 py-3 border-t border-gray-700">
+            <p className="text-xs text-gray-400 mb-2">관련 키워드:</p>
+            <div className="flex flex-wrap gap-2">
+              {keywords.map((keyword, idx) => (
+                <span 
+                  key={idx}
+                  className="text-xs rounded-full px-2 py-1 bg-indigo-500/20 text-indigo-300"
+                >
+                  {keyword}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, nextMessage, onAskFollowUp }) {
   const isUser = message.role === "user";
   const [previewSource, setPreviewSource] = useState(null);
@@ -557,9 +656,10 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
   const [feedbackSent, setFeedbackSent] = useState(false); // 피드백 전송 여부
   const [loadingContent, setLoadingContent] = useState(false);
   const [highlightKeywords, setHighlightKeywords] = useState([]); // 모달 하이라이트용 키워드
-  const [sourcesVisible, setSourcesVisible] = useState(false);
+  const [sourcesVisible, setSourcesVisible] = useState(true); // 출처 목록 기본적으로 표시
   const [isTypingComplete, setIsTypingComplete] = useState(true); // 기본값 true로 설정
   const [showTypeWriter, setShowTypeWriter] = useState(false); // 타이핑 효과 비활성화 (기본값 false)
+  const [showSourcePreview, setShowSourcePreview] = useState(false); // 출처 미리보기 모달 표시 여부
   const contentRef = useRef(null);
   const messageContainerRef = useRef(null); // 메시지 컨테이너 ref 추가
   const [showImagePreview, setShowImagePreview] = useState(false);
@@ -875,6 +975,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     setLoadingContent(true);
     setPreviewSource(source); 
     setSourceFilterText(""); // 필터 초기화
+    setShowSourcePreview(true); // 미리보기 모달 표시
 
     try {
       const sourcePath = source.path;
@@ -890,6 +991,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
           path: sourcePath,
           page: page,
           chunk_id: chunkId,
+          answer_text: message.content, // 챗봇 응답 텍스트 전달
         }),
       });
       
@@ -929,6 +1031,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     }
   };
 
+  // 출처 목록 토글 함수
   const toggleSourcesVisible = useCallback(() => {
     setSourcesVisible((prevVisible) => !prevVisible);
   }, []);
@@ -1335,6 +1438,21 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     );
   };
   
+  // 출처 정보 디버깅 로그 추가
+  useEffect(() => {
+    if (message.role === 'assistant') {
+      console.log('출처 정보 상태:', {
+        hasSources: Boolean(message.sources),
+        sourcesLength: message.sources?.length || 0,
+        hasCitedSources: Boolean(message.cited_sources),
+        citedSourcesLength: message.cited_sources?.length || 0,
+        filteredSourcesLength: message.sources?.filter(s => s.is_cited)?.length || 0,
+        sourcesVisible,
+        isLastInGroup
+      });
+    }
+  }, [message, sourcesVisible, isLastInGroup]);
+  
   return (
     <div ref={messageContainerRef} id={messageId}>
       <div 
@@ -1400,7 +1518,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
         {message.role === 'assistant' && (
           <div className="ml-11 mt-2">
             {/* 출처 카드 (토글형) */}
-            {!isLastInGroup && message.sources && (
+            {message.sources && message.sources.length > 0 && (
               <div className="mt-1">
                 <button
                   onClick={toggleSourcesVisible}
@@ -1412,28 +1530,70 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
                     <FiChevronRight size={14} className="mr-1" />
                   )}
                   {/* 인용된 출처만 표시 */}
-                  <span>출처 {(message.cited_sources?.length || message.sources.filter(s => s.is_cited).length || 0)}개</span>
+                  <span>
+                    출처 {(message.cited_sources?.length || message.sources.filter(s => s.is_cited)?.length || 0)}개
+                    {sourcesVisible ? " (접기)" : " (펼치기)"}
+                  </span>
                 </button>
                 
                 {sourcesVisible && (
-                  <div className="mt-1.5 space-y-1.5 text-xs text-gray-400 pl-1">
-                    {(message.cited_sources || message.sources.filter(s => s.is_cited)).map((source, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-start hover:bg-gray-700/30 p-1 -mx-1 rounded cursor-pointer"
-                        onClick={() => handlePreviewSource(source)}
-                      >
-                        <FiFile size={12} className="mt-0.5 mr-1.5 text-indigo-300 flex-shrink-0" />
-                        <div className="overflow-hidden">
-                          <div className="truncate">
-                            {source.title || source.display_name || source.path.split('/').pop()}
+                  <div className="mt-2 mb-3 space-y-2 text-xs border border-gray-700/50 rounded-lg overflow-hidden">
+                    <div className="bg-gray-800/60 px-3 py-2 text-gray-300 font-medium flex items-center border-b border-gray-700/50">
+                      <FiLink size={12} className="mr-2" />
+                      <span>답변과 관련된 출처</span>
+                    </div>
+                    <div className="px-2 py-1 space-y-2 max-h-48 overflow-y-auto">
+                      {(() => {
+                        // 표시할 출처 목록 결정
+                        const sourcesToShow = message.cited_sources?.length > 0 
+                          ? message.cited_sources 
+                          : (message.sources?.filter(s => s.is_cited) || []);
+
+                        console.log('표시할 출처 목록:', sourcesToShow.length, '개');
+                          
+                        return sourcesToShow.length > 0 ? (
+                          // 출처가 있는 경우
+                          sourcesToShow.map((source, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-start hover:bg-gray-700/30 p-2 rounded-md cursor-pointer transition-colors"
+                              onClick={() => handlePreviewSource(source)}
+                            >
+                              <FiFile size={14} className="mt-0.5 mr-2 text-indigo-300 flex-shrink-0" />
+                              <div className="overflow-hidden flex-1">
+                                <div className="font-medium text-gray-200 truncate">
+                                  {source.title || source.display_name || source.path?.split('/').pop().replace(/^[^_]*_/, '') || "출처 문서"}
+                                </div>
+                                <div className="flex items-center mt-1 text-gray-400 text-[10px]">
+                                  {source.page && (
+                                    <span className="flex items-center">
+                                      <FiHash size={10} className="mr-1" /> 
+                                      페이지 {source.page}
+                                    </span>
+                                  )}
+                                  {source.score && (
+                                    <span className="ml-3 flex items-center">
+                                      <FiStar size={10} className="mr-1" /> 
+                                      관련도: {Math.round(source.score * 100) / 100}
+                                    </span>
+                                  )}
+                                  <span className="ml-auto text-indigo-300 flex items-center">
+                                    <FiSearch size={10} className="mr-1" /> 
+                                    내용 보기
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          // 출처가 없는 경우
+                          <div className="text-center py-4 text-gray-400">
+                            <FiInfo size={18} className="mx-auto mb-2" />
+                            <p>답변과 일치하는 출처 정보가 없습니다.</p>
                           </div>
-                          {source.page && (
-                            <div className="text-gray-500 text-[10px]">페이지 {source.page}</div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                        );
+                      })()}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1517,6 +1677,17 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
         messageContent={message.content}
         onSubmit={handleSubmitFeedback}
         feedbackType={currentFeedbackType}
+      />
+      
+      {/* 출처 미리보기 모달 */}
+      <SourcePreviewModal
+        isOpen={showSourcePreview}
+        onClose={() => setShowSourcePreview(false)}
+        source={previewSource}
+        content={previewContent}
+        image={previewImage}
+        isLoading={loadingContent}
+        keywords={highlightKeywords}
       />
       
       {/* 피드백 토스트 */}
