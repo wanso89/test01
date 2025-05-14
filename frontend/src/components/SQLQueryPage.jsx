@@ -1,10 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   FiDatabase, FiSearch, FiCode, FiTable, FiSend, FiLoader, FiAlertCircle, 
   FiHelpCircle, FiInfo, FiPlay, FiExternalLink, FiTrendingUp, FiCommand, 
   FiZap, FiArrowRight, FiColumns, FiTerminal, FiCpu, FiSquare, FiUser,
   FiBarChart2, FiPieChart, FiList, FiClock, FiMessageSquare, FiMessageCircle,
-  FiSave, FiChevronRight, FiChevronLeft, FiActivity, FiX
+  FiSave, FiChevronRight, FiChevronLeft, FiActivity, FiX, FiTrash2, FiChevronDown
 } from 'react-icons/fi';
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus as vs2015 } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -17,8 +17,24 @@ import {
 // SQL 언어 등록
 SyntaxHighlighter.registerLanguage('sql', sql);
 
-// 색상 테마 정의
-const CHART_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#f43f5e', '#64748b', '#6ee7b7'];
+// 색상 테마 정의 - 더 풍부한 색상 팔레트로 업그레이드
+const CHART_COLORS = [
+  '#6366f1', // indigo-500
+  '#8b5cf6', // violet-500
+  '#ec4899', // pink-500
+  '#14b8a6', // teal-500
+  '#f97316', // orange-500
+  '#f43f5e', // rose-500
+  '#64748b', // slate-500
+  '#6ee7b7', // emerald-300
+  '#38bdf8', // sky-400
+  '#fcd34d', // amber-300
+  '#c084fc', // purple-400
+  '#4ade80', // green-400
+  '#fb7185', // rose-400
+  '#2dd4bf', // teal-400
+  '#a3e635', // lime-400
+];
 
 // 랜덤 색상 생성 함수
 const getRandomColor = () => {
@@ -64,8 +80,18 @@ const parseDBSchema = (schemaText) => {
         let columnName = columnParts[0].replace(/"/g, '');
         let dataType = columnParts.slice(1).join(' ');
         let isPrimaryKey = columnLine.toLowerCase().includes('primary key');
+        let isNotNull = columnLine.toLowerCase().includes('not null');
+        let isUnique = columnLine.toLowerCase().includes('unique');
+        let hasDefault = columnLine.toLowerCase().includes('default');
         
-        return { columnName, dataType, isPrimaryKey };
+        return { 
+          columnName, 
+          dataType, 
+          isPrimaryKey, 
+          isNotNull, 
+          isUnique,
+          hasDefault
+        };
       }).filter(Boolean);
       
       return { tableName, columns };
@@ -73,29 +99,92 @@ const parseDBSchema = (schemaText) => {
     
     // 테이블별 UI 렌더링
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
+        {/* 전체 테이블 요약 및 가이드 */}
+        <div className="bg-indigo-900/20 rounded-md p-3 border border-indigo-700/40">
+          <h3 className="text-sm font-medium text-indigo-300 mb-2">사용 가능한 테이블 ({parsedTables.length}개)</h3>
+          <div className="flex flex-wrap gap-2">
+            {parsedTables.map((table, idx) => (
+              <span 
+                key={idx} 
+                className="inline-flex items-center px-2 py-1 rounded-md bg-indigo-700/30 text-xs text-indigo-200 hover:bg-indigo-700/50 hover:text-white cursor-pointer transition-colors border border-indigo-600/30"
+                onClick={() => navigator.clipboard.writeText(table.tableName)}
+                title="클릭하여 테이블명 복사"
+              >
+                <FiTable size={10} className="mr-1" />
+                {table.tableName}
+                <span className="ml-1 text-indigo-400/70">({table.columns.length})</span>
+              </span>
+            ))}
+          </div>
+        </div>
+        
         {parsedTables.map((table, idx) => (
-          <div key={idx} className="bg-gray-800/30 rounded-md overflow-hidden border border-gray-700/40">
-            <div className="bg-gray-800/70 px-3 py-2 flex items-center gap-2 text-sm text-indigo-300 font-medium">
-              <FiTable size={14} />
-              <span>{table.tableName}</span>
+          <div key={idx} className="bg-gray-800/30 rounded-md overflow-hidden border border-gray-700/40 shadow-sm transition-all hover:shadow-md hover:border-gray-600/60">
+            <div className="bg-gray-800/70 px-3 py-2 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FiTable size={14} className="text-indigo-400" />
+                <span className="text-sm text-indigo-300 font-medium cursor-pointer" 
+                  onClick={() => navigator.clipboard.writeText(table.tableName)} 
+                  title="클릭하여 테이블명 복사"
+                >
+                  {table.tableName}
+                </span>
+              </div>
+              <span className="text-xs text-gray-400 px-1.5 py-0.5 rounded-full bg-gray-800/50">
+                {table.columns.length} 컬럼
+              </span>
             </div>
-            <div>
+            <div className="overflow-hidden">
               <table className="w-full text-xs">
-                <thead className="bg-gray-800/50">
+                <thead className="bg-gray-800/70">
                   <tr>
+                    <th className="py-1.5 px-3 text-left text-gray-400 font-medium">#</th>
                     <th className="py-1.5 px-3 text-left text-gray-400 font-medium">컬럼명</th>
                     <th className="py-1.5 px-3 text-left text-gray-400 font-medium">데이터 타입</th>
+                    <th className="py-1.5 px-3 text-left text-gray-400 font-medium">속성</th>
                   </tr>
                 </thead>
                 <tbody>
                   {table.columns.map((column, colIdx) => (
-                    <tr key={colIdx} className={`${colIdx % 2 === 0 ? 'bg-gray-800/10' : 'bg-gray-800/5'} border-t border-gray-700/20`}>
+                    <tr 
+                      key={colIdx} 
+                      className={`${colIdx % 2 === 0 ? 'bg-gray-800/10' : 'bg-gray-800/5'} border-t border-gray-700/20 hover:bg-gray-800/30 cursor-pointer`}
+                      onClick={() => navigator.clipboard.writeText(`${table.tableName}.${column.columnName}`)}
+                      title="클릭하여 테이블.컬럼명 복사"
+                    >
+                      <td className="py-1.5 px-3 text-gray-400 font-mono text-[10px]">{colIdx + 1}</td>
                       <td className="py-1.5 px-3 text-gray-300 flex items-center gap-1.5">
-                        {column.isPrimaryKey && <span className="w-2 h-2 bg-amber-400 rounded-full"></span>}
+                        {column.isPrimaryKey && <span className="w-2 h-2 bg-amber-400 rounded-full" title="기본키"></span>}
                         {column.columnName}
                       </td>
-                      <td className="py-1.5 px-3 text-gray-400 font-mono text-[10px]">{column.dataType}</td>
+                      <td className="py-1.5 px-3 text-gray-400 font-mono text-[10px]">
+                        {column.dataType}
+                      </td>
+                      <td className="py-1.5 px-3">
+                        <div className="flex gap-1 flex-wrap">
+                          {column.isPrimaryKey && (
+                            <span className="px-1 py-0.5 rounded text-[9px] bg-amber-900/30 text-amber-300 border border-amber-700/30">
+                              PK
+                            </span>
+                          )}
+                          {column.isNotNull && (
+                            <span className="px-1 py-0.5 rounded text-[9px] bg-blue-900/30 text-blue-300 border border-blue-700/30">
+                              NOT NULL
+                            </span>
+                          )}
+                          {column.isUnique && (
+                            <span className="px-1 py-0.5 rounded text-[9px] bg-purple-900/30 text-purple-300 border border-purple-700/30">
+                              UNIQUE
+                            </span>
+                          )}
+                          {column.hasDefault && (
+                            <span className="px-1 py-0.5 rounded text-[9px] bg-green-900/30 text-green-300 border border-green-700/30">
+                              DEFAULT
+                            </span>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -116,11 +205,364 @@ const parseDBSchema = (schemaText) => {
   }
 };
 
-// 마크다운 테이블을 HTML 테이블로 변환하는 함수
+// 개선된 차트 컴포넌트
+const DataChart = ({ data, type = 'bar' }) => {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-40 bg-gray-800/30 rounded-md text-gray-400 text-sm">
+        차트로 표시할 데이터가 없습니다.
+      </div>
+    );
+  }
+  
+  // 데이터 필드 분석
+  const allKeys = Object.keys(data[0]);
+  
+  // 최상의 레이블 필드와 값 필드 자동 선택
+  let labelField = allKeys[0];  // 기본값: 첫 번째 필드
+  
+  // 문자열/날짜 필드 우선 선택 (레이블용)
+  allKeys.forEach(key => {
+    const sampleValue = data[0][key];
+    if (typeof sampleValue === 'string' || sampleValue instanceof Date) {
+      if (!labelField || typeof data[0][labelField] === 'number') {
+        labelField = key;
+      }
+    }
+  });
+  
+  // 값 필드(숫자) 찾기
+  const valueFields = allKeys.filter(key => {
+    // 레이블로 선택된 필드는 제외
+    if (key === labelField) return false;
+    
+    // 숫자인 필드만 선택
+    const sampleValue = data[0][key];
+    return typeof sampleValue === 'number';
+  });
+  
+  if (valueFields.length === 0) {
+    // 값 필드가 없으면 기본 pie chart를 위한 카운트 필드 추가
+    if (type === 'pie') {
+      // 각 레이블 값의 출현 빈도 카운트
+      const counts = {};
+      data.forEach(item => {
+        const label = item[labelField];
+        if (label in counts) {
+          counts[label]++;
+        } else {
+          counts[label] = 1;
+        }
+      });
+      
+      // 새 데이터 포맷으로 변환
+      const chartData = Object.keys(counts).map(label => ({
+        [labelField]: label,
+        count: counts[label]
+      }));
+      
+      return (
+        <div className="h-52 bg-gray-800/30 rounded-md border border-gray-700/50 p-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={chartData}
+                dataKey="count"
+                nameKey={labelField}
+                cx="50%"
+                cy="50%"
+                outerRadius={80}
+                innerRadius={30}
+                fill="#8884d8"
+                paddingAngle={2}
+                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                labelLine={false}
+                animationDuration={750}
+                animationBegin={150}
+                isAnimationActive={true}
+              >
+                {chartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip 
+                formatter={(value) => [`${value}개`, '개수']}
+                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '0.375rem', padding: '8px' }}
+                labelStyle={{ color: '#e5e7eb', marginBottom: '4px' }}
+                itemStyle={{ color: '#e5e7eb' }}
+              />
+              <Legend
+                formatter={(value) => <span className="text-xs text-gray-300">{value}</span>}
+                layout="horizontal"
+                verticalAlign="bottom"
+                align="center"
+                wrapperStyle={{ fontSize: '10px', paddingTop: '8px' }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="flex items-center justify-center h-40 bg-gray-800/30 rounded-md p-4 text-gray-400 text-sm">
+        차트 생성을 위한 숫자 데이터가 없습니다.
+      </div>
+    );
+  }
+  
+  // 차트 데이터 준비
+  const chartData = data.slice(0, 20); // 최대 20개 항목으로 제한
+  
+  // 최적의 날짜 형식 선택 (레이블이 날짜인 경우)
+  const formatDate = (dateStr) => {
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr; // 유효한 날짜가 아니면 원본 반환
+      
+      return new Intl.DateTimeFormat('ko-KR', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      }).format(date);
+    } catch (e) {
+      return dateStr;
+    }
+  };
+  
+  // 축 레이블 형식 설정
+  const formatLabel = (label) => {
+    if (!label) return '';
+    if (typeof label === 'string' && label.length > 12) {
+      return label.substring(0, 10) + '...';
+    }
+    return label;
+  };
+  
+  const formatValue = (value) => {
+    if (typeof value === 'number') {
+      if (Number.isInteger(value)) {
+        return value.toLocaleString('ko-KR');
+      } else {
+        return value.toLocaleString('ko-KR', { maximumFractionDigits: 2 });
+      }
+    }
+    return value;
+  };
+  
+  // 차트 컨테이너 스타일 개선
+  const chartContainerClass = "h-52 bg-gradient-to-b from-gray-800/40 to-gray-900/40 rounded-md border border-gray-700/50 p-4 shadow-md";
+  
+  // 차트 타입별 렌더링
+  switch (type) {
+    case 'bar':
+      return (
+        <div className={chartContainerClass}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 5, right: 5, bottom: 20, left: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
+              <XAxis 
+                dataKey={labelField} 
+                tick={{ fill: '#9ca3af', fontSize: 10 }} 
+                tickFormatter={formatLabel}
+                height={40}
+                angle={-45}
+                textAnchor="end"
+                padding={{ left: 8, right: 8 }}
+              />
+              <YAxis tick={{ fill: '#9ca3af', fontSize: 10 }} width={40} tickFormatter={formatValue} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '0.375rem', padding: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                formatter={(value, name) => [formatValue(value), name]}
+                labelFormatter={(label) => typeof label === 'string' && label.includes('T') ? formatDate(label) : label}
+                labelStyle={{ color: '#e5e7eb', marginBottom: '4px' }}
+                itemStyle={{ color: '#e5e7eb' }}
+                cursor={{ fill: 'rgba(99, 102, 241, 0.1)' }}
+              />
+              <Legend 
+                wrapperStyle={{ fontSize: '10px', color: '#9ca3af', paddingTop: '10px' }} 
+                formatter={(value) => <span className="text-xs text-gray-300">{value}</span>}
+              />
+              {valueFields.map((field, index) => (
+                <Bar 
+                  key={field} 
+                  dataKey={field} 
+                  name={field}
+                  fill={CHART_COLORS[index % CHART_COLORS.length]} 
+                  animationDuration={750}
+                  animationBegin={index * 150}
+                  radius={[4, 4, 0, 0]}
+                  barSize={valueFields.length > 3 ? 10 : 20}
+                />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      );
+    
+    case 'line':
+      return (
+        <div className={chartContainerClass}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: 5, right: 5, bottom: 20, left: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
+              <XAxis 
+                dataKey={labelField} 
+                tick={{ fill: '#9ca3af', fontSize: 10 }} 
+                tickFormatter={formatLabel}
+                height={40}
+                angle={-45}
+                textAnchor="end"
+                padding={{ left: 8, right: 8 }}
+              />
+              <YAxis tick={{ fill: '#9ca3af', fontSize: 10 }} width={40} tickFormatter={formatValue} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '0.375rem', padding: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                formatter={(value, name) => [formatValue(value), name]}
+                labelFormatter={(label) => typeof label === 'string' && label.includes('T') ? formatDate(label) : label}
+                labelStyle={{ color: '#e5e7eb', marginBottom: '4px' }}
+                itemStyle={{ color: '#e5e7eb' }}
+              />
+              <Legend 
+                wrapperStyle={{ fontSize: '10px', color: '#9ca3af', paddingTop: '10px' }} 
+                formatter={(value) => <span className="text-xs text-gray-300">{value}</span>}
+              />
+              {valueFields.map((field, index) => (
+                <Line 
+                  key={field} 
+                  type="monotone" 
+                  dataKey={field} 
+                  name={field}
+                  stroke={CHART_COLORS[index % CHART_COLORS.length]} 
+                  strokeWidth={2}
+                  activeDot={{ r: 6, stroke: '#1f2937', strokeWidth: 2, fill: CHART_COLORS[index % CHART_COLORS.length] }}
+                  dot={{ r: 4, strokeWidth: 2, fill: '#1f2937' }}
+                  animationDuration={1000}
+                  animationBegin={index * 150}
+                  isAnimationActive={true}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      );
+      
+    case 'pie':
+      // 첫 번째 숫자 필드를 값으로 사용
+      const valueField = valueFields[0];
+      return (
+        <div className={chartContainerClass}>
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={chartData}
+                dataKey={valueField}
+                nameKey={labelField}
+                cx="50%"
+                cy="50%"
+                outerRadius={80}
+                innerRadius={30}
+                fill="#8884d8"
+                paddingAngle={2}
+                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                labelLine={false}
+                animationDuration={750}
+                animationBegin={150}
+                isAnimationActive={true}
+              >
+                {chartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '0.375rem', padding: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                formatter={(value, name, props) => [formatValue(value), props.payload.nameKey]}
+                labelStyle={{ color: '#e5e7eb', marginBottom: '4px' }}
+                itemStyle={{ color: '#e5e7eb' }}
+              />
+              <Legend
+                formatter={(value) => <span className="text-xs text-gray-300">{formatLabel(value)}</span>}
+                layout="horizontal"
+                verticalAlign="bottom"
+                align="center"
+                wrapperStyle={{ fontSize: '10px', paddingTop: '8px' }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      );
+      
+    case 'area':
+      return (
+        <div className={chartContainerClass}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 20, left: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
+              <XAxis 
+                dataKey={labelField} 
+                tick={{ fill: '#9ca3af', fontSize: 10 }} 
+                tickFormatter={formatLabel}
+                height={40}
+                angle={-45}
+                textAnchor="end"
+                padding={{ left: 8, right: 8 }}
+              />
+              <YAxis tick={{ fill: '#9ca3af', fontSize: 10 }} width={40} tickFormatter={formatValue} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '0.375rem', padding: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                formatter={(value, name) => [formatValue(value), name]}
+                labelFormatter={(label) => typeof label === 'string' && label.includes('T') ? formatDate(label) : label}
+                labelStyle={{ color: '#e5e7eb', marginBottom: '4px' }}
+                itemStyle={{ color: '#e5e7eb' }}
+              />
+              <Legend 
+                wrapperStyle={{ fontSize: '10px', color: '#9ca3af', paddingTop: '10px' }} 
+                formatter={(value) => <span className="text-xs text-gray-300">{value}</span>}
+              />
+              {valueFields.map((field, index) => (
+                <Area 
+                  key={field} 
+                  type="monotone" 
+                  dataKey={field} 
+                  name={field} 
+                  fill={CHART_COLORS[index % CHART_COLORS.length]}
+                  stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                  fillOpacity={0.4}
+                  strokeWidth={2}
+                  animationDuration={1000}
+                  animationBegin={index * 150}
+                  isAnimationActive={true}
+                />
+              ))}
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      );
+      
+    default:
+      return null;
+  }
+};
+
+// 마크다운 테이블을 HTML 테이블로 변환하는 함수 개선
 const markdownTableToHtml = (markdown) => {
   if (!markdown) return null;
   
   try {
+    // 경고나 오류 메시지 특수 처리
+    if (markdown.startsWith('⚠️') || markdown.startsWith('❌')) {
+      return (
+        <div className={`px-3 py-2 flex items-start gap-2 text-sm rounded-md ${
+          markdown.startsWith('⚠️') 
+            ? 'bg-yellow-900/20 text-yellow-300 border border-yellow-900/30' 
+            : 'bg-red-900/20 text-red-300 border border-red-900/30'
+        }`}>
+          <FiAlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+          <p>{markdown}</p>
+        </div>
+      );
+    }
+    
     // 마크다운 문자열이 테이블처럼 보이는지 확인
     if (!markdown.includes("|")) {
       // 일반 텍스트 또는 다른 형식이므로 그대로 반환
@@ -130,8 +572,6 @@ const markdownTableToHtml = (markdown) => {
         </div>
       );
     }
-    
-    console.log("마크다운 테이블 변환 시작:", markdown);
     
     // 줄 단위로 분리
     const rows = markdown.trim().split("\n");
@@ -174,24 +614,14 @@ const markdownTableToHtml = (markdown) => {
       );
     }
     
-    console.log("추출된 헤더:", headers);
-      
-    // HTML 테이블 생성
-    let tableHtml = `
-      <table class="w-full border-collapse">
-        <thead>
-          <tr class="bg-gray-800/80 text-left">
-            ${headers.map(header => `<th class="px-3 py-2 text-indigo-300 font-medium text-sm">${header}</th>`).join("")}
-          </tr>
-        </thead>
-        <tbody>
-    `;
-    
-    // 테이블 데이터 행 생성 (구분선 행 제외하고 시작)
+    // 데이터 행 추출 (구분선 행 제외하고 시작)
     const dataRows = rows.slice(2);
     let validRowCount = 0;
     
-    dataRows.forEach((row, i) => {
+    // 셀 데이터 및 타입 추출
+    const tableData = [];
+    
+    dataRows.forEach((row, rowIdx) => {
       if (!row.includes("|")) return;
       
       const cells = row
@@ -203,20 +633,28 @@ const markdownTableToHtml = (markdown) => {
       if (cells.length === 0 || cells.length !== headers.length) {
         return;
       }
-        
-      tableHtml += `
-        <tr class="${i % 2 === 0 ? 'bg-gray-800/30' : 'bg-gray-800/10'}">
-          ${cells.map(cell => `<td class="border-t border-gray-700/30 px-3 py-2 text-gray-300 text-sm">${cell}</td>`).join("")}
-        </tr>
-      `;
       
+      // 행 데이터 저장
+      const rowData = {};
+      cells.forEach((cell, colIdx) => {
+        // 값 타입 감지 및 변환
+        let value = cell;
+        
+        // 숫자인지 확인
+        if (/^[-+]?\d+(\.\d+)?$/.test(cell.trim())) {
+          value = parseFloat(cell);
+        }
+        // "NULL" 또는 빈 값 처리
+        else if (cell.trim().toUpperCase() === "NULL" || cell.trim() === "") {
+          value = null;
+        }
+        
+        rowData[headers[colIdx]] = value;
+      });
+      
+      tableData.push(rowData);
       validRowCount++;
     });
-    
-    tableHtml += `
-        </tbody>
-      </table>
-    `;
     
     // 유효한 행이 없는 경우 원본 텍스트 반환
     if (validRowCount === 0) {
@@ -227,9 +665,45 @@ const markdownTableToHtml = (markdown) => {
       );
     }
     
-    console.log("테이블 변환 완료, 유효 행:", validRowCount);
-    
-    return <div dangerouslySetInnerHTML={{ __html: tableHtml }} className="overflow-x-auto max-w-full rounded-md" />;
+    // HTML 테이블 생성
+    return (
+      <div className="overflow-x-auto max-w-full rounded-md">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="bg-gray-800/80 text-left">
+              {headers.map((header, idx) => (
+                <th key={idx} className="px-3 py-2 text-indigo-300 font-medium text-sm">
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {tableData.map((row, rowIdx) => (
+              <tr key={rowIdx} className={`${rowIdx % 2 === 0 ? 'bg-gray-800/30' : 'bg-gray-800/10'} hover:bg-gray-800/40 transition-colors`}>
+                {headers.map((header, colIdx) => {
+                  const value = row[header];
+                  const isNumber = typeof value === 'number';
+                  const isNull = value === null;
+                  
+                  return (
+                    <td key={colIdx} className={`border-t border-gray-700/30 px-3 py-2 text-sm ${
+                      isNumber 
+                        ? 'text-indigo-200 text-right font-mono' 
+                        : isNull 
+                          ? 'text-gray-500 italic'
+                          : 'text-gray-300'
+                    }`}>
+                      {isNull ? 'NULL' : value}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
   } catch (error) {
     console.error("마크다운 테이블 파싱 오류:", error);
     // 에러 발생 시 원본 텍스트 표시
@@ -241,316 +715,23 @@ const markdownTableToHtml = (markdown) => {
   }
 };
 
-// 메시지 버블 컴포넌트
-const MessageBubble = ({ type, content, timestamp, sql, result, onViewChart = () => {} }) => {
-  const isUser = type === 'user';
-  const messageTime = timestamp ? new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-  const [showSql, setShowSql] = useState(false);
-  const [showResult, setShowResult] = useState(false);
-  
-  return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
-      <div className={`flex ${isUser ? 'flex-row-reverse' : 'flex-row'} max-w-[85%] items-end gap-2`}>
-        {/* 프로필 아이콘 */}
-        <div className={`rounded-full flex-shrink-0 w-8 h-8 flex items-center justify-center 
-          ${isUser ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-800 text-indigo-400'}`}>
-          {isUser ? <FiUser size={14} /> : <FiCpu size={14} />}
-        </div>
-        
-        {/* 메시지 콘텐츠 */}
-        <div className="max-w-[calc(100%-40px)]">
-          <div className={`rounded-2xl px-4 py-2.5 
-            ${isUser 
-              ? 'bg-indigo-600 text-white' 
-              : 'bg-gray-800/80 border border-gray-700/50 text-white'
-            }`}
-          >
-            <div className="text-sm">
-              {content}
-            </div>
-            
-            {/* SQL 및 결과 영역 (어시스턴트 메시지만 해당) */}
-            {!isUser && sql && (
-              <div className="mt-3 pt-3 border-t border-gray-700/30">
-                {/* 탭 버튼 */}
-                <div className="flex gap-2 mb-2">
-                  <button 
-                    className={`flex items-center gap-1 px-2 py-1 ${showSql ? 'bg-indigo-600/70' : 'bg-gray-700/50 hover:bg-gray-700'} rounded-md text-xs text-gray-300 transition-colors`}
-                    onClick={() => {
-                      setShowSql(!showSql);
-                      setShowResult(false);
-                    }}
-                  >
-                    <FiCode size={10} />
-                    <span>SQL</span>
-                  </button>
-                  
-                  {result && (
-                    <button 
-                      className={`flex items-center gap-1 px-2 py-1 ${showResult ? 'bg-indigo-600/70' : 'bg-gray-700/50 hover:bg-gray-700'} rounded-md text-xs text-gray-300 transition-colors`}
-                      onClick={() => {
-                        setShowResult(!showResult);
-                        setShowSql(false);
-                      }}
-                    >
-                      <FiTable size={10} />
-                      <span>결과</span>
-                    </button>
-                  )}
-                  
-                  <button 
-                    className="flex items-center gap-1 px-2 py-1 bg-gray-700/50 hover:bg-gray-700 rounded-md text-xs text-gray-300 transition-colors"
-                    onClick={() => {
-                      onViewChart();
-                      setShowSql(false);
-                      setShowResult(false);
-                    }}
-                  >
-                    <FiBarChart2 size={10} />
-                    <span>차트</span>
-                  </button>
-                </div>
-                
-                {/* SQL 코드 */}
-                {showSql && (
-                  <div className="mt-2 rounded-md overflow-hidden text-xs">
-                    <SyntaxHighlighter
-                      language="sql"
-                      style={vs2015}
-                      customStyle={{ 
-                        margin: 0,
-                        padding: '0.75rem',
-                        borderRadius: '0.375rem',
-                        fontSize: '0.75rem',
-                        backgroundColor: 'rgba(30, 41, 59, 0.7)'
-                      }}
-                    >
-                      {sql}
-                    </SyntaxHighlighter>
-                  </div>
-                )}
-                
-                {/* 결과 테이블 */}
-                {showResult && result && (
-                  <div className="mt-2 rounded-md overflow-hidden">
-                    {result.startsWith('⚠️') || result.startsWith('❌') ? (
-                      <div className="px-3 py-2 text-yellow-300 flex items-start gap-2 text-xs bg-yellow-900/20 rounded-md">
-                        <FiAlertCircle size={14} className="mt-0.5 flex-shrink-0" />
-                        <p>{result}</p>
-                      </div>
-                    ) : (
-                      markdownTableToHtml(result) || (
-                        <div className="px-3 py-2 text-gray-300 text-xs">
-                          {result}
-                        </div>
-                      )
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          
-          {/* 타임스탬프 */}
-          <div className={`text-xs text-gray-400 mt-1 ${isUser ? 'text-right' : 'text-left'}`}>
-            {messageTime}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// 확인 모달 컴포넌트 추가
-const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
-  if (!isOpen) return null;
-  
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-      <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-lg w-full max-w-md overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-700 flex items-center">
-          <div className="p-2 rounded-full bg-red-900/30 text-red-400 mr-3">
-            <FiAlertCircle size={18} />
-          </div>
-          <h3 className="text-lg font-medium text-white">{title}</h3>
-        </div>
-        <div className="p-5">
-          <p className="text-gray-300">{message}</p>
-        </div>
-        <div className="px-4 py-3 bg-gray-900/40 flex justify-end gap-3">
-          <button 
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-md transition-colors"
-            onClick={onClose}
-          >
-            취소
-          </button>
-          <button 
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors flex items-center gap-1.5"
-            onClick={onConfirm}
-          >
-            <FiX size={14} />
-            <span>삭제</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// 차트 컴포넌트
-const DataChart = ({ data, type = 'bar' }) => {
-  if (!data || data.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-52 bg-gray-800/30 rounded-md border border-gray-700/50">
-        <div className="text-gray-400 text-sm">차트로 표시할 데이터가 없습니다</div>
-      </div>
-    );
-  }
-  
-  // 테이블 데이터를 차트 데이터로 변환
-  const chartData = data.map(item => ({
-    ...item,
-    // 값으로 숫자만 사용
-    ...Object.keys(item).reduce((acc, key) => {
-      // 숫자로 변환 가능한 값만 숫자로 변환
-      const value = parseFloat(item[key]);
-      if (!isNaN(value)) {
-        acc[key] = value;
-      }
-      return acc;
-    }, {})
-  }));
-  
-  // 차트에 표시할 필드 선택 (첫 번째 필드는 레이블로 사용)
-  const fields = Object.keys(chartData[0]);
-  const labelField = fields[0];
-  const valueFields = fields.slice(1).filter(field => {
-    // 모든 값이 숫자인 필드만 선택
-    return chartData.every(item => !isNaN(parseFloat(item[field])));
-  });
-  
-  switch (type) {
-    case 'bar':
-      return (
-        <div className="h-52 bg-gray-800/30 rounded-md border border-gray-700/50 p-3">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 5, right: 5, bottom: 20, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey={labelField} tick={{ fill: '#9ca3af' }} />
-              <YAxis tick={{ fill: '#9ca3af' }} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '0.375rem' }}
-                labelStyle={{ color: '#e5e7eb' }}
-                itemStyle={{ color: '#e5e7eb' }}
-              />
-              <Legend wrapperStyle={{ color: '#9ca3af' }} />
-              {valueFields.map((field, index) => (
-                <Bar key={index} dataKey={field} name={field} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-              ))}
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      );
-    case 'pie':
-      return (
-        <div className="h-52 bg-gray-800/30 rounded-md border border-gray-700/50 p-3">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={chartData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                outerRadius={70}
-                dataKey={valueFields[0]}
-                nameKey={labelField}
-              >
-                {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '0.375rem' }}
-                labelStyle={{ color: '#e5e7eb' }}
-                itemStyle={{ color: '#e5e7eb' }}
-              />
-              <Legend wrapperStyle={{ color: '#9ca3af' }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-      );
-    case 'line':
-      return (
-        <div className="h-52 bg-gray-800/30 rounded-md border border-gray-700/50 p-3">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 5, right: 5, bottom: 20, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey={labelField} tick={{ fill: '#9ca3af' }} />
-              <YAxis tick={{ fill: '#9ca3af' }} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '0.375rem' }}
-                labelStyle={{ color: '#e5e7eb' }}
-                itemStyle={{ color: '#e5e7eb' }}
-              />
-              <Legend wrapperStyle={{ color: '#9ca3af' }} />
-              {valueFields.map((field, index) => (
-                <Line key={index} type="monotone" dataKey={field} name={field} stroke={CHART_COLORS[index % CHART_COLORS.length]} />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      );
-    case 'area':
-      return (
-        <div className="h-52 bg-gray-800/30 rounded-md border border-gray-700/50 p-3">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 20, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey={labelField} tick={{ fill: '#9ca3af' }} />
-              <YAxis tick={{ fill: '#9ca3af' }} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '0.375rem' }}
-                labelStyle={{ color: '#e5e7eb' }}
-                itemStyle={{ color: '#e5e7eb' }}
-              />
-              <Legend wrapperStyle={{ color: '#9ca3af' }} />
-              {valueFields.map((field, index) => (
-                <Area 
-                  key={index} 
-                  type="monotone" 
-                  dataKey={field} 
-                  name={field} 
-                  fill={CHART_COLORS[index % CHART_COLORS.length]}
-                  stroke={CHART_COLORS[index % CHART_COLORS.length]}
-                  fillOpacity={0.3}
-                />
-              ))}
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      );
-    default:
-      return null;
-  }
-};
-
-// 테이블 데이터 파서
+// 테이블 데이터 파서 개선
 const parseTableData = (markdownTable) => {
   if (!markdownTable) return null;
   
   try {
-    console.log("테이블 데이터 파싱 시도:", markdownTable);
+    // 경고나 오류 메시지는 파싱 불가
+    if (markdownTable.startsWith('⚠️') || markdownTable.startsWith('❌')) {
+      return null;
+    }
     
     // 마크다운 테이블이 아닌 경우 빈 배열 반환
     if (!markdownTable.includes('|')) {
-      console.log("마크다운 테이블 형식이 아님");
       return null;
     }
     
     const rows = markdownTable.trim().split('\n');
     if (rows.length < 3) {
-      console.log("테이블 행이 충분하지 않음");
       return null;
     }
     
@@ -559,7 +740,6 @@ const parseTableData = (markdownTable) => {
     const separatorRow = rows[1].trim();
     
     if (!headerRow.includes('|') || !separatorRow.includes('|') || !separatorRow.includes('-')) {
-      console.log("유효한 마크다운 테이블 형식이 아님");
       return null;
     }
     
@@ -570,11 +750,8 @@ const parseTableData = (markdownTable) => {
       .map(cell => cell.trim());
     
     if (headers.length === 0) {
-      console.log("추출된 헤더가 없음");
       return null;
     }
-    
-    console.log("추출된 헤더:", headers);
     
     // 데이터 행 추출 (구분선 행 제외)
     const dataRows = rows.slice(2);
@@ -598,23 +775,36 @@ const parseTableData = (markdownTable) => {
       headers.forEach((header, index) => {
         const cell = cells[index] || '';
         
-        // 숫자로 변환 시도
-        const numericValue = parseFloat(cell);
-        if (!isNaN(numericValue) && cell.trim() !== '') {
-          rowObj[header] = numericValue;
-        } else {
-          rowObj[header] = cell;
+        let value = cell;
+        
+        // 값 타입 감지
+        if (cell.trim().toUpperCase() === 'NULL' || cell.trim() === '') {
+          value = null;
         }
+        // 숫자 판별 및 변환
+        else if (/^[-+]?\d+(\.\d+)?$/.test(cell.trim())) {
+          const numValue = parseFloat(cell);
+          if (!isNaN(numValue)) {
+            value = numValue; // 숫자로 변환
+          }
+        }
+        // 날짜 판별 및 변환
+        else if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(cell.trim())) {
+          try {
+            const date = new Date(cell);
+            if (!isNaN(date.getTime())) {
+              value = date; // 날짜로 변환
+            }
+          } catch (e) {
+            // 변환 실패 시 원본 문자열 사용
+          }
+        }
+        
+        rowObj[header] = value;
       });
       
       data.push(rowObj);
     });
-    
-    if (data.length > 0) {
-      console.log("파싱된 데이터:", data.length, "행");
-    } else {
-      console.log("추출된 데이터 행이 없음");
-    }
     
     return data;
   } catch (error) {
@@ -623,43 +813,233 @@ const parseTableData = (markdownTable) => {
   }
 };
 
-// 예시 질문 데이터
+// 메시지 버블 컴포넌트
+const MessageBubble = ({ type, content, timestamp, sql, result, onViewChart = () => {} }) => {
+  const isUser = type === 'user';
+  const messageTime = timestamp ? new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  const [showSql, setShowSql] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+  
+  // SQL 결과에서 테이블 데이터 파싱
+  const tableData = useMemo(() => {
+    if (result) {
+      return parseTableData(result);
+    }
+    return null;
+  }, [result]);
+  
+  // 차트 표시 가능 여부
+  const canShowChart = useMemo(() => {
+    return tableData && tableData.length > 0;
+  }, [tableData]);
+  
+  // 컴포넌트 마운트 시 애니메이션 효과
+  const [isVisible, setIsVisible] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setIsVisible(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div 
+      className={`flex mb-4 ${isUser ? 'justify-end' : 'justify-start'} ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'}`}
+      style={{ transition: 'opacity 0.3s ease, transform 0.3s ease' }}
+    >
+      <div className={`flex items-end gap-2 max-w-[85%] md:max-w-[75%] ${isUser ? 'flex-row-reverse' : ''}`}>
+        {/* 아바타 */}
+        <div className={`flex-shrink-0 rounded-full w-8 h-8 flex items-center justify-center ${
+          isUser 
+            ? 'bg-gradient-to-br from-indigo-500 to-indigo-700 shadow-md' 
+            : 'bg-gradient-to-br from-gray-700 to-gray-900 border border-gray-700/50'
+        }`}>
+          {isUser ? <FiUser size={14} className="text-white" /> : <FiTerminal size={14} className="text-indigo-300" />}
+        </div>
+        
+        {/* 메시지 내용 */}
+        <div>
+          <div className={`rounded-2xl px-4 py-3 ${
+            isUser 
+              ? 'bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-md' 
+              : 'bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700/50 text-gray-200'
+          }`}>
+            {content}
+          </div>
+          
+          {/* SQL 및 결과 영역 (어시스턴트 메시지만 해당) */}
+          {!isUser && sql && (
+            <div className="mt-2 bg-gray-850 border border-gray-700/40 rounded-lg overflow-hidden shadow-md">
+              {/* 탭 버튼 */}
+              <div className="flex border-b border-gray-700/50">
+                <button 
+                  onClick={() => {
+                    setShowSql(!showSql);
+                    if (showResult && !showSql) setShowResult(false);
+                  }}
+                  className={`flex items-center gap-1 px-3 py-1.5 ${
+                    showSql 
+                      ? 'bg-gradient-to-r from-indigo-600/70 to-indigo-700/70 text-white' 
+                      : 'bg-gray-800/50 hover:bg-gray-700/60 text-gray-300'
+                  } transition-colors`}
+                  title="SQL 쿼리 보기"
+                >
+                  <FiCode size={14} />
+                  <span className="text-xs font-medium">SQL</span>
+                </button>
+                
+                <button 
+                  onClick={() => {
+                    setShowResult(!showResult);
+                    if (showSql && !showResult) setShowSql(false);
+                  }}
+                  className={`flex items-center gap-1 px-3 py-1.5 ${
+                    showResult 
+                      ? 'bg-gradient-to-r from-indigo-600/70 to-indigo-700/70 text-white' 
+                      : 'bg-gray-800/50 hover:bg-gray-700/60 text-gray-300'
+                  } transition-colors`}
+                  title="쿼리 결과 보기"
+                >
+                  <FiList size={14} />
+                  <span className="text-xs font-medium">결과</span>
+                </button>
+                
+                {canShowChart && (
+                  <button 
+                    onClick={() => {
+                      onViewChart();
+                      setShowSql(false);
+                      setShowResult(false);
+                    }}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-gray-800/50 hover:bg-gray-700/60 text-gray-300 hover:text-white transition-colors ml-auto"
+                    title="차트로 시각화"
+                  >
+                    <FiBarChart2 size={14} />
+                    <span className="text-xs font-medium">차트</span>
+                  </button>
+                )}
+              </div>
+              
+              {/* SQL 코드 */}
+              {showSql && (
+                <div className="overflow-x-auto">
+                  <SyntaxHighlighter
+                    language="sql"
+                    style={vs2015}
+                    customStyle={{
+                      margin: 0,
+                      padding: '1rem',
+                      background: 'transparent',
+                      fontSize: '0.8rem',
+                      borderRadius: '0'
+                    }}
+                  >
+                    {sql}
+                  </SyntaxHighlighter>
+                </div>
+              )}
+              
+              {/* 결과 */}
+              {showResult && (
+                <div className="overflow-x-auto max-h-96">
+                  {result ? markdownTableToHtml(result) : <div className="p-3 text-gray-400 text-sm">결과가 없습니다.</div>}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* 타임스탬프 */}
+          <div className={`mt-1 text-[10px] text-gray-500 ${isUser ? 'text-right' : 'text-left'}`}>
+            {messageTime}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 확인 모달 컴포넌트 - 파일 상단으로 이동
+const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-gray-900/70">
+      <div className="bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full border border-gray-700">
+        <h3 className="text-lg font-medium text-white mb-4">{title}</h3>
+        <p className="text-gray-300 mb-6">{message}</p>
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+          >
+            취소
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white transition-colors"
+          >
+            삭제
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 예시 질문 데이터 (카테고리별로 구성)
 const exampleQuestions = [
-  "사용자 테이블에서 모든 사용자의 이름과 이메일을 보여줘",
-  "최근 일주일간 등록된 사용자 수는?",
-  "게시글이 가장 많은 사용자 5명을 보여줘",
-  "각 부서별 평균 급여가 얼마인지 알려줘",
-  "이번 달에 가장 많이 판매된 상품 3개는?"
+  {
+    category: '기본 조회',
+    questions: [
+      "사용자 테이블에서 모든 사용자의 이름과 이메일을 보여줘",
+      "부서 정보를 모두 조회해줘",
+      "오늘 등록된 주문 목록을 보여줘"
+    ]
+  },
+  {
+    category: '집계/통계',
+    questions: [
+      "최근 일주일간 등록된 사용자 수는?", 
+      "각 부서별 평균 급여가 얼마인지 알려줘",
+      "월별 주문 건수와 총액을 보여줘"
+    ]
+  },
+  {
+    category: '필터링',
+    questions: [
+      "게시글이 10개 이상인 사용자만 조회해줘",
+      "서울에 사는 고객 중 구매액이 10만원 이상인 사람 목록",
+      "미결제 상태인 주문 건수가 가장 많은 고객 5명은?"
+    ]
+  },
+  {
+    category: '정렬/제한',
+    questions: [
+      "방문 횟수가 가장 많은 고객 10명을 보여줘",
+      "가장 최근에 등록된 상품 5개는?",
+      "주문 금액이 큰 순서대로 거래 내역을 정렬해줘"
+    ]
+  }
 ];
+
+// 단순 예시 질문 목록 (기존 구현 방식 대체)
+const flatExampleQuestions = exampleQuestions.flatMap(category => category.questions);
 
 const SQLQueryPage = () => {
   const [question, setQuestion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [generatedSQL, setGeneratedSQL] = useState('');
-  const [queryResult, setQueryResult] = useState(null);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [dbSchema, setDbSchema] = useState('');
+  const [chatMessages, setChatMessages] = useState([]);
+  const [dbSchema, setDbSchema] = useState(null);
   const [showSchema, setShowSchema] = useState(false);
-  const [llmResponse, setLlmResponse] = useState('');
-  const [showLLMResponse, setShowLLMResponse] = useState(false);
-  const [activeTab, setActiveTab] = useState('sql'); // 'sql' 또는 'ai'
-  const [chatMessages, setChatMessages] = useState([
-    {
-      type: 'assistant',
-      content: '안녕하세요! 데이터베이스에 대해 자연어로 질문하시면 SQL을 생성하고 결과를 보여드립니다.',
-      timestamp: new Date().getTime(),
-    }
-  ]);
-  const [queryHistory, setQueryHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
-  const [chartType, setChartType] = useState('bar');
+  const [queryHistory, setQueryHistory] = useState([]);
+  const [errorMessage, setErrorMessage] = useState('');
   const [showChart, setShowChart] = useState(false);
+  const [chartType, setChartType] = useState('bar');
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('sql'); // 기본값은 SQL 생성 모드
   const [tableData, setTableData] = useState(null);
+  
   const inputRef = useRef(null);
   const messagesEndRef = useRef(null);
-  
-  // 모달 상태 추가
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   
   // 메시지 끝으로 스크롤
   const scrollToBottom = () => {
@@ -682,7 +1062,7 @@ const SQLQueryPage = () => {
   useEffect(() => {
     const fetchDbSchema = async () => {
       try {
-        // 상대 경로로 변경
+        // 상대 경로로 변경 (vite 프록시 사용)
         const response = await fetch('/api/db-schema');
         if (!response.ok) {
           const text = await response.text();
@@ -744,246 +1124,208 @@ const SQLQueryPage = () => {
   // 히스토리에서 쿼리 불러오기
   const loadFromHistory = (historyItem) => {
     setQuestion(historyItem.question);
-    setGeneratedSQL(historyItem.sql);
-    setQueryResult(historyItem.result);
-    setActiveTab('sql');
-    
-    // 테이블 데이터 파싱
-    if (historyItem.result) {
-      setTableData(parseTableData(historyItem.result));
-    }
-  };
-  
-  // SQL 쿼리 실행 함수
-  const handleSubmit = async (e) => {
-    if (e) e.preventDefault();
-    
-    if (!question.trim()) {
-      setErrorMessage('질문을 입력해주세요.');
-      inputRef.current?.focus();
-      return;
-    }
-    
-    // 새 사용자 메시지 추가
     setChatMessages(prev => [
-      ...prev, 
+      ...prev,
       {
-        type: 'user',
-        content: question,
-        timestamp: new Date().getTime()
+        type: 'assistant',
+        content: '아래는 요청하신 SQL 쿼리입니다:',
+        sql: historyItem.sql,
+        result: historyItem.result,
+        timestamp: historyItem.timestamp
       }
     ]);
-    
-    setIsLoading(true);
-    setErrorMessage('');
-    setGeneratedSQL('');
-    setQueryResult(null);
-    setLlmResponse('');
-    setShowLLMResponse(false);
-    setActiveTab('sql');
-    setTableData(null);
-    setShowChart(false);
-    
-    try {
-      console.log("API 요청 전송:", { question: question.trim() });
-      
-      // 상대 경로로 변경
-      const response = await fetch('/api/sql-query', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ question: question.trim() }),
-      });
-      
-      // 오류 응답 처리 개선
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('API 오류 응답:', errorText);
-        throw new Error(errorText || '쿼리 실행 중 오류가 발생했습니다.');
-      }
-      
-      const data = await response.json();
-      console.log("API 응답 데이터:", data);
-      
-      setGeneratedSQL(data.sql);
-      setQueryResult(data.results);
-      
-      // 테이블 데이터 파싱
-      const parsedData = parseTableData(data.results);
-      console.log("파싱된 테이블 데이터:", parsedData);
-      setTableData(parsedData);
-      
-      // 히스토리에 추가
-      addToHistory(question, data.sql, data.results);
-      
-      // 응답 메시지 추가
-      let responseMessage = '쿼리가 성공적으로 실행되었습니다.';
-      if (data.results.startsWith('⚠️') || data.results.startsWith('❌')) {
-        responseMessage = '쿼리 실행 중 오류가 발생했습니다: ' + data.results;
-      }
-      
-      setChatMessages(prev => [
-        ...prev, 
-        {
-          type: 'assistant',
-          content: responseMessage,
-          timestamp: new Date().getTime(),
-          sql: data.sql,
-          result: data.results
-        }
-      ]);
-      
-      // 입력 필드 초기화
-      setQuestion('');
-      
-      // 메시지 끝으로 스크롤
-      setTimeout(scrollToBottom, 100);
-      
-    } catch (error) {
-      console.error('SQL 쿼리 오류:', error);
-      setErrorMessage(error.message || '서버 오류가 발생했습니다.');
-      
-      // 오류 메시지 추가
-      setChatMessages(prev => [
-        ...prev, 
-        {
-          type: 'assistant',
-          content: `오류: ${error.message || '서버 오류가 발생했습니다.'}`,
-          timestamp: new Date().getTime()
-        }
-      ]);
-      
-      // 메시지 끝으로 스크롤
-      setTimeout(scrollToBottom, 100);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  // SQL-LLM 통합 API 호출 함수 추가
-  const handleSqlLlmQuery = async () => {
-    if (!question.trim()) {
-      setErrorMessage('질문을 입력해주세요.');
-      inputRef.current?.focus();
-      return;
-    }
-    
-    // 새 사용자 메시지 추가
-    setChatMessages(prev => [
-      ...prev, 
-      {
-        type: 'user',
-        content: question,
-        timestamp: new Date().getTime()
-      }
-    ]);
-    
-    setIsLoading(true);
-    setErrorMessage('');
-    setGeneratedSQL('');
-    setQueryResult(null);
-    setLlmResponse('');
-    setShowLLMResponse(true);
-    setActiveTab('ai');
-    setTableData(null);
-    setShowChart(false);
-    
-    try {
-      console.log("SQL-LLM API 요청 전송:", { question: question.trim() });
-      
-      // 상대 경로로 변경
-      const response = await fetch('/api/sql-and-llm', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ question: question.trim() }),
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('SQL-LLM API 오류 응답:', errorText);
-        throw new Error(errorText || 'SQL-LLM 쿼리 실행 중 오류가 발생했습니다.');
-      }
-      
-      const data = await response.json();
-      console.log("SQL-LLM API 응답 데이터:", data);
-      
-      setGeneratedSQL(data.sql_query);
-      setQueryResult(data.sql_result);
-      setLlmResponse(data.bot_response);
-      
-      // 테이블 데이터 파싱
-      const parsedData = parseTableData(data.sql_result);
-      console.log("파싱된 테이블 데이터:", parsedData);
-      setTableData(parsedData);
-      
-      // 히스토리에 추가
-      addToHistory(question, data.sql_query, data.sql_result);
-      
-      // 응답 메시지 추가
-      setChatMessages(prev => [
-        ...prev, 
-        {
-          type: 'assistant',
-          content: data.bot_response || '쿼리가 성공적으로 실행되었습니다.',
-          timestamp: new Date().getTime(),
-          sql: data.sql_query,
-          result: data.sql_result
-        }
-      ]);
-      
-      // 입력 필드 초기화
-      setQuestion('');
-      
-      // 메시지 끝으로 스크롤
-      setTimeout(scrollToBottom, 100);
-      
-    } catch (error) {
-      console.error('SQL-LLM 쿼리 오류:', error);
-      setErrorMessage(error.message || '서버 오류가 발생했습니다.');
-      
-      // 오류 메시지 추가
-      setChatMessages(prev => [
-        ...prev, 
-        {
-          type: 'assistant',
-          content: `오류: ${error.message || '서버 오류가 발생했습니다.'}`,
-          timestamp: new Date().getTime()
-        }
-      ]);
-      
-      // 메시지 끝으로 스크롤
-      setTimeout(scrollToBottom, 100);
-    } finally {
-      setIsLoading(false);
-    }
+    setShowHistory(true);
   };
   
   // 예시 질문 클릭 핸들러
   const handleExampleClick = (exampleQuestion) => {
     setQuestion(exampleQuestion);
-    inputRef.current?.focus();
+    // 상태 업데이트 후 즉시 함수를 호출하면 이전 상태 값이 사용될 수 있으므로
+    // 직접 파라미터를 전달하는 방식으로 변경합니다.
+    if (activeTab === 'sql') {
+      // SQL 생성 모드일 경우 바로 쿼리 제출
+      const event = new Event('submit');
+      event.preventDefault = () => {}; // 가상 이벤트 객체 생성
+      
+      // 질문 값을 직접 사용하여 API 호출
+      submitSqlQuery(exampleQuestion, event);
+    } else {
+      // AI 응답 모드일 경우 LLM 응답 생성
+      submitSqlLlmQuery(exampleQuestion);
+    }
+  };
+  
+  // SQL 쿼리 제출 함수 - handleSubmit에서 분리하여 재사용 가능하게 함
+  const submitSqlQuery = async (questionText, e) => {
+    if (e) e.preventDefault();
+    
+    const queryText = questionText || question;
+    if (!queryText.trim() || isLoading) return;
+    
+    try {
+      // 사용자 질문 UI에 추가
+      const newUserMessage = {
+        type: 'user',
+        content: queryText,
+        timestamp: new Date().toISOString()
+      };
+      
+      setChatMessages(prev => [...prev, newUserMessage]);
+      setIsLoading(true);
+      setErrorMessage('');
+      
+      // SQL만 생성 API 호출 - 상대 경로로 변경 (vite 프록시 사용)
+      // 백엔드 API에서 기대하는 파라미터 이름을 'query'에서 'question'으로 변경
+      const response = await fetch('/api/sql-query', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ question: queryText })
+      });
+      
+      if (!response.ok) {
+        throw new Error('API 요청 실패');
+      }
+      
+      const result = await response.json();
+      
+      // 히스토리에 추가
+      if (result.sql) {
+        addToHistory(queryText, result.sql, result.results || result.result || "");
+      }
+      
+      // 응답 메시지 추가
+      const newAssistantMessage = {
+        type: 'assistant',
+        content: '아래는 요청하신 SQL 쿼리입니다:',
+        sql: result.sql,
+        result: result.results || result.result || "",
+        timestamp: new Date().toISOString()
+      };
+      
+      setChatMessages(prev => [...prev, newAssistantMessage]);
+      // 파라미터로 전달된 질문이 아닌 경우에만 입력창 초기화
+      if (!questionText) {
+        setQuestion('');
+      }
+      
+      // 결과에서 테이블 데이터 파싱 (차트 준비)
+      if (result.results || result.result) {
+        const parsedData = parseTableData(result.results || result.result);
+        setTableData(parsedData);
+      }
+      
+    } catch (error) {
+      console.error('SQL 변환 오류:', error);
+      setErrorMessage('SQL 변환 중 오류가 발생했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsLoading(false);
+      scrollToBottom();
+    }
+  };
+  
+  // SQL + LLM 쿼리 제출 함수 - handleSqlLlmQuery에서 분리하여 재사용 가능하게 함
+  const submitSqlLlmQuery = async (questionText) => {
+    const queryText = questionText || question;
+    if (!queryText.trim() || isLoading) return;
+    
+    try {
+      // 사용자 질문 UI에 추가
+      const newUserMessage = {
+        type: 'user',
+        content: queryText,
+        timestamp: new Date().toISOString()
+      };
+      
+      setChatMessages(prev => [...prev, newUserMessage]);
+      setIsLoading(true);
+      setErrorMessage('');
+      
+      // SQL + LLM 응답 생성 API 호출 - 상대 경로로 변경 (vite 프록시 사용)
+      // 백엔드 API에서 기대하는 파라미터 이름을 'query'에서 'question'으로 변경
+      const response = await fetch('/api/sql-and-llm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ question: queryText })
+      });
+      
+      if (!response.ok) {
+        throw new Error('API 요청 실패');
+      }
+      
+      const result = await response.json();
+      
+      // 필드 이름 매핑 - 백엔드 응답 필드와 프론트엔드 기대 필드 매핑
+      const sql = result.sql || result.sql_query || "";
+      const results = result.results || result.sql_result || "";
+      const explanation = result.explanation || result.bot_response || "";
+      
+      // 히스토리에 추가
+      if (sql) {
+        addToHistory(queryText, sql, results);
+      }
+      
+      // 응답 메시지 추가
+      const newAssistantMessage = {
+        type: 'assistant',
+        content: explanation || '쿼리 결과입니다:',
+        sql: sql,
+        result: results,
+        timestamp: new Date().toISOString()
+      };
+      
+      setChatMessages(prev => [...prev, newAssistantMessage]);
+      // 파라미터로 전달된 질문이 아닌 경우에만 입력창 초기화
+      if (!questionText) {
+        setQuestion('');
+      }
+      
+      // 결과에서 테이블 데이터 파싱 (차트 준비)
+      if (results) {
+        const parsedData = parseTableData(results);
+        setTableData(parsedData);
+      }
+      
+    } catch (error) {
+      console.error('SQL + LLM 응답 생성 오류:', error);
+      setErrorMessage('응답 생성 중 오류가 발생했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsLoading(false);
+      scrollToBottom();
+    }
+  };
+  
+  // API 호출 함수 - SQL 변환만 요청 (폼 제출용 핸들러)
+  const handleSubmit = (e) => {
+    submitSqlQuery(null, e);
+  };
+  
+  // API 호출 함수 - SQL 변환 + LLM 설명 요청 (폼 제출용 핸들러)
+  const handleSqlLlmQuery = () => {
+    submitSqlLlmQuery();
   };
   
   // 차트 보기 핸들러
   const handleViewChart = () => {
-    // 차트 표시 전에 테이블 데이터 확인 및 파싱
-    if (!tableData || tableData.length === 0) {
-      // 가장 최근 어시스턴트 메시지에서 결과 가져오기
-      const lastAssistantMessage = [...chatMessages].reverse().find(msg => msg.type === 'assistant' && msg.result);
+    // tableData가 없거나 결과가 없을 때
+    if (!tableData) {
+      // 마지막 어시스턴트 메시지 찾기
+      const lastAssistantMsg = [...chatMessages].reverse().find(
+        msg => msg.type === 'assistant' && msg.result
+      );
       
-      if (lastAssistantMessage && lastAssistantMessage.result) {
-        // 결과가 에러 메시지가 아니면 파싱 시도
-        if (!lastAssistantMessage.result.startsWith('⚠️') && !lastAssistantMessage.result.startsWith('❌')) {
-          const parsedData = parseTableData(lastAssistantMessage.result);
-          if (parsedData && parsedData.length > 0) {
-            // 유효한 데이터가 있으면 설정
-            setTableData(parsedData);
-            setShowChart(true);
-            return;
-          }
+      // 마지막 메시지에서 테이블 데이터 파싱
+      if (lastAssistantMsg && lastAssistantMsg.result) {
+        const parsedData = parseTableData(lastAssistantMsg.result);
+        
+        if (parsedData && parsedData.length > 0) {
+          // 유효한 데이터가 있으면 설정
+          setTableData(parsedData);
+          setShowChart(true);
+          return;
         }
       }
       
@@ -1009,12 +1351,12 @@ const SQLQueryPage = () => {
   };
   
   return (
-    <div className="flex flex-col h-full bg-[#0f172a] text-gray-100">
+    <div className="flex flex-col h-full bg-gradient-to-br from-gray-900 via-[#111827] to-indigo-900/20 text-gray-100">
       {/* 헤더 */}
-      <div className="flex items-center px-4 py-3 border-b border-gray-800/50">
+      <div className="flex flex-col md:flex-row md:items-center px-4 py-3 border-b border-gray-800/50 bg-gray-900/30 backdrop-blur-sm">
         <div className="flex items-center">
-          <div className="w-8 h-8 rounded-md bg-indigo-600 mr-3 flex items-center justify-center">
-            <FiDatabase size={16} className="text-white" />
+          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-600 to-indigo-800 mr-3 shadow-md">
+            <FiDatabase size={18} className="text-white" />
           </div>
           <div>
             <h1 className="text-lg font-bold text-white">
@@ -1024,30 +1366,70 @@ const SQLQueryPage = () => {
           </div>
         </div>
         
-        <div className="ml-auto flex items-center gap-2">
+        <div className="mt-3 md:mt-0 md:ml-auto flex items-center gap-2 flex-wrap">
+          <div className="flex px-2 py-1 rounded-lg bg-gray-800/50 border border-gray-700/30">
+            <button
+              onClick={() => {
+                setActiveTab('sql');
+              }}
+              className={`px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 transition-colors ${
+                activeTab === 'sql' 
+                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-sm' 
+                  : 'text-gray-400 hover:text-gray-300'
+              }`}
+              title="SQL만 생성"
+            >
+              <FiCode size={14} className={activeTab === 'sql' ? 'text-white' : 'text-indigo-400'} />
+              <span>SQL 생성</span>
+            </button>
+            
+            <button
+              onClick={() => {
+                setActiveTab('ai');
+              }}
+              className={`px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 transition-colors ${
+                activeTab === 'ai' 
+                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-sm' 
+                  : 'text-gray-400 hover:text-gray-300'
+              }`}
+              title="LLM 설명 포함"
+            >
+              <FiZap size={14} className={activeTab === 'ai' ? 'text-white' : 'text-indigo-400'} />
+              <span>AI 응답</span>
+            </button>
+          </div>
+          
           <button 
             onClick={() => setShowHistory(!showHistory)}
-            className="px-3 py-1.5 rounded-md bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700/50 text-sm flex items-center gap-1.5 transition-colors"
+            className={`px-3 py-1.5 rounded-md ${
+              showHistory 
+                ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-sm' 
+                : 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700/50'
+            } text-sm flex items-center gap-1.5 transition-colors`}
           >
-            <FiClock size={14} className="text-indigo-400" />
+            <FiClock size={14} className={showHistory ? 'text-white' : 'text-indigo-400'} />
             <span>히스토리</span>
           </button>
           
           <button 
             onClick={() => setShowSchema(!showSchema)}
-            className="px-3 py-1.5 rounded-md bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700/50 text-sm flex items-center gap-1.5 transition-colors"
+            className={`px-3 py-1.5 rounded-md ${
+              showSchema 
+                ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-sm' 
+                : 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700/50'
+            } text-sm flex items-center gap-1.5 transition-colors`}
           >
-            <FiColumns size={14} className="text-indigo-400" />
-            <span>DB 스키마 {showSchema ? '숨기기' : '보기'}</span>
+            <FiColumns size={14} className={showSchema ? 'text-white' : 'text-indigo-400'} />
+            <span>DB 스키마</span>
           </button>
         </div>
       </div>
       
-      <div className="flex-1 overflow-hidden flex">
+      <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
         {/* 히스토리 사이드바 */}
         {showHistory && (
-          <div className="w-64 border-r border-gray-800/70 bg-gray-900 flex-shrink-0 overflow-hidden flex flex-col">
-            <div className="px-4 py-3 border-b border-gray-800/50 bg-gray-900 sticky top-0 z-10">
+          <div className="w-full md:w-64 h-64 md:h-auto border-b md:border-b-0 md:border-r border-gray-800/70 bg-gray-900/30 md:flex-shrink-0 overflow-hidden flex flex-col">
+            <div className="px-4 py-3 border-b border-gray-800/50 bg-gray-900/40 backdrop-blur-sm sticky top-0 z-10">
               <h3 className="text-sm font-medium text-white flex items-center gap-1.5">
                 <FiClock size={14} className="text-indigo-400" />
                 <span>쿼리 히스토리</span>
@@ -1065,7 +1447,7 @@ const SQLQueryPage = () => {
                   {queryHistory.map(item => (
                     <button
                       key={item.id}
-                      className="w-full text-left px-3 py-2 rounded-md hover:bg-gray-800/70 transition-colors group border border-gray-800/50"
+                      className="w-full text-left px-3 py-2 rounded-md hover:bg-gray-800/70 transition-colors group border border-gray-800/50 hover:border-indigo-500/30"
                       onClick={() => loadFromHistory(item)}
                     >
                       <div className="text-xs text-indigo-400 mb-1 flex items-center justify-between">
@@ -1089,12 +1471,12 @@ const SQLQueryPage = () => {
             </div>
             
             {queryHistory.length > 0 && (
-              <div className="px-3 py-2 border-t border-gray-800/50 bg-gray-900">
+              <div className="px-3 py-2 border-t border-gray-800/50 bg-gray-900/40 backdrop-blur-sm">
                 <button
-                  className="w-full text-xs text-gray-400 hover:text-gray-300 py-1.5 px-3 bg-gray-800/50 hover:bg-gray-800 rounded-md transition-colors flex items-center justify-center gap-1.5"
+                  className="w-full text-xs text-gray-400 hover:text-gray-300 py-1.5 px-3 bg-gray-800/70 hover:bg-red-900/30 hover:border-red-800/50 border border-gray-700/30 rounded-md transition-colors flex items-center justify-center gap-1.5"
                   onClick={() => setIsConfirmModalOpen(true)}
                 >
-                  <FiAlertCircle size={12} />
+                  <FiTrash2 size={12} />
                   <span>히스토리 비우기</span>
                 </button>
               </div>
@@ -1104,25 +1486,53 @@ const SQLQueryPage = () => {
         
         {/* 메인 영역 */}
         <div className="flex-1 overflow-hidden flex flex-col">
-          {/* 예시 질문 영역 */}
-          <div className="bg-gray-900/40 border-b border-gray-800/50 py-2 px-4 flex items-center gap-2 overflow-x-auto whitespace-nowrap scrollbar-thin">
-            <div className="text-xs text-indigo-400 flex items-center gap-1 flex-shrink-0">
-              <FiHelpCircle size={12} />
-              <span>예시:</span>
+          {/* 예시 질문 영역 개선 - 드롭다운 메뉴 방식으로 변경 */}
+          <div className="bg-gray-900/40 border-b border-gray-800/50 py-2 px-4">
+            {/* 드롭다운 메뉴 방식으로 변경 */}
+            <div className="flex items-center gap-3 flex-wrap">
+              {exampleQuestions.map((category, catIdx) => (
+                <div key={catIdx} className="relative group">
+                  <button className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-gray-800/70 hover:bg-indigo-600/40 border border-gray-700/30 hover:border-indigo-500/40 rounded-md transition-colors">
+                    <FiHelpCircle size={12} className="text-indigo-400" />
+                    <span className="text-gray-300">{category.category}</span>
+                    <FiChevronDown size={14} className="text-gray-400 group-hover:text-indigo-300 transition-colors" />
+                  </button>
+                  
+                  {/* 드롭다운 메뉴 */}
+                  <div className="absolute left-0 top-full mt-1 z-20 bg-gray-800 rounded-md shadow-lg border border-gray-700/50 overflow-hidden w-64 max-h-0 group-hover:max-h-60 transition-all duration-300 opacity-0 group-hover:opacity-100 invisible group-hover:visible">
+                    <div className="p-1">
+                      {category.questions.map((q, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleExampleClick(q)}
+                          className="w-full text-left text-xs px-3 py-2 rounded-md hover:bg-indigo-600/40 text-gray-300 hover:text-white transition-colors flex items-center"
+                        >
+                          <FiArrowRight size={10} className="mr-2 text-indigo-400 flex-shrink-0" />
+                          <span className="line-clamp-2">{q}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              {/* 마지막으로 사용한 질문 표시 */}
+              {chatMessages.length > 0 && chatMessages[chatMessages.length - 2]?.type === 'user' && (
+                <button
+                  type="button"
+                  onClick={() => handleExampleClick(chatMessages[chatMessages.length - 2].content)}
+                  className="text-xs px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-500/40 rounded-md text-indigo-300 hover:text-white transition-colors flex items-center gap-1.5"
+                >
+                  <FiClock size={12} className="text-indigo-400" />
+                  <span className="line-clamp-1">
+                    {chatMessages[chatMessages.length - 2].content.length > 30 
+                      ? chatMessages[chatMessages.length - 2].content.substring(0, 27) + '...' 
+                      : chatMessages[chatMessages.length - 2].content}
+                  </span>
+                </button>
+              )}
             </div>
-            
-            {exampleQuestions.map((q, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => handleExampleClick(q)}
-                className="text-xs px-2.5 py-1.5 bg-gray-800/70 hover:bg-gray-800 
-                          rounded-md text-gray-300 hover:text-white transition-colors flex items-center flex-shrink-0"
-              >
-                <FiArrowRight size={10} className="mr-1.5 text-indigo-400" />
-                {q.length > 40 ? q.substring(0, 37) + '...' : q}
-              </button>
-            ))}
           </div>
           
           {/* 챗 영역 */}
@@ -1175,7 +1585,7 @@ const SQLQueryPage = () => {
             
             {/* 차트 영역 */}
             {showChart && tableData && tableData.length > 0 && (
-              <div className="px-4 py-3 border-t border-gray-800/50 bg-gray-900/50">
+              <div className="px-4 py-3 border-t border-gray-800/50 bg-gray-900/50 backdrop-blur-sm">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-medium text-white flex items-center gap-1.5">
                     <FiBarChart2 size={14} className="text-indigo-400" />
@@ -1224,55 +1634,68 @@ const SQLQueryPage = () => {
             )}
             
             {/* 입력창 */}
-            <div className="px-4 py-3 border-t border-gray-800/50 bg-gray-900/60">
-              <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
-                <div className="relative rounded-lg shadow-sm">
+            <div className="px-4 py-3 border-t border-gray-800/50 bg-gray-900/70 backdrop-blur-sm">
+              <form onSubmit={activeTab === 'sql' ? handleSubmit : handleSqlLlmQuery} className="max-w-3xl mx-auto">
+                <div className="relative rounded-xl shadow-md group focus-within:ring-2 focus-within:ring-indigo-500/50 transition-all duration-300">
                   <input
                     ref={inputRef}
                     type="text"
                     value={question}
                     onChange={(e) => setQuestion(e.target.value)}
                     placeholder="데이터베이스에 질문하세요..."
-                    className="w-full pl-4 pr-24 py-3 bg-gray-800/70 border border-gray-700/60 focus:border-indigo-500 
-                            focus:ring-1 focus:ring-indigo-500/30 rounded-lg outline-none transition-all text-white text-sm"
+                    className="w-full pl-5 pr-24 py-3.5 bg-gray-800/80 border border-gray-700/60 focus:border-indigo-500/70
+                            focus:ring-0 rounded-xl outline-none transition-all text-white text-sm group-hover:border-indigo-500/40"
                     disabled={isLoading}
                   />
                   
                   <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
                     <button
                       type="button"
-                      onClick={handleSqlLlmQuery}
+                      onClick={() => {
+                        if (activeTab === 'sql') {
+                          setActiveTab('ai');
+                          handleSqlLlmQuery();
+                        } else {
+                          setActiveTab('sql');
+                          handleSubmit(new Event('submit'));
+                        }
+                      }}
                       disabled={isLoading || !question.trim()}
-                      className="p-2 text-gray-400 hover:text-indigo-400 disabled:opacity-50 disabled:hover:text-gray-400"
-                      title="AI 응답 생성"
+                      className="p-2 text-gray-400 hover:text-indigo-400 disabled:opacity-50 disabled:hover:text-gray-400 transition-colors"
+                      title={activeTab === 'sql' ? "AI 응답 생성으로 전환" : "SQL 생성으로 전환"}
                     >
-                      <FiZap size={16} />
+                      {activeTab === 'sql' ? <FiZap size={16} /> : <FiCode size={16} />}
                     </button>
                     
                     <button
                       type="submit"
                       disabled={isLoading || !question.trim()}
-                      className="p-2 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:bg-gray-700"
+                      className="p-2 rounded-md bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white disabled:opacity-50 disabled:from-gray-700 disabled:to-gray-800 transition-colors"
                     >
                       {isLoading ? <FiLoader size={16} className="animate-spin" /> : <FiSend size={16} />}
                     </button>
                   </div>
+                </div>
+                <div className="text-xs text-right mt-1.5 text-gray-500">
+                  <span className="mr-1">{activeTab === 'sql' ? "SQL 생성 모드" : "AI 응답 모드"}</span>
+                  <kbd className="px-1.5 py-0.5 bg-gray-800 rounded border border-gray-700 text-gray-400">Enter</kbd>
+                  <span className="mx-1">키를 눌러 질문하세요</span>
                 </div>
               </form>
             </div>
           </div>
         </div>
         
-        {/* 사이드바 - DB 스키마 */}
+        {/* 사이드바 - DB 스키마 UI 개선 */}
         {showSchema && (
-          <div className="w-72 h-full overflow-y-auto bg-gray-900 border-l border-gray-800/70 flex-shrink-0">
-            <div className="sticky top-0 bg-gray-900 z-10 py-3 px-4 border-b border-gray-800/50">
+          <div className="w-full md:w-72 h-64 md:h-auto overflow-y-auto bg-gray-900/30 border-t md:border-t-0 md:border-l border-gray-800/70 md:flex-shrink-0">
+            <div className="sticky top-0 bg-gray-900/40 backdrop-blur-sm z-10 py-3 px-4 border-b border-gray-800/50">
               <h3 className="text-sm font-medium text-white flex items-center gap-1.5">
                 <FiDatabase size={14} className="text-indigo-400" />
                 <span>데이터베이스 스키마</span>
               </h3>
               <p className="text-xs text-gray-400 mt-1">
-                테이블 및 컬럼 구조를 확인할 수 있습니다.
+                테이블 및 컬럼을 클릭하면 이름이 복사됩니다.
               </p>
             </div>
             
@@ -1306,8 +1729,13 @@ const SQLQueryPage = () => {
                   <div className="flex gap-2">
                     <FiPlay size={14} className="mt-0.5 text-indigo-400 flex-shrink-0" />
                     <div>
-                      <p className="font-medium text-gray-300 mb-1">예시 질문 활용하기</p>
-                      <p className="text-gray-400">제공된 예시 질문을 참고해 질문 형식을 구성해보세요.</p>
+                      <p className="font-medium text-gray-300 mb-1">예시 쿼리 패턴</p>
+                      <p className="text-gray-400 mb-1">효과적인 질문 패턴:</p>
+                      <ul className="list-disc pl-4 space-y-1">
+                        <li>"{`<테이블>`}에서 {`<조건>`}인 {`<항목>`} 보여줘"</li>
+                        <li>"{`<기준>`}별 {`<집계함수>`} 계산해줘"</li>
+                        <li>"{`<항목>`}이 가장 많은/적은 {`<대상>`} 찾아줘"</li>
+                      </ul>
                     </div>
                   </div>
                 </li>
