@@ -331,7 +331,7 @@ GROUP BY p.product_id, p.name
 ORDER BY 평균_평점 DESC;
 """
 
-        if (("가장 자주" in question.lower() or "많이" in question.lower()) and "주문" in question.lower() and "제품" in question.lower()) or ("top" in question.lower() and "제품" in question.lower()):
+        if (("가장 자주" in question.lower() or "많이" in question.lower()) and "주문" in question.lower() and "제품" in question.lower()) or ("top" in question.lower() and "제품" in question.lower):
             print("Vanna AI 우회: '가장 많이 주문된 제품' 패턴 감지")
             # top N의 N 추출
             import re
@@ -1245,6 +1245,19 @@ def generate_sql_from_question(question, schema, state=None):
     log_prefix = f"[SQL 생성 - '{question}']"
     print(f"{log_prefix} SQL 변환 시작")
     
+    # 스키마 검증 및 로깅
+    if not schema or len(schema) < 50:
+        print(f"{log_prefix} 경고: 스키마 정보가 없거나 불완전합니다 (길이: {len(schema) if schema else 0})")
+        from app.utils.get_mariadb_schema import get_mariadb_schema
+        schema = get_mariadb_schema()
+        print(f"{log_prefix} 스키마 정보 새로 획득 (길이: {len(schema)})")
+    else:
+        print(f"{log_prefix} 유효한 스키마 정보가 제공됨 (길이: {len(schema)})")
+    
+    # 스키마 요약 출력 (디버깅용)
+    schema_preview = schema[:200] + "..." if len(schema) > 200 else schema
+    print(f"{log_prefix} 스키마 미리보기: {schema_preview}")
+    
     # Vanna AI로 SQL 생성 시도
     print(f"{log_prefix} Vanna AI로 SQL 생성 시도")
     vanna_sql = generate_sql_with_vanna(question)
@@ -1279,16 +1292,63 @@ def generate_sql_from_question(question, schema, state=None):
     
     # LLM으로 SQL 생성 시도
     print(f"{log_prefix} LLM으로 SQL 생성 시도")
-    llm_sql = generate_sql_with_rules(question)
-    if llm_sql and "SELECT" in llm_sql.upper():
-        print(f"{log_prefix} LLM 성공: {llm_sql}")
-        return llm_sql
-    else:
-        print(f"{log_prefix} LLM 실패: 유효한 SQL을 생성하지 못함")
     
-    # 모든 방법이 실패한 경우 기본 SQL 반환
-    print(f"{log_prefix} 모든 방법 실패. 기본 SQL 반환")
-    return "SELECT user_id, user_name FROM user LIMIT 10;"
+    try:
+        from app.utils.llm_utils import generate_text_with_local_llm
+        
+        # 데이터베이스 스키마를 포함한 프롬프트 생성
+        prompt = f"""당신은 SQL 전문가입니다. 주어진 질문을 SQL 쿼리로 변환해주세요.
+
+## 데이터베이스 스키마 정보:
+{schema}
+
+## 질문:
+{question}
+
+## 규칙:
+1. 반드시 유효한 SQL 쿼리만 생성하세요.
+2. 테이블과 필드 이름은 제공된 스키마에 있는 것만 사용하세요.
+3. 사용자가 특정 테이블이나 필드를 언급하면 그에 맞는 테이블/필드를 사용하세요.
+4. 생성된 SQL은 SELECT 문만 허용합니다.
+5. 결과는 SQL 쿼리 코드만 반환하세요. 설명이나 주석을 포함하지 마세요.
+
+## SQL 쿼리:
+```sql
+"""
+        
+        # SQL 생성
+        print(f"{log_prefix} LLM으로 SQL 생성 프롬프트 생성 완료 (길이: {len(prompt)})")
+        llm_response = generate_text_with_local_llm(
+            prompt=prompt,
+            max_tokens=512,
+            temperature=0.1,
+            top_p=0.9,
+            system_prompt="당신은 정확한 SQL 쿼리를 생성하는 전문가입니다."
+        )
+        
+        print(f"{log_prefix} LLM 응답: {llm_response[:100]}...")
+        
+        # SQL 추출
+        sql = clean_sql(llm_response)
+        if sql and "SELECT" in sql.upper():
+            print(f"{log_prefix} LLM 성공: {sql}")
+            return sql
+        else:
+            print(f"{log_prefix} LLM 실패: 유효한 SQL을 추출하지 못함. 규칙 기반 방식으로 전환")
+    except Exception as llm_err:
+        print(f"{log_prefix} LLM 오류: {str(llm_err)}")
+    
+    # 마지막으로 규칙 기반 접근법 사용
+    print(f"{log_prefix} 규칙 기반 방식으로 SQL 생성 시도")
+    rule_sql = generate_sql_with_rules(question)
+    
+    # 결과 반환 전 유효성 추가 검증
+    if rule_sql and "SELECT" in rule_sql.upper():
+        print(f"{log_prefix} 규칙 기반 SQL 생성 성공: {rule_sql}")
+        return rule_sql
+    else:
+        print(f"{log_prefix} 경고: 모든 방식이 실패. 기본 SQL 반환")
+        return "SELECT * FROM users LIMIT 10;"
 
 def get_compare_operator(compare_type):
     """비교 유형에 따라 적절한 SQL 연산자를 반환합니다."""

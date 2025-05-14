@@ -7,14 +7,14 @@ import {
   FiSave, FiChevronRight, FiChevronLeft, FiActivity, FiX
 } from 'react-icons/fi';
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus as vs2015 } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { vs2015 } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import sql from 'react-syntax-highlighter/dist/esm/languages/prism/sql';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, AreaChart, Area
 } from 'recharts';
 
-// SQL 언어 등록
+// 구문 강조를 위한 언어 등록
 SyntaxHighlighter.registerLanguage('sql', sql);
 
 // 색상 테마 정의
@@ -118,63 +118,23 @@ const parseDBSchema = (schemaText) => {
 
 // 마크다운 테이블을 HTML 테이블로 변환하는 함수
 const markdownTableToHtml = (markdown) => {
-  if (!markdown) return null;
-  
+  if (!markdown || !markdown.includes("|")) return null;
+
   try {
-    // 마크다운 문자열이 테이블처럼 보이는지 확인
-    if (!markdown.includes("|")) {
-      // 일반 텍스트 또는 다른 형식이므로 그대로 반환
-      return (
-        <div className="px-3 py-2 text-gray-300 text-sm">
-          {markdown}
-        </div>
-      );
-    }
-    
-    console.log("마크다운 테이블 변환 시작:", markdown);
-    
-    // 줄 단위로 분리
     const rows = markdown.trim().split("\n");
-    
-    // 첫 번째 줄이 헤더인지 확인
-    const headerRow = rows[0].trim();
-    
-    // 마크다운 테이블 형식 검사: 구분자 행이 있는지 확인
-    let separatorRow = "";
-    if (rows.length > 1) {
-      separatorRow = rows[1].trim();
-    }
+    const headerRow = rows[0];
+    const separatorRow = rows[1];
     
     // 헤더와 구분선이 markdown 테이블 형식인지 확인
-    const isMarkdownTable = headerRow.includes("|") && 
-                          separatorRow && 
-                          separatorRow.includes("|") && 
-                          separatorRow.includes("-");
-    
-    if (!isMarkdownTable) {
-      // 마크다운 테이블이 아닌 경우, 텍스트 형식으로 표시
-      return (
-        <div className="px-3 py-2 text-gray-300 text-sm">
-          {markdown}
-        </div>
-      );
+    if (!headerRow.includes("|") || !separatorRow?.includes("|-")) {
+      return null;
     }
     
-    // 테이블 헤더 행 추출
+    // 테이블 헤더 행 생성
     const headers = headerRow
       .split("|")
       .filter(cell => cell.trim().length > 0)
       .map(cell => cell.trim());
-      
-    if (headers.length === 0) {
-      return (
-        <div className="px-3 py-2 text-gray-300 text-sm">
-          {markdown}
-        </div>
-      );
-    }
-    
-    console.log("추출된 헤더:", headers);
       
     // HTML 테이블 생성
     let tableHtml = `
@@ -189,8 +149,6 @@ const markdownTableToHtml = (markdown) => {
     
     // 테이블 데이터 행 생성 (구분선 행 제외하고 시작)
     const dataRows = rows.slice(2);
-    let validRowCount = 0;
-    
     dataRows.forEach((row, i) => {
       if (!row.includes("|")) return;
       
@@ -198,19 +156,12 @@ const markdownTableToHtml = (markdown) => {
         .split("|")
         .filter(cell => cell.trim().length > 0)
         .map(cell => cell.trim());
-      
-      // 빈 행이거나 셀 개수가 맞지 않는 경우 건너뛰기
-      if (cells.length === 0 || cells.length !== headers.length) {
-        return;
-      }
         
       tableHtml += `
         <tr class="${i % 2 === 0 ? 'bg-gray-800/30' : 'bg-gray-800/10'}">
           ${cells.map(cell => `<td class="border-t border-gray-700/30 px-3 py-2 text-gray-300 text-sm">${cell}</td>`).join("")}
         </tr>
       `;
-      
-      validRowCount++;
     });
     
     tableHtml += `
@@ -218,26 +169,10 @@ const markdownTableToHtml = (markdown) => {
       </table>
     `;
     
-    // 유효한 행이 없는 경우 원본 텍스트 반환
-    if (validRowCount === 0) {
-      return (
-        <div className="px-3 py-2 text-gray-300 text-sm">
-          {markdown}
-        </div>
-      );
-    }
-    
-    console.log("테이블 변환 완료, 유효 행:", validRowCount);
-    
     return <div dangerouslySetInnerHTML={{ __html: tableHtml }} className="overflow-x-auto max-w-full rounded-md" />;
   } catch (error) {
     console.error("마크다운 테이블 파싱 오류:", error);
-    // 에러 발생 시 원본 텍스트 표시
-    return (
-      <div className="px-3 py-2 text-gray-300 text-sm">
-        {markdown}
-      </div>
-    );
+    return null;
   }
 };
 
@@ -355,42 +290,6 @@ const MessageBubble = ({ type, content, timestamp, sql, result, onViewChart = ()
           <div className={`text-xs text-gray-400 mt-1 ${isUser ? 'text-right' : 'text-left'}`}>
             {messageTime}
           </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// 확인 모달 컴포넌트 추가
-const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message }) => {
-  if (!isOpen) return null;
-  
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-      <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-lg w-full max-w-md overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-700 flex items-center">
-          <div className="p-2 rounded-full bg-red-900/30 text-red-400 mr-3">
-            <FiAlertCircle size={18} />
-          </div>
-          <h3 className="text-lg font-medium text-white">{title}</h3>
-        </div>
-        <div className="p-5">
-          <p className="text-gray-300">{message}</p>
-        </div>
-        <div className="px-4 py-3 bg-gray-900/40 flex justify-end gap-3">
-          <button 
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-md transition-colors"
-            onClick={onClose}
-          >
-            취소
-          </button>
-          <button 
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors flex items-center gap-1.5"
-            onClick={onConfirm}
-          >
-            <FiX size={14} />
-            <span>삭제</span>
-          </button>
         </div>
       </div>
     </div>
@@ -537,29 +436,14 @@ const DataChart = ({ data, type = 'bar' }) => {
 
 // 테이블 데이터 파서
 const parseTableData = (markdownTable) => {
-  if (!markdownTable) return null;
+  if (!markdownTable || !markdownTable.includes('|')) return null;
   
   try {
-    console.log("테이블 데이터 파싱 시도:", markdownTable);
-    
-    // 마크다운 테이블이 아닌 경우 빈 배열 반환
-    if (!markdownTable.includes('|')) {
-      console.log("마크다운 테이블 형식이 아님");
-      return null;
-    }
-    
     const rows = markdownTable.trim().split('\n');
-    if (rows.length < 3) {
-      console.log("테이블 행이 충분하지 않음");
-      return null;
-    }
+    const headerRow = rows[0];
+    const separatorRow = rows[1];
     
-    // 헤더 행과 구분자 행 확인
-    const headerRow = rows[0].trim();
-    const separatorRow = rows[1].trim();
-    
-    if (!headerRow.includes('|') || !separatorRow.includes('|') || !separatorRow.includes('-')) {
-      console.log("유효한 마크다운 테이블 형식이 아님");
+    if (!headerRow.includes('|') || !separatorRow?.includes('|-')) {
       return null;
     }
     
@@ -569,52 +453,22 @@ const parseTableData = (markdownTable) => {
       .filter(cell => cell.trim().length > 0)
       .map(cell => cell.trim());
     
-    if (headers.length === 0) {
-      console.log("추출된 헤더가 없음");
-      return null;
-    }
-    
-    console.log("추출된 헤더:", headers);
-    
     // 데이터 행 추출 (구분선 행 제외)
     const dataRows = rows.slice(2);
-    const data = [];
-    
-    dataRows.forEach(row => {
-      if (!row.includes('|')) return;
+    const data = dataRows.map(row => {
+      if (!row.includes('|')) return null;
       
       const cells = row
         .split('|')
         .filter(cell => cell.trim().length > 0)
         .map(cell => cell.trim());
       
-      // 빈 행이거나 셀 개수가 맞지 않는 경우 건너뛰기
-      if (cells.length === 0 || cells.length !== headers.length) {
-        return;
-      }
-      
       // 객체로 변환
-      const rowObj = {};
-      headers.forEach((header, index) => {
-        const cell = cells[index] || '';
-        
-        // 숫자로 변환 시도
-        const numericValue = parseFloat(cell);
-        if (!isNaN(numericValue) && cell.trim() !== '') {
-          rowObj[header] = numericValue;
-        } else {
-          rowObj[header] = cell;
-        }
-      });
-      
-      data.push(rowObj);
-    });
-    
-    if (data.length > 0) {
-      console.log("파싱된 데이터:", data.length, "행");
-    } else {
-      console.log("추출된 데이터 행이 없음");
-    }
+      return headers.reduce((obj, header, index) => {
+        obj[header] = cells[index] || '';
+        return obj;
+      }, {});
+    }).filter(Boolean);
     
     return data;
   } catch (error) {
@@ -658,24 +512,14 @@ const SQLQueryPage = () => {
   const inputRef = useRef(null);
   const messagesEndRef = useRef(null);
   
-  // 모달 상태 추가
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  
   // 메시지 끝으로 스크롤
   const scrollToBottom = () => {
-    if (messagesEndRef.current) {
-      console.log("메시지 끝으로 스크롤");
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
   
   // 메시지 추가 시 스크롤
   useEffect(() => {
-    if (chatMessages.length > 0) {
-      console.log("메시지 변경 감지, 스크롤 예약");
-      const timeoutId = setTimeout(scrollToBottom, 100);
-      return () => clearTimeout(timeoutId);
-    }
+    scrollToBottom();
   }, [chatMessages]);
   
   // 초기 로딩 시 DB 스키마 정보 가져오기
@@ -785,8 +629,6 @@ const SQLQueryPage = () => {
     setShowChart(false);
     
     try {
-      console.log("API 요청 전송:", { question: question.trim() });
-      
       // 상대 경로로 변경
       const response = await fetch('/api/sql-query', {
         method: 'POST',
@@ -804,15 +646,11 @@ const SQLQueryPage = () => {
       }
       
       const data = await response.json();
-      console.log("API 응답 데이터:", data);
-      
       setGeneratedSQL(data.sql);
       setQueryResult(data.results);
       
       // 테이블 데이터 파싱
-      const parsedData = parseTableData(data.results);
-      console.log("파싱된 테이블 데이터:", parsedData);
-      setTableData(parsedData);
+      setTableData(parseTableData(data.results));
       
       // 히스토리에 추가
       addToHistory(question, data.sql, data.results);
@@ -837,9 +675,6 @@ const SQLQueryPage = () => {
       // 입력 필드 초기화
       setQuestion('');
       
-      // 메시지 끝으로 스크롤
-      setTimeout(scrollToBottom, 100);
-      
     } catch (error) {
       console.error('SQL 쿼리 오류:', error);
       setErrorMessage(error.message || '서버 오류가 발생했습니다.');
@@ -853,9 +688,6 @@ const SQLQueryPage = () => {
           timestamp: new Date().getTime()
         }
       ]);
-      
-      // 메시지 끝으로 스크롤
-      setTimeout(scrollToBottom, 100);
     } finally {
       setIsLoading(false);
     }
@@ -890,8 +722,6 @@ const SQLQueryPage = () => {
     setShowChart(false);
     
     try {
-      console.log("SQL-LLM API 요청 전송:", { question: question.trim() });
-      
       // 상대 경로로 변경
       const response = await fetch('/api/sql-and-llm', {
         method: 'POST',
@@ -908,16 +738,12 @@ const SQLQueryPage = () => {
       }
       
       const data = await response.json();
-      console.log("SQL-LLM API 응답 데이터:", data);
-      
       setGeneratedSQL(data.sql_query);
       setQueryResult(data.sql_result);
       setLlmResponse(data.bot_response);
       
       // 테이블 데이터 파싱
-      const parsedData = parseTableData(data.sql_result);
-      console.log("파싱된 테이블 데이터:", parsedData);
-      setTableData(parsedData);
+      setTableData(parseTableData(data.sql_result));
       
       // 히스토리에 추가
       addToHistory(question, data.sql_query, data.sql_result);
@@ -937,9 +763,6 @@ const SQLQueryPage = () => {
       // 입력 필드 초기화
       setQuestion('');
       
-      // 메시지 끝으로 스크롤
-      setTimeout(scrollToBottom, 100);
-      
     } catch (error) {
       console.error('SQL-LLM 쿼리 오류:', error);
       setErrorMessage(error.message || '서버 오류가 발생했습니다.');
@@ -953,9 +776,6 @@ const SQLQueryPage = () => {
           timestamp: new Date().getTime()
         }
       ]);
-      
-      // 메시지 끝으로 스크롤
-      setTimeout(scrollToBottom, 100);
     } finally {
       setIsLoading(false);
     }
@@ -969,31 +789,7 @@ const SQLQueryPage = () => {
   
   // 차트 보기 핸들러
   const handleViewChart = () => {
-    // 차트 표시 전에 테이블 데이터 확인 및 파싱
-    if (!tableData || tableData.length === 0) {
-      // 가장 최근 어시스턴트 메시지에서 결과 가져오기
-      const lastAssistantMessage = [...chatMessages].reverse().find(msg => msg.type === 'assistant' && msg.result);
-      
-      if (lastAssistantMessage && lastAssistantMessage.result) {
-        // 결과가 에러 메시지가 아니면 파싱 시도
-        if (!lastAssistantMessage.result.startsWith('⚠️') && !lastAssistantMessage.result.startsWith('❌')) {
-          const parsedData = parseTableData(lastAssistantMessage.result);
-          if (parsedData && parsedData.length > 0) {
-            // 유효한 데이터가 있으면 설정
-            setTableData(parsedData);
-            setShowChart(true);
-            return;
-          }
-        }
-      }
-      
-      // 유효한 데이터가 없으면 오류 메시지 표시
-      setErrorMessage('차트로 표시할 수 있는 데이터가 없습니다. 먼저 데이터를 쿼리해주세요.');
-      setTimeout(() => setErrorMessage(''), 3000);
-    } else {
-      // 테이블 데이터가 있으면 차트 표시
-      setShowChart(true);
-    }
+    setShowChart(true);
   };
   
   // 날짜 포맷 함수
@@ -1092,7 +888,12 @@ const SQLQueryPage = () => {
               <div className="px-3 py-2 border-t border-gray-800/50 bg-gray-900">
                 <button
                   className="w-full text-xs text-gray-400 hover:text-gray-300 py-1.5 px-3 bg-gray-800/50 hover:bg-gray-800 rounded-md transition-colors flex items-center justify-center gap-1.5"
-                  onClick={() => setIsConfirmModalOpen(true)}
+                  onClick={() => {
+                    if (window.confirm('모든 쿼리 히스토리를 삭제하시겠습니까?')) {
+                      setQueryHistory([]);
+                      localStorage.removeItem('sql_query_history');
+                    }
+                  }}
                 >
                   <FiAlertCircle size={12} />
                   <span>히스토리 비우기</span>
@@ -1316,19 +1117,6 @@ const SQLQueryPage = () => {
           </div>
         )}
       </div>
-      
-      {/* 확인 모달 */}
-      <ConfirmModal
-        isOpen={isConfirmModalOpen}
-        onClose={() => setIsConfirmModalOpen(false)}
-        onConfirm={() => {
-          setQueryHistory([]);
-          localStorage.removeItem('sql_query_history');
-          setIsConfirmModalOpen(false);
-        }}
-        title="히스토리 비우기"
-        message="모든 쿼리 히스토리를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다."
-      />
     </div>
   );
 };

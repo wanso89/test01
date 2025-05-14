@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { FiLoader, FiX, FiPaperclip, FiCheck, FiFolder, FiFile, FiUploadCloud } from 'react-icons/fi';
+import { FiLoader, FiX, FiPaperclip, FiCheck, FiFolder, FiFile, FiUploadCloud, FiInfo } from 'react-icons/fi';
 import ReactDOM from 'react-dom';
 
 function FileUpload({ onClose, categories = ['메뉴얼'], onUploadSuccess, initialCategory = '메뉴얼', initialFiles = [], containerSelector, showCategories = false }) {
@@ -71,16 +71,35 @@ function FileUpload({ onClose, categories = ['메뉴얼'], onUploadSuccess, init
     formData.append('category', '메뉴얼'); 
     
     try {
+      // 진행 표시를 위한 시뮬레이션 (실제 진행도는 아님)
+      // 더 천천히 진행되도록 조정하여 깜빡임 현상 감소
       const progressInterval = setInterval(() => {
-        setUploadProgress(prev => Math.min(prev + 5, 90)); // 진행 표시용 (실제 진행도는 아님)
-      }, 500);
+        setUploadProgress(prev => {
+          // 90%까지만 차오르게 하고, 더 느리게 진행
+          if (prev < 30) return prev + 2;
+          if (prev < 60) return prev + 1;
+          if (prev < 90) return prev + 0.5;
+          return 90;
+        });
+      }, 800);
       
       const response = await fetch('http://172.10.2.70:8000/api/upload', {
         method: 'POST',
         body: formData,
+        // 캐시 방지 헤더 추가로 불필요한 새로고침 방지
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
       });
       
       clearInterval(progressInterval);
+      
+      if (!response.ok) {
+        throw new Error(`서버 오류: ${response.status} ${response.statusText}`);
+      }
+      
       const data = await response.json();
       
       // 파일별 결과 저장
@@ -90,22 +109,37 @@ function FileUpload({ onClose, categories = ['메뉴얼'], onUploadSuccess, init
         
         const successCount = data.results.filter(r => r.status === 'success').length;
         const skipCount = data.results.filter(r => r.status === 'skipped').length;
+        const errorCount = data.results.filter(r => r.status === 'error').length;
         
+        // 결과 메시지 명확하게 표시
         if (successCount + skipCount === files.length) {
           setUploadStatus(`${files.length}개 파일 처리 완료! (${successCount}개 인덱싱, ${skipCount}개 건너뜀)`);
           
-          if (onUploadSuccess) {
-            onUploadSuccess(files, category);
+          // 성공 시에만 콜백 호출, 자동 닫기는 하지 않음
+          if (onUploadSuccess && successCount > 0) {
+            const successFiles = files.filter((_, idx) => 
+              data.results[idx] && data.results[idx].status === 'success'
+            );
+            onUploadSuccess(successFiles, category);
           }
         } else {
-          setUploadStatus(`${successCount}/${files.length} 파일 업로드 성공, ${skipCount}개 건너뜀`);
+          const message = [];
+          if (successCount > 0) message.push(`${successCount}개 성공`);
+          if (skipCount > 0) message.push(`${skipCount}개 건너뜀`);
+          if (errorCount > 0) message.push(`${errorCount}개 실패`);
           
-          if (onUploadSuccess) {
-            onUploadSuccess(files.slice(0, successCount), category);
+          setUploadStatus(`파일 처리 완료: ${message.join(', ')}`);
+          
+          // 성공한 파일이 있을 경우만 콜백 호출
+          if (onUploadSuccess && successCount > 0) {
+            const successFiles = files.filter((_, idx) => 
+              data.results[idx] && data.results[idx].status === 'success'
+            );
+            onUploadSuccess(successFiles, category);
           }
         }
       } else {
-        setUploadStatus(`업로드 실패: 응답 데이터 오류`);
+        setUploadStatus(`업로드 실패: 서버에서 처리 결과를 받지 못했습니다.`);
       }
     } catch (error) {
       console.error('업로드 실패:', error);
@@ -255,48 +289,66 @@ function FileUpload({ onClose, categories = ['메뉴얼'], onUploadSuccess, init
           </div>
           
           {/* 업로드 진행 상태 표시 */}
-          {isUploading && (
-            <div className="mb-4">
-              <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+          {isUploading ? (
+            <div className="mb-6">
+              <div className="flex justify-between items-center text-xs text-gray-400 mb-1.5">
+                <span>업로드 진행 중...</span>
+                <span>{uploadProgress}%</span>
+              </div>
+              <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-gradient-to-r from-indigo-600 to-blue-500 rounded-full transition-all duration-300 animate-pulse"
+                  className="h-full bg-gradient-to-r from-indigo-500 to-blue-500 rounded-full transition-all duration-300 ease-out"
                   style={{ width: `${uploadProgress}%` }}
                 ></div>
               </div>
-              <p className="text-xs text-center mt-2 text-gray-500 dark:text-gray-400">
-                업로드 중... 파일 크기에 따라 다소 시간이 소요될 수 있습니다.
-              </p>
             </div>
-          )}
+          ) : uploadStatus ? (
+            <div className={`mb-6 p-3 rounded-lg text-sm ${
+              uploadStatus.includes('성공') || uploadStatus.includes('완료') 
+                ? 'bg-green-900/20 border border-green-800/30 text-green-400' 
+                : uploadStatus.includes('오류') || uploadStatus.includes('실패')
+                  ? 'bg-red-900/20 border border-red-800/30 text-red-400'
+                  : 'bg-blue-900/20 border border-blue-800/30 text-blue-400'
+            }`}>
+              <div className="flex">
+                {uploadStatus.includes('완료') ? (
+                  <FiCheck size={18} className="mr-2 text-green-500 flex-shrink-0" />
+                ) : uploadStatus.includes('오류') || uploadStatus.includes('실패') ? (
+                  <FiX size={18} className="mr-2 text-red-500 flex-shrink-0" />
+                ) : (
+                  <FiInfo size={18} className="mr-2 text-blue-500 flex-shrink-0" />
+                )}
+                <span>{uploadStatus}</span>
+              </div>
+            </div>
+          ) : null}
           
-          {/* 파일별 처리 결과 표시 */}
-          {fileResults.length > 0 && !isUploading && (
-            <div className="mb-4 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-              <div className="max-h-48 overflow-y-auto custom-scrollbar">
-                {fileResults.map((result, index) => {
-                  const statusInfo = getStatusClasses(result.status);
+          {/* 파일별 처리 결과 표시 (업로드 완료 후) */}
+          {!isUploading && fileResults.length > 0 && (
+            <div className="mb-6 border border-gray-700/50 rounded-lg overflow-hidden">
+              <div className="bg-gray-800/80 px-3 py-2 text-xs font-medium text-gray-300 border-b border-gray-700/50">
+                처리 결과
+              </div>
+              <div className="max-h-40 overflow-y-auto custom-scrollbar">
+                {fileResults.map((result, idx) => {
+                  const { status, filename, message } = result;
+                  const statusClasses = getStatusClasses(status);
+                  
                   return (
-                    <div key={index} className="flex items-center p-2 border-b border-gray-200 dark:border-gray-700 last:border-0">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center mr-2 ${statusInfo.className}`}>
-                        {statusInfo.icon}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{result.filename}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{result.message}</p>
-                      </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap ml-2">
-                        {result.processing_time ? `${result.processing_time}초` : ''}
+                    <div key={idx} className="p-2 border-b border-gray-800/50 last:border-b-0 text-xs">
+                      <div className="flex items-center">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center mr-2 ${statusClasses.className}`}>
+                          {statusClasses.icon}
+                        </div>
+                        <div className="overflow-hidden flex-1">
+                          <div className="font-medium text-gray-300 truncate">{filename}</div>
+                          <div className="text-gray-500 text-xs">{message}</div>
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
-          )}
-          
-          {uploadStatus && !isUploading && (
-            <div className={`mb-4 p-3 rounded-lg ${uploadStatus.includes('실패') || uploadStatus.includes('오류') ? 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-200' : 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-200'}`}>
-              <p className="text-sm">{uploadStatus}</p>
             </div>
           )}
           

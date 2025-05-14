@@ -4,7 +4,7 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { vscDarkPlus as oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { useState, memo, useCallback, useMemo, useEffect, useRef } from "react";
 import {
   FiEye,
@@ -647,44 +647,36 @@ const SourcePreviewModal = ({ isOpen, onClose, source, content, image, isLoading
 
 function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, nextMessage, onAskFollowUp }) {
   const isUser = message.role === "user";
-  const [previewSource, setPreviewSource] = useState(null);
-  const [previewContent, setPreviewContent] = useState(null);
-  const [previewImage, setPreviewImage] = useState(null);
   const [copied, setCopied] = useState(false);
-  const [feedback, setFeedback] = useState(null); // 'up', 'down', null
-  const [star, setStar] = useState(0); // 별점(1~5)
-  const [feedbackSent, setFeedbackSent] = useState(false); // 피드백 전송 여부
-  const [loadingContent, setLoadingContent] = useState(false);
-  const [highlightKeywords, setHighlightKeywords] = useState([]); // 모달 하이라이트용 키워드
-  const [sourcesVisible, setSourcesVisible] = useState(true); // 출처 목록 기본적으로 표시
-  const [isTypingComplete, setIsTypingComplete] = useState(true); // 기본값 true로 설정
-  const [showTypeWriter, setShowTypeWriter] = useState(false); // 타이핑 효과 비활성화 (기본값 false)
-  const [showSourcePreview, setShowSourcePreview] = useState(false); // 출처 미리보기 모달 표시 여부
-  const contentRef = useRef(null);
-  const messageContainerRef = useRef(null); // 메시지 컨테이너 ref 추가
-  const [showImagePreview, setShowImagePreview] = useState(false);
-  // 피드백 모달 상태 추가
+  const [feedback, setFeedback] = useState(null);
+  const [star, setStar] = useState(0);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackSent, setFeedbackSent] = useState(false);
   const [currentFeedbackType, setCurrentFeedbackType] = useState(null);
-  // 토스트 알림 상태 추가
-  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
+  const [hasInteractedWithButtons, setHasInteractedWithButtons] = useState(false);
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'info' });
+  
+  // 출처 표시 관련 상태
+  const [sourcesVisible, setSourcesVisible] = useState(false);
+  const [showSourcePreview, setShowSourcePreview] = useState(false);
+  const [previewSource, setPreviewSource] = useState(null);
+  const [previewContent, setPreviewContent] = useState("");
+  const [previewImage, setPreviewImage] = useState(null);
+  const [loadingContent, setLoadingContent] = useState(false);
+  const [sourceKeywords, setSourceKeywords] = useState([]);
+  const [highlightKeywords, setHighlightKeywords] = useState([]);
+  const [sourceFilterText, setSourceFilterText] = useState("");
+  const [showTypeWriter, setShowTypeWriter] = useState(false);
+  const [isTypingComplete, setIsTypingComplete] = useState(true);
+  const [showImagePreview, setShowImagePreview] = useState(false);
   const [isGrouped, setIsGrouped] = useState(false);
-  // 스레드 인디케이터 관련 변수들 추가
   const [threadStartLine, setThreadStartLine] = useState(false);
   const [showThreadLine, setShowThreadLine] = useState(false);
   const [threadEndLine, setThreadEndLine] = useState(false);
   const [showTableOfContents, setShowTableOfContents] = useState(false);
   
-  // 피드백 버튼 상호작용 상태
-  const [hasInteractedWithButtons, setHasInteractedWithButtons] = useState(false);
-  
-  // 출처 미리보기 관련 상태 추가
-  const [sourceKeywords, setSourceKeywords] = useState([]);
-  const [sourceFilterText, setSourceFilterText] = useState("");
-  
-  // 추천 질문 관련 상태 추가
+  // 추천 질문 관련 상태
   const suggestedQuestions = useMemo(() => {
-    // 메시지 내용에서 추천 질문을 추출하거나 기본 배열 반환
     return message.suggestedQuestions || [];
   }, [message.suggestedQuestions]);
   
@@ -1452,6 +1444,10 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
       });
     }
   }, [message, sourcesVisible, isLastInGroup]);
+  
+  // 참조 추가
+  const messageContainerRef = useRef(null);
+  const contentRef = useRef(null);
   
   return (
     <div ref={messageContainerRef} id={messageId}>
