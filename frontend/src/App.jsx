@@ -798,14 +798,15 @@ function App() {
         <Sidebar
           conversations={conversations}
           activeConversationId={activeConversationId}
-          onNewConversation={handleNewConversation}
-          onDeleteConversation={handleDeleteConversation}
           onSelectConversation={handleSelectConversation}
+          onNewConversation={handleNewConversation}
           onRenameConversation={handleRenameConversation}
+          onDeleteConversation={handleDeleteConversation}
           onTogglePinConversation={handleTogglePinConversation}
           onToggleTheme={toggleTheme}
           isDarkMode={theme === "dark"}
           onToggleMode={onToggleMode}
+          currentMode={showSQLPage ? 'sql' : 'chat'}
         />
         <div
           className="absolute top-0 -right-3 h-full w-3 cursor-ew-resize z-10"

@@ -21,7 +21,12 @@ import {
   FiSun,
   FiMenu,
   FiChevronUp,
-  FiDatabase
+  FiDatabase,
+  FiTerminal,
+  FiCode,
+  FiMessageCircle,
+  FiServer,
+  FiCommand
 } from "react-icons/fi";
 import { LOGO_IMAGE, createLogoIcon } from "../assets/3ssoft-logo.js";
 
@@ -89,7 +94,8 @@ function Sidebar({
   onTogglePinConversation,
   onToggleTheme,
   isDarkMode,
-  onToggleMode
+  onToggleMode,
+  currentMode = 'chat' // 현재 선택된 모드 prop 추가
 }) {
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
@@ -298,27 +304,45 @@ function Sidebar({
         )}
       </div>
 
-      {/* 모드 전환 아이콘 영역 (하단 고정) */}
-      <div className="border-t border-gray-800/50 py-3 px-4">
-        <div className="flex justify-around items-center">
+      {/* 모드 전환 아이콘 영역 (하단 고정) - 디자인 개선 */}
+      <div className="border-t border-gray-800/50 pt-3 pb-4 px-4">
+        <div className="bg-gray-800/50 rounded-xl p-1 flex justify-between">
           <button 
             onClick={() => onToggleMode('chat')}
-            className="flex flex-col items-center justify-center p-2 rounded-lg hover:bg-gray-800 transition-colors"
+            className={`flex flex-1 flex-col items-center justify-center py-2.5 px-2 rounded-lg transition-all duration-200 ${
+              currentMode === 'chat' 
+                ? 'bg-gradient-to-br from-blue-600 to-blue-500 text-white shadow-md' 
+                : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'
+            }`}
             title="챗봇 모드"
           >
-            <FiMessageSquare size={20} className="text-blue-400 mb-1" />
-            <span className="text-xs text-gray-400">챗봇</span>
+            <div className={`w-8 h-8 flex items-center justify-center rounded-full mb-1 ${
+              currentMode === 'chat' 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-gray-700 text-blue-400'
+            }`}>
+              <FiMessageCircle size={18} />
+            </div>
+            <span className="text-xs font-medium">챗봇</span>
           </button>
-          
-          <div className="h-8 border-r border-gray-700/50"></div>
           
           <button 
             onClick={() => onToggleMode('sql')}
-            className="flex flex-col items-center justify-center p-2 rounded-lg hover:bg-gray-800 transition-colors"
+            className={`flex flex-1 flex-col items-center justify-center py-2.5 px-2 rounded-lg transition-all duration-200 ${
+              currentMode === 'sql' 
+                ? 'bg-gradient-to-br from-indigo-600 to-indigo-500 text-white shadow-md' 
+                : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'
+            }`}
             title="SQL 질의 모드"
           >
-            <FiDatabase size={20} className="text-indigo-400 mb-1" />
-            <span className="text-xs text-gray-400">SQL 질의</span>
+            <div className={`w-8 h-8 flex items-center justify-center rounded-full mb-1 ${
+              currentMode === 'sql' 
+                ? 'bg-indigo-500 text-white' 
+                : 'bg-gray-700 text-indigo-400'
+            }`}>
+              <FiCommand size={18} />
+            </div>
+            <span className="text-xs font-medium">SQL 질의</span>
           </button>
         </div>
       </div>

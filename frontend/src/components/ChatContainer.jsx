@@ -204,6 +204,7 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
   const [deleteAnimation, setDeleteAnimation] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoadingRef, setIsLoadingRef] = useState(false); // 로딩 상태 참조 추가
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false); // 전체 삭제 확인 모달 상태
   
   const modalRef = useRef(null);
   const hasLoadedRef = useRef(false); // 이미 로드했는지 체크하는 참조 추가
@@ -328,6 +329,10 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
       setIsDeleting(true);
       setDeleteAnimation(filename);
       
+      // UI를 먼저 업데이트하여 사용자에게 즉각적인 피드백 제공
+      setFiles(prev => prev.filter(file => file !== filename));
+      
+      // 서버에 삭제 요청
       const response = await fetch(`http://172.10.2.70:8000/api/delete-file?filename=${encodeURIComponent(filename)}`, {
         method: 'DELETE'
       });
@@ -335,19 +340,21 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
       const data = await response.json();
       
       if (response.ok && data.status === 'success') {
-        // 애니메이션 효과를 위해 약간의 지연 후 목록에서 제거
-        setTimeout(() => {
-          setFiles(prev => prev.filter(file => file !== filename));
-          setSuccessMessage(`${cleanFilename(filename)} 파일이 삭제되었습니다.`);
-          setDeleteAnimation(null);
-        }, 300);
+        // 성공 메시지만 표시 (UI는 이미 업데이트됨)
+        setSuccessMessage(`${cleanFilename(filename)} 파일이 삭제되었습니다.`);
+        setDeleteAnimation(null);
       } else {
+        // 실패 시 파일 목록 복원
+        loadFiles(); // 파일 목록 다시 불러오기
         throw new Error(data.message || '파일 삭제 중 오류가 발생했습니다.');
       }
     } catch (err) {
       console.error('파일 삭제 오류:', err);
       setDeleteError('파일 삭제에 실패했습니다. 다시 시도해주세요.');
       setDeleteAnimation(null);
+      
+      // 실패 시 파일 목록 다시 불러오기
+      loadFiles();
     } finally {
       setIsDeleting(false);
     }
@@ -402,10 +409,94 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
     ? files.filter(file => cleanFilename(file).toLowerCase().includes(searchQuery.toLowerCase()))
     : files;
 
+  // 파일 전체 삭제 함수 추가
+  const handleDeleteAllFiles = async () => {
+    try {
+      setIsDeleting(true);
+      setShowDeleteAllConfirm(false); // 확인 모달 닫기
+      
+      // 서버에 전체 삭제 요청
+      const response = await fetch(`http://172.10.2.70:8000/api/delete-all-files`, {
+        method: 'DELETE'
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.status === 'success') {
+        // 전체 파일 목록 비우기
+        setFiles([]);
+        setSuccessMessage(`모든 파일이 삭제되었습니다.`);
+      } else {
+        throw new Error(data.message || '파일 전체 삭제 중 오류가 발생했습니다.');
+      }
+    } catch (err) {
+      console.error('파일 전체 삭제 오류:', err);
+      setDeleteError('파일 전체 삭제에 실패했습니다. 다시 시도해주세요.');
+      // 실패 시 파일 목록 다시 불러오기
+      loadFiles();
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // 삭제 확인 모달
+  const DeleteAllConfirmModal = () => {
+    if (!showDeleteAllConfirm) return null;
+    
+    return (
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-5 sm:p-6 max-w-md w-full shadow-2xl animate-slide-up">
+          <div className="flex items-start mb-4">
+            <div className="flex-shrink-0 text-red-500">
+              <FiAlertCircle size={24} />
+            </div>
+            <div className="ml-3">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                모든 파일 삭제 확인
+              </h3>
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                <span className="font-medium text-gray-800 dark:text-gray-300">총 {files.length}개</span>의 모든 파일을 삭제하시겠습니까?
+              </p>
+              <p className="mt-1 text-xs text-red-500">
+                이 작업은 되돌릴 수 없으며, 모든 파일과 인덱스 데이터가 영구적으로 삭제됩니다.
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end space-x-3 mt-5">
+            <button
+              onClick={() => setShowDeleteAllConfirm(false)}
+              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400"
+              disabled={isDeleting}
+            >
+              취소
+            </button>
+            <button
+              onClick={handleDeleteAllFiles}
+              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition flex items-center"
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <FiLoader className="animate-spin mr-2" size={16} />
+                  삭제 중...
+                </>
+              ) : (
+                <>모두 삭제</>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      {/* 전체 삭제 확인 모달 */}
+      <DeleteAllConfirmModal />
+      
       <div 
         ref={modalRef}
         className="bg-white dark:bg-gray-800 rounded-2xl max-w-2xl w-full max-h-[80vh] shadow-2xl overflow-hidden animate-slide-up"
@@ -424,19 +515,33 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
           </button>
         </div>
         
-        {/* 검색 바 */}
+        {/* 검색 바와 전체 삭제 버튼 */}
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="relative">
-            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-              <FiSearch className="text-gray-400" size={16} />
+          <div className="flex justify-between items-center">
+            <div className="relative flex-1 mr-3">
+              <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                <FiSearch className="text-gray-400" size={16} />
+              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="파일 검색..."
+                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 text-gray-800 dark:text-gray-200"
+              />
             </div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="파일 검색..."
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 text-gray-800 dark:text-gray-200"
-            />
+            
+            {/* 전체 삭제 버튼 추가 */}
+            {files.length > 0 && !isLoading && (
+              <button 
+                onClick={() => setShowDeleteAllConfirm(true)}
+                className="px-3 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-colors flex items-center shadow-sm"
+                disabled={isDeleting}
+              >
+                <FiTrash2 size={16} className="mr-1.5" />
+                전체 삭제
+              </button>
+            )}
           </div>
         </div>
         

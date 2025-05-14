@@ -41,7 +41,9 @@ import {
   FiFrown,
   FiHelpCircle,
   FiFile,
-  FiSearch
+  FiSearch,
+  FiAlertTriangle,
+  FiFileText
 } from "react-icons/fi";
 
 // 키워드 하이라이트 애니메이션을 위한 키프레임 스타일 정의
@@ -552,6 +554,34 @@ const SourcePreviewModal = ({ isOpen, onClose, source, content, image, isLoading
   
   const [copySuccess, setCopySuccess] = useState(false);
   
+  // 오류 메시지인지 확인하는 함수
+  const isErrorMessage = (text) => {
+    if (!text) return false;
+    return text.startsWith("소스를 불러오는 중 오류") || 
+           text.startsWith("내용을 불러올 수 없습니다") ||
+           text.includes("오류가 발생했습니다");
+  };
+  
+  // 오류 메시지에서 복수 줄 처리
+  const formatErrorMessage = (text) => {
+    if (!text || !isErrorMessage(text)) return text;
+    
+    // 줄바꿈 기호가 포함된 경우 분리하여 렌더링
+    const lines = text.split('\n');
+    if (lines.length <= 1) return text;
+    
+    return (
+      <>
+        {lines.map((line, i) => (
+          <React.Fragment key={i}>
+            {line}
+            {i < lines.length - 1 && <br />}
+          </React.Fragment>
+        ))}
+      </>
+    );
+  };
+  
   const handleCopyContent = () => {
     if (!content) return;
     
@@ -581,7 +611,7 @@ const SourcePreviewModal = ({ isOpen, onClose, source, content, image, isLoading
               onClick={handleCopyContent}
               className="p-2 rounded-full text-gray-400 hover:text-gray-200 hover:bg-gray-700"
               title="내용 복사"
-              disabled={!content || isLoading}
+              disabled={!content || isLoading || isErrorMessage(content)}
             >
               {copySuccess ? <FiCheck /> : <FiCopy />}
             </button>
@@ -597,8 +627,9 @@ const SourcePreviewModal = ({ isOpen, onClose, source, content, image, isLoading
         {/* 본문 */}
         <div className="flex-1 overflow-auto p-4">
           {isLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-400"></div>
+            <div className="flex flex-col items-center justify-center h-full">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-400 mb-3"></div>
+              <p className="text-gray-400 text-sm">문서 내용을 불러오는 중...</p>
             </div>
           ) : image ? (
             <div className="flex justify-center">
@@ -609,23 +640,34 @@ const SourcePreviewModal = ({ isOpen, onClose, source, content, image, isLoading
               />
             </div>
           ) : content ? (
-            <div className="prose prose-sm dark:prose-invert max-w-none">
-              <ReactMarkdown 
-                remarkPlugins={[remarkGfm]} 
-                rehypePlugins={[rehypeHighlight]}
-              >
-                {content}
-              </ReactMarkdown>
-            </div>
+            isErrorMessage(content) ? (
+              <div className="flex flex-col items-center justify-center min-h-[200px] text-center py-8">
+                <FiAlertTriangle className="text-yellow-500 mb-4" size={32} />
+                <p className="text-gray-300 mb-2 font-medium">문서 내용을 불러올 수 없습니다</p>
+                <div className="text-gray-500 text-sm max-w-md">
+                  {formatErrorMessage(content.includes(":") ? content.split(":")[1].trim() : content)}
+                </div>
+              </div>
+            ) : (
+              <div className="prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm]} 
+                  rehypePlugins={[rehypeHighlight]}
+                >
+                  {content}
+                </ReactMarkdown>
+              </div>
+            )
           ) : (
-            <div className="text-center text-gray-500 py-6">
-              내용을 불러올 수 없습니다.
+            <div className="flex flex-col items-center justify-center h-full py-8">
+              <FiFileText className="text-gray-600 mb-4" size={32} />
+              <p className="text-gray-500">내용이 없습니다.</p>
             </div>
           )}
         </div>
         
         {/* 키워드 표시 영역 */}
-        {keywords && keywords.length > 0 && (
+        {keywords && keywords.length > 0 && !isErrorMessage(content) && (
           <div className="px-4 py-3 border-t border-gray-700">
             <p className="text-xs text-gray-400 mb-2">관련 키워드:</p>
             <div className="flex flex-wrap gap-2">
@@ -970,9 +1012,27 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     setShowSourcePreview(true); // 미리보기 모달 표시
 
     try {
+      // source 객체 유효성 검증
+      if (!source || typeof source !== 'object') {
+        throw new Error("잘못된 출처 데이터 형식입니다.");
+      }
+
       const sourcePath = source.path;
+      // 필수 필드 검증
+      if (!sourcePath) {
+        console.error("출처 경로가 없습니다:", source);
+        throw new Error("출처 경로 정보가 없습니다.");
+      }
+
       const chunkId = source.chunk_id || "";
       const page = source.page || 1;
+      
+      console.log("출처 미리보기 요청:", {
+        path: sourcePath,
+        page: page,
+        chunk_id: chunkId,
+        has_answer_text: !!message.content
+      });
 
       const response = await fetch("http://172.10.2.70:8000/api/source-preview", {
         method: "POST",
@@ -983,25 +1043,59 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
           path: sourcePath,
           page: page,
           chunk_id: chunkId,
-          answer_text: message.content, // 챗봇 응답 텍스트 전달
+          answer_text: message.content || "", // 챗봇 응답 텍스트 전달 (null 값 방지)
         }),
       });
       
       if (!response.ok) {
-        throw new Error(`소스 미리보기 실패: ${response.status}`);
+        console.error("출처 미리보기 API 오류:", response.status, response.statusText);
+        throw new Error(`소스 미리보기 실패 (상태 코드: ${response.status})`);
       }
 
       const data = await response.json();
       
+      // 응답 데이터 검증
+      if (data.status === "error") {
+        console.error("출처 미리보기 API 응답 오류:", data.message);
+        let errorMessage = data.message || "서버에서 내용을 불러올 수 없습니다.";
+        
+        // 디버그 정보가 있으면 유사 파일 정보 추가
+        if (data.debug_info) {
+          const { indexed_files_count, similar_files } = data.debug_info;
+          
+          if (indexed_files_count > 0) {
+            errorMessage += `\n\n시스템에 인덱싱된 파일 수: ${indexed_files_count}`;
+            
+            if (similar_files && similar_files.length > 0) {
+              errorMessage += `\n\n유사한 파일:`;
+              similar_files.forEach(file => {
+                errorMessage += `\n- ${file.split('_')[1] || file}`;
+              });
+            }
+          }
+        }
+        
+        throw new Error(errorMessage);
+      }
+      
       if (data.content_type && data.content_type.startsWith('image/')) {
         // 이미지 소스인 경우
+        if (!data.image_url) {
+          throw new Error("이미지 URL이 없습니다.");
+        }
         setPreviewImage(data.image_url);
         setPreviewContent(null);
         setSourceKeywords([]);
         setHighlightKeywords([]);
       } else {
         // 텍스트 소스인 경우
-        setPreviewContent(data.content || "내용을 불러올 수 없습니다.");
+        if (!data.content && !data.original_content) {
+          throw new Error("내용이 없거나 빈 문서입니다.");
+        }
+        
+        // content 또는 original_content 중 하나라도 있으면 사용
+        const contentToUse = data.content || data.original_content || "";
+        setPreviewContent(contentToUse);
         setPreviewImage(null);
         
         // 백엔드에서 제공한 키워드 설정
@@ -1015,7 +1109,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
       }
     } catch (error) {
       console.error("소스 미리보기 오류:", error);
-      setPreviewContent("소스를 불러오는 중 오류가 발생했습니다.");
+      setPreviewContent(`소스를 불러오는 중 오류가 발생했습니다: ${error.message}`);
       setPreviewImage(null);
       setSourceKeywords([]);
     } finally {

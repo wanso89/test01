@@ -23,6 +23,8 @@ import re  # 정규식 사용을 위한 모듈
 from app.utils.search_enhancer import EnhancedSearchPipeline
 # 피드백 분석 모듈 import
 from app.utils.feedback_analyzer import FeedbackAnalyzer, SearchQualityOptimizer
+# 파일 관리 모듈 import
+from app.utils.file_manager import delete_indexed_file, find_file_by_name
 
 # 모델 임포트
 import torch
@@ -1138,12 +1140,85 @@ class SourcePreviewRequest(BaseModel):
 @app.post("/api/source-preview")
 async def source_preview_endpoint(request: SourcePreviewRequest = Body(...)):
     try:
+        # 요청 데이터 유효성 검사
+        if not request.path:
+            print(f"소스 프리뷰 오류: 경로 필드가 비어있습니다")
+            return {
+                "status": "error",
+                "message": "요청에 파일 경로가 없습니다",
+                "content": None,
+            }
+            
         print(
             f"Source preview 요청: path={request.path}, page={request.page}, chunk_id={request.chunk_id}"
         )
 
+        # ES 클라이언트 확인
+        if not es_client:
+            print("소스 프리뷰 오류: Elasticsearch 클라이언트가 초기화되지 않았습니다")
+            return {
+                "status": "error",
+                "message": "검색 서비스를 사용할 수 없습니다. 관리자에게 문의하세요.",
+                "content": None,
+            }
+
+        # 먼저 해당 파일이 인덱스에 존재하는지 검증
+        file_exists_query = {
+            "size": 0,
+            "query": {
+                "term": {"source": request.path}
+            },
+            "aggs": {
+                "path_exists": {
+                    "value_count": {
+                        "field": "source"
+                    }
+                }
+            }
+        }
+        
+        try:
+            # 먼저 파일 존재 여부를 확인
+            verify_response = es_client.search(index=ES_INDEX_NAME, body=file_exists_query)
+            doc_count = verify_response.get("aggregations", {}).get("path_exists", {}).get("value", 0)
+            
+            if doc_count == 0:
+                print(f"파일이 인덱스에 존재하지 않음: {request.path}")
+                
+                # 파일 목록 조회 및 유사한 파일 찾기
+                indexed_files_resp = es_client.search(
+                    index=ES_INDEX_NAME, 
+                    body={"size": 0, "aggs": {"unique_files": {"terms": {"field": "source", "size": 30}}}}
+                )
+                
+                files = [bucket["key"] for bucket in indexed_files_resp.get("aggregations", {}).get("unique_files", {}).get("buckets", [])]
+                
+                # 비슷한 파일명 찾기 (간단한 유사도)
+                similar_files = []
+                if files:
+                    request_filename = request.path.split("_", 1)[1] if "_" in request.path else request.path
+                    for file in files:
+                        file_name = file.split("_", 1)[1] if "_" in file else file
+                        if any(part in file_name for part in request_filename.split("_") if len(part) > 3):
+                            similar_files.append(file)
+                
+                return {
+                    "status": "error",
+                    "message": f"요청한 문서를 찾을 수 없습니다.",
+                    "content": None,
+                    "debug_info": {
+                        "request_path": request.path,
+                        "indexed_files_count": len(files),
+                        "similar_files": similar_files[:3] if similar_files else []
+                    }
+                }
+        except Exception as e:
+            print(f"파일 존재 확인 중 오류: {e}")
+            # 오류가 발생하더라도 계속 진행
+            pass
+
         # chunk_id 전처리 - 명시적 문자열 변환
-        chunk_id_query = str(request.chunk_id)  # 모든 경우 문자열로 처리
+        chunk_id_query = str(request.chunk_id) if request.chunk_id is not None else ""
 
         # 다양한 쿼리 시도 (우선순위에 따라)
         search_attempts = []
@@ -1155,7 +1230,7 @@ async def source_preview_endpoint(request: SourcePreviewRequest = Body(...)):
                         "must": [
                             {"term": {"source": request.path}},
                             {"term": {"page": request.page}},
-                        {"term": {"chunk_id": chunk_id_query}}
+                            {"term": {"chunk_id": chunk_id_query}}
                         ]
                     }
                 }
@@ -1170,13 +1245,14 @@ async def source_preview_endpoint(request: SourcePreviewRequest = Body(...)):
                             "must": [
                                 {"term": {"source": request.path}},
                                 {"term": {"page": request.page}},
-                            {"term": {"chunk_id": chunk_id_int}}
+                                {"term": {"chunk_id": chunk_id_int}}
                             ]
                         }
                     }
             })
         except (ValueError, TypeError):
             # 정수 변환 불가 시 이 시도는 건너뜀
+            print(f"chunk_id({request.chunk_id})를 정수로 변환할 수 없어 두 번째 쿼리 시도 건너뜀")
             pass
 
         # 3. source와 page로만 검색 (3순위)
@@ -1185,12 +1261,12 @@ async def source_preview_endpoint(request: SourcePreviewRequest = Body(...)):
                     "bool": {
                         "must": [
                             {"term": {"source": request.path}},
-                        {"term": {"page": request.page}}
+                            {"term": {"page": request.page}}
                         ]
                     }
                 },
                 "size": 1,
-            "sort": [{"chunk_id": "asc"}]  # 첫 번째 청크 선택
+                "sort": [{"chunk_id": "asc"}]  # 첫 번째 청크 선택
         })
 
         # 4. source_path만으로 검색 (4순위 - 마지막 시도)
@@ -1201,196 +1277,77 @@ async def source_preview_endpoint(request: SourcePreviewRequest = Body(...)):
             "size": 1
         })
         
-        # 키워드 추출 및 문서 콘텐츠 포맷팅 함수
-        def extract_keywords_from_text(text, max_keywords=12):
-            """텍스트에서 주요 키워드 추출"""
-            try:
-                # 한글, 영문, 숫자 단어 추출 (특수문자 및 공백 기준 분리)
-                words = re.findall(r'[가-힣a-zA-Z0-9]{2,}', text)
-                
-                # 불용어 제거 (한국어 기준)
-                stopwords = {
-                    '이', '그', '저', '것', '수', '등', '및', '에서', '에게', '으로', '로', '을', '를',
-                    '이다', '있다', '하다', '이런', '저런', '그런', '어떤', '무슨', '어떻게', '왜',
-                    'the', 'a', 'an', 'is', 'are', 'was', 'were', 'in', 'on', 'at', 'to', 'for', 'of',
-                    '있는', '없는', '경우', '때문', '위해', '통해', '따라', '의해', '의한', '때는',
-                    '있습니다', '없습니다', '합니다', '입니다', '됩니다', '관련', '때문에', '위하여',
-                    '만약', '그러나', '하지만', '또한', '그리고', '따라서', '이러한', '그러한', 
-                    '이것', '그것', '저것', '무엇', '어디', '언제', '누구'
-                }
-                
-                # 중복 제거 및 단어 개수 세기
-                word_counts = {}
-                for word in words:
-                    word_lower = word.lower()
-                    if len(word) >= 2 and word_lower not in stopwords:
-                        # 특수 가중치 적용 - 특정 길이 범위의 단어에 가중치 부여
-                        weight = 1.0
-                        if 3 <= len(word) <= 8:  # 보통 의미있는 단어 길이 범위
-                            weight = 1.5
-                        if word[0].isupper() and len(word) > 1 and not word.isupper():  # 대문자로 시작하는 단어 (고유명사 가능성)
-                            weight = 2.0
-                        
-                        word_counts[word] = word_counts.get(word, 0) + weight
-                
-                # 빈도수 기준 상위 키워드 추출 (가중치 적용)
-                keywords = sorted(word_counts.items(), key=lambda x: x[1], reverse=True)
-                
-                # 중복 단어 제거 (소문자화하여 비교)
-                unique_keywords = []
-                added_lower = set()
-                
-                for kw, _ in keywords:
-                    kw_lower = kw.lower()
-                    if kw_lower not in added_lower and len(kw) >= 2:
-                        unique_keywords.append(kw)
-                        added_lower.add(kw_lower)
-                    
-                    if len(unique_keywords) >= max_keywords:
-                        break
-                
-                return unique_keywords
-            except Exception as e:
-                print(f"키워드 추출 중 오류: {e}")
-                return []
-        
-        def format_content(content):
-            """내용 서식 개선"""
-            if not content:
-                return ""
-            
-            # 여러 개의 연속 공백을 하나로 압축
-            formatted = re.sub(r'\s+', ' ', content).strip()
-            
-            # 문장 구분자 후 개행 추가 (문단 구분)
-            formatted = re.sub(r'([.!?])\s+', r'\1\n\n', formatted)
-            
-            # 중복 개행 제거 (3개 이상 → 2개)
-            formatted = re.sub(r'\n{3,}', '\n\n', formatted)
-            
-            return formatted
-        
-        def highlight_keywords(content, keywords, answer_text=None):
-            """내용에서 문장 단위 하이라이트 - 답변과 일치하는 문장 강조 (개선된 버전)"""
-            if not content:
-                return content, []
-                
-            # 최종 결과와 관련 문단 저장 변수
-            highlighted_paragraphs = []
-            relevant_paragraphs = []
-            
-            # 답변 텍스트가 있으면 문장 단위 매칭 적용 (개선된 버전)
-            if answer_text and isinstance(answer_text, str) and len(answer_text.strip()) > 10:
-                print(f"[개선된] 응답 텍스트 기반 하이라이트 시작 - 응답 길이: {len(answer_text)}")
-                
-                # 1. 콘텐츠를 문단으로 분리
-                paragraphs = re.split(r'\n\s*\n|\r\n\s*\r\n', content)
-                
-                # 2. 응답 텍스트에서 핵심 키워드 추출
-                answer_keywords = extract_keywords_from_text(answer_text, max_keywords=15)
-                print(f"응답 텍스트에서 추출한 키워드: {', '.join(answer_keywords)}")
-                
-                # 3. 각 문단의 관련성 점수 계산 및 하이라이트 적용
-                for paragraph in paragraphs:
-                    paragraph = paragraph.strip()
-                    if not paragraph:
-                        continue
-                    
-                    # 짧은 문단은 건너뛰기 (의미 없는 헤더 등)
-                    if len(paragraph) < 15:
-                        continue
-                    
-                    # 문단에서 키워드 추출
-                    paragraph_keywords = extract_keywords_from_text(paragraph, max_keywords=10)
-                    
-                    # 키워드 일치 점수 계산
-                    matching_keywords = [k for k in paragraph_keywords if k.lower() in [ak.lower() for ak in answer_keywords]]
-                    keyword_score = len(matching_keywords) / max(1, len(paragraph_keywords))
-                    
-                    # 직접 텍스트 매칭 검사 (정확한 인용구 확인)
-                    direct_match = False
-                    if len(paragraph) > 30:
-                        for i in range(len(paragraph) - 30):
-                            snippet = paragraph[i:i+30]
-                            if snippet in answer_text:
-                                direct_match = True
-                                break
-                    
-                    # 관련성 높은 문단 선택 (키워드 일치 또는 직접 매칭)
-                    is_relevant = keyword_score > 0.3 or direct_match
-                    
-                    # 하이라이트 적용 및 관련 문단 표시
-                    if is_relevant:
-                        # 키워드 하이라이트 처리
-                        highlighted_paragraph = paragraph
-                        for keyword in matching_keywords:
-                            # 정규식 특수문자 이스케이프
-                            escaped_keyword = re.escape(keyword)
-                            # 키워드에 볼드체 적용
-                            highlighted_paragraph = re.sub(
-                                f'\\b{escaped_keyword}\\b', 
-                                f'**{keyword}**', 
-                                highlighted_paragraph, 
-                                flags=re.IGNORECASE
-                            )
-                        
-                        highlighted_paragraphs.append(highlighted_paragraph)
-                        relevant_paragraphs.append({
-                            'text': paragraph,
-                            'relevance': 'high' if direct_match else 'medium',
-                            'matching_keywords': matching_keywords
-                        })
-                    else:
-                        # 관련성 낮은 문단은 그대로 추가
-                        highlighted_paragraphs.append(paragraph)
-                
-                # 하이라이트된 내용을 다시 결합
-                highlighted_content = "\n\n".join(highlighted_paragraphs)
-                
-                # 하이라이트에 사용된 키워드 목록 (중복 제거)
-                all_matching_keywords = []
-                for para in relevant_paragraphs:
-                    all_matching_keywords.extend(para['matching_keywords'])
-                unique_keywords = list(set(all_matching_keywords))
-                
-                return highlighted_content, unique_keywords
-            
-            # 답변 텍스트가 없는 경우, 기본 키워드 하이라이트만 적용
-            elif keywords and isinstance(keywords, list):
-                for keyword in keywords:
-                    # 정규식 특수문자 이스케이프
-                    escaped_keyword = re.escape(keyword)
-                    # 키워드에 볼드체 적용
-                    content = re.sub(
-                        f'\\b{escaped_keyword}\\b', 
-                        f'**{keyword}**', 
-                        content, 
-                        flags=re.IGNORECASE
-                    )
-                return content, keywords
-            
-            # 키워드나 답변 텍스트가 없을 경우 원본 콘텐츠 반환
-            return content, []
-    
         # 시도 목록을 순회하며 검색 실행
         doc = None
+        failed_attempts = []
+        
         for i, query in enumerate(search_attempts):
-            response = es_client.search(index=ES_INDEX_NAME, body=query)
-            hits = response.get("hits", {}).get("hits", [])
-            
-            if hits:
-                doc = hits[0]
-                print(f"검색 시도 {i+1}번째 성공")
-                break
-            else:
-                print(f"검색 시도 {i+1}번째 실패")
+            try:
+                response = es_client.search(index=ES_INDEX_NAME, body=query)
+                hits = response.get("hits", {}).get("hits", [])
+                
+                if hits:
+                    doc = hits[0]
+                    print(f"검색 시도 {i+1}번째 성공: {hits[0].get('_id')}")
+                    break
+                else:
+                    print(f"검색 시도 {i+1}번째 실패")
+                    failed_attempts.append({"query": query, "error": "결과 없음"})
+            except Exception as query_error:
+                print(f"검색 시도 {i+1}번째 오류: {str(query_error)}")
+                failed_attempts.append({"query": query, "error": str(query_error)})
         
         # 문서를 찾지 못한 경우
         if not doc:
+            error_msg = "요청한 문서를 인덱스에서 찾을 수 없습니다."
+            
+            # 디버깅 정보 로깅
+            print(f"소스 프리뷰 실패: {error_msg}")
+            print(f"요청 정보: path={request.path}, page={request.page}, chunk_id={request.chunk_id}")
+            print(f"모든 검색 시도 실패: {json.dumps(failed_attempts, ensure_ascii=False)}")
+            
+            # 비슷한 페이지나 청크 찾기 위한 쿼리
+            try:
+                similar_query = {
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {"term": {"source": request.path}}
+                            ]
+                        }
+                    },
+                    "size": 1
+                }
+                
+                similar_response = es_client.search(index=ES_INDEX_NAME, body=similar_query)
+                similar_hits = similar_response.get("hits", {}).get("hits", [])
+                
+                if similar_hits:
+                    similar_doc = similar_hits[0]["_source"]
+                    similar_page = similar_doc.get("page")
+                    similar_chunk = similar_doc.get("chunk_id")
+                    
+                    suggestions = []
+                    if similar_page and similar_page != request.page:
+                        suggestions.append(f"페이지 {similar_page}에서 내용을 찾을 수 있습니다.")
+                    
+                    if suggestions:
+                        error_msg += f" {suggestions[0]}"
+            except Exception as e:
+                print(f"유사 문서 검색 중 오류: {e}")
+            
             return {
                 "status": "error",
-                "message": "요청한 문서를 찾을 수 없습니다.",
+                "message": error_msg,
                 "content": None,
+                "debug_info": {
+                    "request_params": {
+                        "path": request.path,
+                        "page": request.page,
+                        "chunk_id": request.chunk_id
+                    },
+                    "failed_attempts": failed_attempts
+                } if os.environ.get("DEBUG_MODE") == "true" else None
             }
         
         # 이미지 경로 확인
@@ -1452,8 +1409,9 @@ async def source_preview_endpoint(request: SourcePreviewRequest = Body(...)):
         traceback.print_exc()
         return {
             "status": "error",
-            "message": f"문서 미리보기 처리 중 오류 발생: {str(e)}",
+            "message": f"문서 미리보기 처리 중 오류가 발생했습니다: {str(e)}",
             "content": None,
+            "error_details": str(e) if os.environ.get("DEBUG_MODE") == "true" else None
         }
 
 
@@ -1639,6 +1597,123 @@ async def get_file_for_viewer(filename: str):
     # return FileResponse(path=file_path, media_type=mime_type, headers=headers)
     # 간단히 파일 내용만 반환 (브라우저가 타입에 맞게 처리)
     return FileResponse(path=file_path, media_type=mime_type)
+
+
+# 파일 삭제 엔드포인트
+@app.delete("/api/delete-file")
+async def delete_file(filename: str):
+    """특정 파일을 Elasticsearch와 디스크에서 삭제합니다."""
+    if not es_client:
+        raise HTTPException(status_code=503, detail="Elasticsearch is not connected")
+    
+    if not filename:
+        raise HTTPException(status_code=400, detail="Filename parameter is required")
+
+    # 보안: filename에 ../ 등이 포함되어 상위 디렉토리 접근 시도 방지
+    if ".." in filename or filename.startswith("/"):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+        
+    try:
+        print(f"파일 삭제 요청: {filename}")
+        
+        # file_manager.py의 delete_indexed_file 함수 호출
+        result = delete_indexed_file(
+            es_client=es_client,
+            filename=filename,
+            index_name=ES_INDEX_NAME,
+            uploads_dir=os.path.join(STATIC_DIR, "uploads")
+        )
+        
+        if result["status"] == "success":
+            print(f"파일 삭제 성공: {filename}")
+            return {"status": "success", "message": result["message"]}
+        else:
+            print(f"파일 삭제 실패: {filename}, 이유: {result['message']}")
+            return {"status": result["status"], "message": result["message"]}
+    
+    except Exception as e:
+        print(f"파일 삭제 중 오류 발생: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"파일 삭제 중 오류가 발생했습니다: {str(e)}")
+
+
+# 파일 전체 삭제 엔드포인트 추가
+@app.delete("/api/delete-all-files")
+async def delete_all_files():
+    """모든 인덱싱된 파일을 Elasticsearch와 디스크에서 삭제합니다."""
+    if not es_client:
+        raise HTTPException(status_code=503, detail="Elasticsearch is not connected")
+    
+    try:
+        print(f"모든 파일 삭제 요청 수신")
+        
+        # 먼저 인덱싱된 모든 파일 목록 조회
+        try:
+            # 모든 문서의 filename 필드를 조회
+            query = {
+                "query": {
+                    "match_all": {}
+                },
+                "_source": ["filename"],
+                "size": 10000  # 최대 파일 수 제한 (필요시 조정)
+            }
+            
+            response = es_client.search(index=ES_INDEX_NAME, body=query)
+            
+            # 조회 결과에서 filename 추출
+            filenames = []
+            for hit in response["hits"]["hits"]:
+                if "filename" in hit["_source"]:
+                    filenames.append(hit["_source"]["filename"])
+            
+            if not filenames:
+                return {"status": "success", "message": "삭제할 파일이 없습니다."}
+                
+            print(f"삭제할 파일 {len(filenames)}개 발견")
+            
+            # 각 파일 삭제 처리
+            success_count = 0
+            failed_files = []
+            
+            for filename in filenames:
+                try:
+                    # file_manager.py의 delete_indexed_file 함수 호출
+                    result = delete_indexed_file(
+                        es_client=es_client,
+                        filename=filename,
+                        index_name=ES_INDEX_NAME,
+                        uploads_dir=os.path.join(STATIC_DIR, "uploads")
+                    )
+                    
+                    if result["status"] == "success":
+                        success_count += 1
+                    else:
+                        failed_files.append(filename)
+                        print(f"개별 파일 삭제 실패: {filename}, 이유: {result['message']}")
+                except Exception as file_error:
+                    failed_files.append(filename)
+                    print(f"개별 파일 삭제 중 오류: {filename}, 오류: {str(file_error)}")
+            
+            # 결과 메시지 구성
+            if success_count == len(filenames):
+                message = f"모든 파일({success_count}개)이 성공적으로 삭제되었습니다."
+                return {"status": "success", "message": message}
+            elif success_count > 0:
+                message = f"{len(filenames)}개 중 {success_count}개 파일이 삭제되었습니다. {len(failed_files)}개 파일 삭제 실패."
+                return {"status": "partial_success", "message": message, "failed_files": failed_files}
+            else:
+                message = "모든 파일 삭제에 실패했습니다."
+                return {"status": "error", "message": message, "failed_files": failed_files}
+                
+        except Exception as search_error:
+            print(f"파일 목록 조회 중 오류 발생: {search_error}")
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=f"파일 목록 조회 중 오류가 발생했습니다: {str(search_error)}")
+    
+    except Exception as e:
+        print(f"전체 파일 삭제 중 오류 발생: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"전체 파일 삭제 중 오류가 발생했습니다: {str(e)}")
 
 
 # 파일 업로드 및 인덱싱 엔드포인트
@@ -2285,3 +2360,178 @@ SQL 쿼리:
         print(f"SQL+LLM 쿼리 처리 중 오류 발생: {str(e)}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"SQL+LLM 쿼리 처리 중 오류 발생: {str(e)}")
+
+# 소스 미리보기에 필요한 유틸리티 함수
+def extract_keywords_from_text(text, max_keywords=12):
+    """텍스트에서 주요 키워드 추출"""
+    try:
+        # 한글, 영문, 숫자 단어 추출 (특수문자 및 공백 기준 분리)
+        words = re.findall(r'[가-힣a-zA-Z0-9]{2,}', text)
+        
+        # 불용어 제거 (한국어 기준)
+        stopwords = {
+            '이', '그', '저', '것', '수', '등', '및', '에서', '에게', '으로', '로', '을', '를',
+            '이다', '있다', '하다', '이런', '저런', '그런', '어떤', '무슨', '어떻게', '왜',
+            'the', 'a', 'an', 'is', 'are', 'was', 'were', 'in', 'on', 'at', 'to', 'for', 'of',
+            '있는', '없는', '경우', '때문', '위해', '통해', '따라', '의해', '의한', '때는',
+            '있습니다', '없습니다', '합니다', '입니다', '됩니다', '관련', '때문에', '위하여',
+            '만약', '그러나', '하지만', '또한', '그리고', '따라서', '이러한', '그러한', 
+            '이것', '그것', '저것', '무엇', '어디', '언제', '누구'
+        }
+        
+        # 중복 제거 및 단어 개수 세기
+        word_counts = {}
+        for word in words:
+            word_lower = word.lower()
+            if len(word) >= 2 and word_lower not in stopwords:
+                # 특수 가중치 적용 - 특정 길이 범위의 단어에 가중치 부여
+                weight = 1.0
+                if 3 <= len(word) <= 8:  # 보통 의미있는 단어 길이 범위
+                    weight = 1.5
+                if word[0].isupper() and len(word) > 1 and not word.isupper():  # 대문자로 시작하는 단어 (고유명사 가능성)
+                    weight = 2.0
+                
+                word_counts[word] = word_counts.get(word, 0) + weight
+        
+        # 빈도수 기준 상위 키워드 추출 (가중치 적용)
+        keywords = sorted(word_counts.items(), key=lambda x: x[1], reverse=True)
+        
+        # 중복 단어 제거 (소문자화하여 비교)
+        unique_keywords = []
+        added_lower = set()
+        
+        for kw, _ in keywords:
+            kw_lower = kw.lower()
+            if kw_lower not in added_lower and len(kw) >= 2:
+                unique_keywords.append(kw)
+                added_lower.add(kw_lower)
+            
+            if len(unique_keywords) >= max_keywords:
+                break
+        
+        return unique_keywords
+    except Exception as e:
+        print(f"키워드 추출 중 오류: {e}")
+        return []
+
+def format_content(content):
+    """내용 서식 개선"""
+    if not content:
+        return ""
+    
+    # 여러 개의 연속 공백을 하나로 압축
+    formatted = re.sub(r'\s+', ' ', content).strip()
+    
+    # 문장 구분자 후 개행 추가 (문단 구분)
+    formatted = re.sub(r'([.!?])\s+', r'\1\n\n', formatted)
+    
+    # 중복 개행 제거 (3개 이상 → 2개)
+    formatted = re.sub(r'\n{3,}', '\n\n', formatted)
+    
+    return formatted
+
+def highlight_keywords(content, keywords, answer_text=None):
+    """내용에서 문장 단위 하이라이트 - 답변과 일치하는 문장 강조"""
+    if not content:
+        return content, []
+        
+    # 최종 결과와 관련 문단 저장 변수
+    highlighted_paragraphs = []
+    relevant_paragraphs = []
+    
+    # 답변 텍스트가 있으면 문장 단위 매칭 적용
+    if answer_text and isinstance(answer_text, str) and len(answer_text.strip()) > 10:
+        print(f"응답 텍스트 기반 하이라이트 시작 - 응답 길이: {len(answer_text)}")
+        
+        # 1. 콘텐츠를 문단으로 분리
+        paragraphs = re.split(r'\n\s*\n|\r\n\s*\r\n', content)
+        
+        # 2. 응답 텍스트에서 핵심 키워드 추출
+        answer_keywords = extract_keywords_from_text(answer_text, max_keywords=15)
+        
+        # 3. 각 문단의 관련성 점수 계산 및 하이라이트 적용
+        for paragraph in paragraphs:
+            paragraph = paragraph.strip()
+            if not paragraph or len(paragraph) < 15:
+                continue
+            
+            # 문단에서 키워드 추출
+            paragraph_keywords = extract_keywords_from_text(paragraph, max_keywords=10)
+            
+            # 키워드 일치 점수 계산
+            matching_keywords = [k for k in paragraph_keywords if k.lower() in [ak.lower() for ak in answer_keywords]]
+            keyword_score = len(matching_keywords) / max(1, len(paragraph_keywords))
+            
+            # 직접 텍스트 매칭 검사 (정확한 인용구 확인)
+            direct_match = False
+            if len(paragraph) > 30:
+                for i in range(len(paragraph) - 30):
+                    snippet = paragraph[i:i+30]
+                    if snippet in answer_text:
+                        direct_match = True
+                        break
+            
+            # 관련성 높은 문단 선택 (키워드 일치 또는 직접 매칭)
+            is_relevant = keyword_score > 0.3 or direct_match
+            
+            # 하이라이트 적용 및 관련 문단 표시
+            if is_relevant:
+                # 키워드 하이라이트 처리
+                highlighted_paragraph = paragraph
+                for keyword in matching_keywords:
+                    try:
+                        # 정규식 특수문자 이스케이프
+                        escaped_keyword = re.escape(keyword)
+                        # 키워드에 볼드체 적용
+                        highlighted_paragraph = re.sub(
+                            f'\\b{escaped_keyword}\\b', 
+                            f'**{keyword}**', 
+                            highlighted_paragraph, 
+                            flags=re.IGNORECASE
+                        )
+                    except Exception as e:
+                        print(f"하이라이트 오류: {e}")
+                
+                highlighted_paragraphs.append(highlighted_paragraph)
+                relevant_paragraphs.append({
+                    'text': paragraph,
+                    'relevance': 'high' if direct_match else 'medium',
+                    'matching_keywords': matching_keywords
+                })
+            else:
+                # 관련성 낮은 문단은 그대로 추가
+                highlighted_paragraphs.append(paragraph)
+        
+        # 하이라이트된 내용을 다시 결합
+        highlighted_content = "\n\n".join(highlighted_paragraphs)
+        
+        # 하이라이트에 사용된 키워드 목록 (중복 제거)
+        all_matching_keywords = []
+        for para in relevant_paragraphs:
+            all_matching_keywords.extend(para.get('matching_keywords', []))
+        unique_keywords = list(set(all_matching_keywords))
+        
+        return highlighted_content, unique_keywords
+    
+    # 답변 텍스트가 없는 경우, 기본 키워드 하이라이트만 적용
+    elif keywords and isinstance(keywords, list):
+        for keyword in keywords:
+            try:
+                # 정규식 특수문자 이스케이프
+                escaped_keyword = re.escape(keyword)
+                # 키워드에 볼드체 적용
+                content = re.sub(
+                    f'\\b{escaped_keyword}\\b', 
+                    f'**{keyword}**', 
+                    content, 
+                    flags=re.IGNORECASE
+                )
+            except Exception as e:
+                print(f"하이라이트 오류: {e}")
+        return content, keywords
+    
+    # 키워드나 답변 텍스트가 없을 경우 원본 콘텐츠 반환
+    return content, []
+
+# 상수 선언
+ES_INDEX_NAME = "rag_documents_kure_v1"
