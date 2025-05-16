@@ -2,6 +2,7 @@ import asyncio
 from functools import lru_cache
 import torch
 import traceback
+from typing import Any
 
 # 기존 함수들 유지하면서 아래 함수 개선
 
@@ -157,94 +158,109 @@ def generate_response(prompt, max_tokens=1000, temperature=0.1):
     
     return response 
 
-def generate_text_with_local_llm(prompt, max_tokens=1024, temperature=0.5, top_p=0.95, top_k=50, system_prompt=None):
+def generate_text_with_local_llm(
+    prompt: str,
+    model: Any = None,
+    tokenizer: Any = None,
+    temperature: float = 0.1,
+    max_new_tokens: int = 1024,
+    top_p: float = 0.85,
+    repetition_penalty: float = 1.1,
+) -> str:
     """
-    로컬 LLM 모델을 사용하여 텍스트를 생성하는 함수입니다.
+    로컬 LLM 모델을 사용하여 텍스트를 생성합니다.
     
     Args:
-        prompt (str): 프롬프트 텍스트
-        max_tokens (int): 생성할 최대 토큰 수 (기본값 1024로 증가)
-        temperature (float): 생성 다양성 조절 (0.5로 증가하여 더 창의적인 응답)
-        top_p (float): 누적 확률 임계값 (nucleus sampling)
-        top_k (int): 상위 k개 토큰만 고려
-        system_prompt (str): 시스템 프롬프트 (지정하지 않으면 기본값 사용)
+        prompt: 프롬프트 텍스트
+        model: LLM 모델 (None인 경우 전역 모델 사용)
+        tokenizer: 토크나이저 (None인 경우 전역 토크나이저 사용)
+        temperature: 생성 온도
+        max_new_tokens: 최대 새 토큰 수
+        top_p: 상위 확률 샘플링 파라미터
+        repetition_penalty: 반복 패널티
         
     Returns:
         str: 생성된 텍스트
     """
-    import fastapi
-    from app.main import app
-    
-    print(f"[LLM_UTILS] 로컬 LLM 모델로 텍스트 생성 시작")
-    print(f"[LLM_UTILS] 프롬프트 길이: {len(prompt)} 문자")
-    print(f"[LLM_UTILS] 프롬프트 미리보기: {prompt[:100]}...")
-    
-    # 기본 시스템 프롬프트 설정
-    if system_prompt is None:
-        system_prompt = """당신은 전문적인 AI 어시스턴트입니다. 다음 지침을 항상 따르세요:
-1. 질문에 대해 정확하고 상세한 답변을 제공하세요.
-2. 핵심 정보를 단순하게 요약하는 대신, 풍부한 맥락과 설명을 제공하세요.
-3. 사용자가 요청한 내용을 깊이 있게 분석하고, 관련 정보를 포괄적으로 다루세요.
-4. 답변은 명확한 구조로 논리적으로 구성하고, 필요한 세부 사항과 예시를 포함하세요.
-5. 단순한 일반화나 피상적인 응답은 피하고, 구체적이고 실용적인 통찰을 제공하세요.
-6. 항상 사용자의 질문 의도를 정확히 파악하여 해당 주제에 대한 전문적인 지식을 보여주세요."""
-    
-    # 생성 지시사항 추가하여 프롬프트 강화
-    enhanced_prompt = f"""{prompt}
-
-답변 지침:
-- 응답은 반드시 충분히 길고 상세하게 작성해주세요.
-- 단답형으로 응답하지 말고 충분한 설명과 분석을 포함해주세요.
-- 필요한 경우 예시를 들거나 단계별로 설명해주세요.
-- 주제에 관한 중요한 세부 정보를 빠짐없이 포함시켜주세요."""
-    
-    # FastAPI 앱 객체에서 모델과 토크나이저 가져오기
-    model = getattr(app.state, "llm_model", None)
-    tokenizer = getattr(app.state, "tokenizer", None)
-    
     if model is None or tokenizer is None:
-        print("[LLM_UTILS] 모델 또는 토크나이저가 초기화되지 않았습니다.")
-        return "모델 준비 중입니다. 잠시 후 다시 시도해주세요."
+        print("[LLM_UTILS] 모델 또는 토크나이저가 제공되지 않았습니다. 전역 모델 사용 시도...")
+        # 전역 모델과 토크나이저 찾기 시도
+        try:
+            import sys
+            llm_model_module = sys.modules.get("app.main", None)
+            if llm_model_module and hasattr(llm_model_module, "llm_model") and hasattr(llm_model_module, "tokenizer"):
+                model = llm_model_module.llm_model
+                tokenizer = llm_model_module.tokenizer
+                print("[LLM_UTILS] 전역 모델 및 토크나이저 로드 성공")
+            else:
+                print("[LLM_UTILS] 전역 모델 또는 토크나이저를 찾을 수 없습니다.")
+                return "텍스트 생성에 필요한 모델을 로드할 수 없습니다."
+        except Exception as e:
+            print(f"[LLM_UTILS] 전역 모델 로드 오류: {str(e)}")
+            return f"텍스트 생성 모델 로드 오류: {str(e)}"
+    
+    # 모델 및 토크나이저 확인
+    if model is None or tokenizer is None:
+        return "LLM 모델 또는 토크나이저가 초기화되지 않았습니다."
     
     try:
-        # 비동기 루프 생성 및 함수 실행
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        print("[LLM_UTILS] 로컬 LLM 모델로 텍스트 생성 시작")
+        print(f"[LLM_UTILS] 프롬프트 길이: {len(prompt)} 문자")
+        print(f"[LLM_UTILS] 프롬프트 미리보기: {prompt[:120]}...")
         
-        # 모델마다 시스템 프롬프트 적용 방식 다를 수 있음 (Gemma는 시스템 프롬프트를 따로 지원하지 않음)
-        # 실제 모델이 Gemma인 경우 시스템 프롬프트를 프롬프트 앞에 추가
-        if "gemma" in str(model.__class__).lower() or "gemma" in (getattr(tokenizer, "name_or_path", "").lower()):
+        # Gemma 모델인지 확인 (모델 이름이나 아키텍처 기반으로 확인)
+        model_name = getattr(model.config, "_name_or_path", "").lower()
+        is_gemma = "gemma" in model_name
+        
+        if is_gemma:
             print("[LLM_UTILS] Gemma 모델 감지: 시스템 프롬프트를 직접 프롬프트에 통합")
-            full_prompt = f"{system_prompt}\n\n사용자: {enhanced_prompt}\n\n응답:"
-        else:
-            # 다른 모델들은 generate_text_with_llm 내부에서 시스템 프롬프트를 적용할 것으로 가정
-            full_prompt = enhanced_prompt
-            
-        print(f"[LLM_UTILS] 최종 프롬프트 길이: {len(full_prompt)} 문자")
+            # Gemma는 시스템 프롬프트를 "<start_of_turn>system\n시스템 프롬프트<end_of_turn>\n<start_of_turn>user\n사용자 프롬프트<end_of_turn>" 형식으로 통합
+            system_prompt = "당신은 정확하고 도움이 되는 인공지능 어시스턴트입니다."
+            prompt = f"<start_of_turn>system\n{system_prompt}<end_of_turn>\n<start_of_turn>user\n{prompt}<end_of_turn>\n<start_of_turn>model"
         
-        response = loop.run_until_complete(
-            generate_text_with_llm(
-                model=model,
-                tokenizer=tokenizer,
-                prompt=full_prompt,
+        print(f"[LLM_UTILS] 최종 프롬프트 길이: {len(prompt)} 문자")
+        
+        # 비동기 이벤트 루프 충돌 문제 해결 - 동기 방식으로 변경
+        # 토큰화 및 모델 입력 형식 변환
+        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=4096-max_new_tokens)
+        inputs = {k: v.to(model.device) for k, v in inputs.items()}
+        
+        # 모델 추론 과정을 동기식으로 수행
+        with torch.no_grad():
+            # 스트리밍이 아닌 일반 생성 방식 사용
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
                 temperature=temperature,
-                max_tokens=max_tokens
+                top_p=top_p,
+                repetition_penalty=repetition_penalty,
+                pad_token_id=tokenizer.eos_token_id,
+                do_sample=temperature > 0.0,
             )
-        )
-        loop.close()
+            
+        # 생성된 전체 시퀀스
+        full_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
         
-        print(f"[LLM_UTILS] 응답 길이: {len(response)} 문자")
-        print(f"[LLM_UTILS] 응답 미리보기: {response[:100]}...")
+        # 프롬프트 이후의 생성된 부분만 추출
+        generated_text = full_output[len(tokenizer.decode(inputs['input_ids'][0], skip_special_tokens=True)):]
         
-        # 응답이 너무 짧은 경우 오류 피드백
-        if len(response) < 20:
-            print(f"[LLM_UTILS] 경고: 응답이 너무 짧습니다 - '{response}'")
-            if "error" in response.lower() or "오류" in response:
-                return response
-            return f"답변을 생성하는 데 문제가 발생했습니다. 응답이 너무 짧습니다: {response}"
+        # Gemma 모델인 경우 <end_of_turn> 태그 제거
+        if is_gemma and "<end_of_turn>" in generated_text:
+            generated_text = generated_text.split("<end_of_turn>")[0].strip()
+            
+        print(f"[LLM_UTILS] 생성 완료: {len(generated_text)} 문자")
+        return generated_text.strip()
         
-        return response
+    except RuntimeError as e:
+        error_msg = str(e)
+        print(f"[LLM_UTILS] 로컬 LLM 텍스트 생성 중 오류: {error_msg}")
+        if "CUDA out of memory" in error_msg:
+            return "GPU 메모리 부족으로 텍스트 생성에 실패했습니다. 더 짧은 프롬프트를 사용하거나 관리자에게 문의하세요."
+        elif "Cannot run the event loop while another loop is running" in error_msg:
+            return "이벤트 루프 충돌 문제가 발생했습니다. 관리자에게 문의하세요."
+        else:
+            return f"텍스트 생성 중 런타임 오류가 발생했습니다: {error_msg}"
     except Exception as e:
-        print(f"[LLM_UTILS] 로컬 LLM 텍스트 생성 중 오류: {e}")
+        print(f"[LLM_UTILS] 로컬 LLM 텍스트 생성 중 오류: {str(e)}")
         traceback.print_exc()
-        return f"응답 생성 중 오류가 발생했습니다: {str(e)}" 
+        return f"텍스트 생성 중 오류가 발생했습니다: {str(e)}" 

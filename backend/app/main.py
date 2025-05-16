@@ -922,11 +922,31 @@ async def search_and_combine(
         }
 
 
+# SQLCoder 모델 로드 함수 추가
+def get_sqlcoder_model():
+    """SQLCoder 모델을 로드합니다."""
+    print("SQLCoder 모델 로딩 중...")
+    try:
+        from app.utils.sqlcoder_utils import load_sqlcoder_model
+        model, tokenizer = load_sqlcoder_model()
+        
+        if model is None or tokenizer is None:
+            print("SQLCoder 모델 로드 실패")
+            return None, None
+            
+        print("SQLCoder 모델 로드 성공")
+        return model, tokenizer
+    except Exception as e:
+        print(f"SQLCoder 모델 로딩 중 오류 발생: {e}")
+        traceback.print_exc()
+        return None, None
+
 # 모델 초기화
 es_client = get_elasticsearch_client()
 embedding_function = get_embedding_function()
 llm_model, tokenizer = get_llm_model_and_tokenizer()
 reranker_model = get_reranker_model()
+sqlcoder_model, sqlcoder_tokenizer = get_sqlcoder_model()
 
 
 class FeedbackRequest(BaseModel):
@@ -1561,8 +1581,33 @@ async def query_stats_endpoint(request: StatsQueryRequest = Body(...)):
 # 서버 시작 시 인덱스 확인
 @app.on_event("startup")
 async def startup_event():
+    # 필수 리소스 확인
     if not all([es_client, embedding_function, llm_model, tokenizer, reranker_model]):
         print("필수 리소스 로딩에 실패했습니다. 서버 로그를 확인하세요.")
+    
+    # SQLCoder 초기화
+    print("SQLCoder 모듈 초기화 중...")
+    try:
+        # sql_sqlcoder_init.py 에서 초기화 함수 임포트
+        from app.sql_sqlcoder_init import initialize_sqlcoder
+        
+        # SQLCoder 초기화
+        success, message = initialize_sqlcoder()
+        
+        if success:
+            print(f"SQLCoder 초기화 성공: {message}")
+            # 앱 상태에 모델 저장 (API에서 사용)
+            app.state.sqlcoder_model = sqlcoder_model
+            app.state.sqlcoder_tokenizer = sqlcoder_tokenizer
+        else:
+            print(f"SQLCoder 초기화 실패: {message}")
+    except Exception as e:
+        print(f"SQLCoder 초기화 중 예외 발생: {str(e)}")
+        traceback.print_exc()
+    
+    # 모델 상태 확인
+    app.state.llm_model = llm_model
+    app.state.tokenizer = tokenizer
 
 
 @app.get("/api/file-viewer/{filename}")
@@ -2125,8 +2170,18 @@ class SQLAndLLMRequest(BaseModel):
 async def get_db_schema():
     """데이터베이스 스키마 정보를 반환합니다."""
     try:
-        from app.utils.get_mariadb_schema import get_mariadb_schema
-        schema = get_mariadb_schema()
+        from app.utils.get_mariadb_schema import get_schema_for_sqlcoder, test_db_connection
+        
+        # 먼저 DB 연결 테스트
+        if not test_db_connection():
+            print("DB 연결 테스트 실패")
+            return {
+                "status": "error", 
+                "schema": "# 데이터베이스 연결 오류\n\n데이터베이스에 연결할 수 없습니다. 관리자에게 문의하세요."
+            }
+        
+        # SQLCoder 형식으로 스키마 가져오기
+        schema = get_schema_for_sqlcoder()
         
         # 오류 메시지가 반환된 경우 (ERROR로 시작하는 문자열)
         if isinstance(schema, str) and schema.startswith("ERROR:"):
@@ -2153,15 +2208,12 @@ async def get_db_schema():
 async def process_sql_query(request: SQLQueryRequest = Body(...)):
     """자연어 질문을 SQL로 변환하고 실행 결과를 반환합니다."""
     try:
-        from app.utils.sql_utils import generate_sql_from_question, run_sql_query
-        from app.utils.get_mariadb_schema import get_mariadb_schema
-        
-        # 스키마 정보 가져오기
-        schema = get_mariadb_schema()
+        # SQLCoder 유틸 사용
+        from app.utils.sqlcoder_utils import generate_sql_from_question, run_sql_query
         
         # SQL 생성
         print(f"자연어 질문: {request.question}")
-        sql = generate_sql_from_question(request.question, schema, state=app.state)
+        sql = generate_sql_from_question(request.question)
         
         if not sql:
             return {
@@ -2228,72 +2280,57 @@ async def process_sql_query(request: SQLQueryRequest = Body(...)):
 async def process_sql_and_llm(request: SQLAndLLMRequest = Body(...)):
     """자연어 질문을 SQL로 변환 실행하고, LLM으로 설명을 추가합니다."""
     try:
-        from app.utils.sql_utils import generate_sql_from_question, run_sql_query
-        from app.utils.get_mariadb_schema import get_mariadb_schema
-        
-        # 스키마 정보 가져오기
-        schema = get_mariadb_schema()
+        # SQLCoder 유틸 사용
+        from app.utils.sqlcoder_utils import generate_sql_from_question, run_sql_query
+        from app.utils.llm_utils import generate_text_with_local_llm
         
         # SQL 생성 및 실행
-        sql_query = generate_sql_from_question(request.question, schema, state=app.state)
+        sql_query = generate_sql_from_question(request.question)
         
-        if not sql_query:
+        # 쿼리가 오류를 포함하고 있는 경우
+        if sql_query.startswith("-- SQL 생성 중 오류 발생"):
             return {
-                "sql_query": "SELECT 1;", 
-                "sql_result": "⚠️ SQL을 생성할 수 없습니다.",
-                "bot_response": "죄송합니다. 질문에서 SQL을 생성할 수 없었습니다. 질문을 더 구체적으로 작성해주시거나 다른 방식으로 문의해주세요."
+                "status": "error",
+                "sql": sql_query,
+                "results": "❌ SQL 생성에 실패했습니다",
+                "explanation": f"SQL 생성 중 오류가 발생했습니다: {sql_query}"
             }
         
-        # SQL 실행
-        sql_results = run_sql_query(sql_query)
+        # SQL 쿼리 실행 (run_sql_query가 SQL 및 마크다운 형식 결과 반환)
+        sql_result = run_sql_query(sql_query)
         
-        # 결과 처리
-        result_error = None
-        formatted_results = None
+        # SQL 실행 중 오류가 발생했는지 확인
+        has_error = isinstance(sql_result, dict) and sql_result.get('error') is not None
+        is_empty = False  # 결과가 비어있는지 여부
         
-        if isinstance(sql_results, dict) and "error" in sql_results:
-            result_error = sql_results["error"]
-            formatted_results = f"❌ SQL 실행 오류: {result_error}"
-        elif not sql_results or len(sql_results) == 0:
-            formatted_results = "⚠️ 쿼리 결과가 없습니다."
+        if has_error:
+            # 오류 메시지 가져오기
+            error_message = sql_result.get('error', "알 수 없는 오류")
+            results_markdown = f"❌ SQL 실행 오류: {error_message}"
+            
+            # SQL 오류가 복잡한 경우 단순화된 메시지 생성
+            explanation = f"SQL 쿼리 실행 중 오류가 발생했습니다. 쿼리 문법이나 존재하지 않는 테이블/컬럼을 참조했을 수 있습니다."
+            
+            return {
+                "status": "error",
+                "sql": sql_query,
+                "results": results_markdown,
+                "explanation": explanation
+            }
+        elif isinstance(sql_result, str) and "레코드를 찾을 수 없습니다" in sql_result:
+            # 결과가 없는 경우
+            results_markdown = "⚠️ 조건에 맞는 데이터가 없습니다."
+            is_empty = True
         else:
-            # 마크다운 테이블 생성
-            headers = list(sql_results[0].keys())
-            markdown_table = "| " + " | ".join(headers) + " |\n"
-            markdown_table += "| " + " | ".join(["---"] * len(headers)) + " |\n"
-            
-            for row in sql_results:
-                row_values = []
-                for header in headers:
-                    value = row[header]
-                    if value is None:
-                        value = "NULL"
-                    elif isinstance(value, str) and len(value) > 50:
-                        value = value[:47] + "..."
-                    row_values.append(str(value))
-                markdown_table += "| " + " | ".join(row_values) + " |\n"
-            
-            formatted_results = markdown_table
+            # 정상 실행 결과인 경우 마크다운 테이블 생성
+            results_markdown = sql_result
         
-        # 결과 검증 - AI 응답 생성 기준
-        has_valid_results = (formatted_results and 
-                             "오류" not in formatted_results and 
-                             "쿼리 결과가 없습니다" not in formatted_results)
+        print(f"[SQL+LLM] LLM 모델로 향상된 응답 생성 시작 - 질문: '{request.question}'")
         
         # LLM으로 SQL 결과 설명 생성
-        bot_response = ""
-        
         try:
-            # LLM 모델 활용하여 응답 생성
-            llm_model = getattr(app.state, "llm_model", None)
-            tokenizer = getattr(app.state, "tokenizer", None)
-            
-            if llm_model and tokenizer:
-                try:
-                    from app.utils.llm_utils import generate_text_with_local_llm
-                    
-                    # 프롬프트 생성 - 더 구체적인 지시사항과 분석 요구 포함
-                    prompt = f"""# SQL 쿼리 결과 분석 및 응답 생성
+            # 설명 프롬프트 생성
+            explanation_prompt = f"""# SQL 쿼리 결과 분석 및 응답 생성
 
 ## 질문
 {request.question}
@@ -2304,176 +2341,63 @@ async def process_sql_and_llm(request: SQLAndLLMRequest = Body(...)):
 ```
 
 ## 쿼리 결과
-{formatted_results if not result_error else '쿼리 실행 중 오류가 발생했습니다.'}
+```
+{results_markdown}
+```
 
-## 임무
-위 SQL 쿼리와 결과를 철저히 분석하여 사용자의 질문에 대한 명확하고 상세한 응답을 생성해주세요.
-단순히 "몇 개의 결과가 있습니다"와 같은 피상적인 답변이 아닌, 데이터의 의미와 통찰력을 전달해야 합니다.
+## 지시사항
+1. 위 SQL 쿼리와 결과를 바탕으로 질문에 대한 답변을 생성해주세요.
+2. 간결하게 요점만 설명하되, 핵심 내용을 누락하지 마세요.
+3. 가능하다면 데이터의 특징이나 패턴을 언급하세요.
+4. 수치가 있다면 중요한 수치를 언급하고 그 의미를 설명하세요.
+5. 질문에 직접적인 답변을 하는 형식으로 작성하세요.
+6. SQL 코드나 기술적 설명은 포함하지 마세요.
+7. 결과가 비어있다면 그 이유와 가능한 원인을 설명하세요.
+"""
 
-## 응답 요구사항
-1. 결과에 대한 종합적인 분석과 해석을 제공하세요
-2. 데이터의 패턴, 추세, 특이점 등을 포함한 심층 분석을 해주세요
-3. 질문에 직접적으로 답하는 명확한 결론을 제시하세요
-4. 수치 데이터의 경우, 그 의미와 중요성을 설명하세요
-5. 응답은 최소 3-4문단으로 구성하여 충분히 상세하게 작성하세요
-6. 정보의 우선순위를 고려하여 가장 중요한 정보부터 체계적으로 구성하세요
-
-## 주의사항
-- 쿼리 자체에 대한 기술적 설명은 포함하지 마세요
-- "쿼리 결과에 따르면"과 같은 불필요한 참조 문구는 생략하세요
-- 결과가 없거나 오류가 있는 경우, 가능한 원인과 대안을 제시하세요
-- 응답은 사용자 친화적인 자연스러운 문체로 작성하세요"""
-
-                    # 개선된 generate_text_with_local_llm 함수 사용
-                    print(f"[SQL+LLM] LLM 모델로 향상된 응답 생성 시작 - 질문: '{request.question}'")
-                    print(f"[SQL+LLM] 향상된 프롬프트 길이: {len(prompt)} 문자")
-                    
-                    # 시스템 프롬프트 추가
-                    system_prompt = """당신은 데이터 분석 전문가이자 SQL 전문가입니다. 
-데이터베이스 쿼리 결과를 분석하고 사용자 질문에 대한 통찰력 있는 답변을 제공하는 것이 당신의 역할입니다.
-응답은 항상 풍부한 맥락과 세부 정보를 포함해야 하며, 단순히 결과를 반복하는 것이 아니라 의미 있는 해석을 제공해야 합니다."""
-                    
-                    bot_response = generate_text_with_local_llm(
-                        prompt=prompt,
-                        temperature=0.4,
-                        max_tokens=1024,
-                        system_prompt=system_prompt
-                    )
-                    
-                    print(f"[SQL+LLM] 생성된 응답 길이: {len(bot_response)} 문자")
-                    print(f"[SQL+LLM] 응답 미리보기: {bot_response[:100]}...")
-                    
-                    # 응답 유효성 검사
-                    if not bot_response or len(bot_response) < 50:
-                        print(f"[SQL+LLM] 경고: 응답이 너무 짧습니다 - '{bot_response}'")
-                        raise ValueError("응답이 너무 짧거나 유효하지 않습니다")
-                        
-                except Exception as generate_err:
-                    print(f"[SQL+LLM] 텍스트 생성 오류: {str(generate_err)}")
-                    # 오류 발생 시 기존 방식으로 폴백
-                    with torch.no_grad():
-                        output = llm_model.generate(
-                            **tokenizer(prompt, return_tensors="pt").to(llm_model.device),
-                            max_new_tokens=512,
-                            do_sample=True,
-                            temperature=0.4,
-                            top_p=0.95,
-                            pad_token_id=tokenizer.eos_token_id,
-                        )
-                    
-                    # 결과 디코딩
-                    generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
-                    print(f"[SQL+LLM] 폴백 방식으로 응답 생성 완료, 결과 길이: {len(generated_text)} 문자")
-                    
-                    # 입력 프롬프트 제거 시도
-                    if prompt in generated_text:
-                        bot_response = generated_text[len(prompt):].strip()
-                    else:
-                        # 다른 방식으로 응답 추출 시도
-                        response_start = generated_text.find("## 응답 요구사항")
-                        if response_start > 0:
-                            potential_response = generated_text[response_start:].strip()
-                            
-                            # 다양한 마커 검색
-                            markers = ["답변:", "분석:", "결과:", "설명:", "분석 결과:", "결론:", "다음과 같습니다:"]
-                            for marker in markers:
-                                if marker in potential_response:
-                                    marker_pos = potential_response.find(marker) + len(marker)
-                                    bot_response = potential_response[marker_pos:].strip()
-                                    print(f"[SQL+LLM] 마커('{marker}') 기반 추출")
-                                    break
-                            else:
-                                bot_response = generated_text  # 마커가 없으면 전체 텍스트 사용
-                
-                # 유효한 응답이 생성되지 않은 경우
-                if not bot_response or len(bot_response) < 10:
-                    print(f"[SQL+LLM] 응답 추출 실패 또는 너무 짧은 응답: '{bot_response}'")
-                    if has_valid_results:
-                        # 쿼리 결과가 있는 경우 기본 정보 제공
-                        rows_count = len(sql_results) if sql_results else 0
-                        cols = list(sql_results[0].keys()) if sql_results and len(sql_results) > 0 else []
-                        
-                        if rows_count > 0:
-                            # 데이터 샘플 추출 및 응답 생성
-                            first_row = sql_results[0]
-                            sample_data = []
-                            
-                            # 첫 번째 행의 주요 데이터 포함
-                            for col in cols[:min(4, len(cols))]:
-                                if first_row[col] is not None:
-                                    sample_data.append(f"{col}: {first_row[col]}")
-                            
-                            bot_response = f"조회 결과로 {rows_count}개의 데이터가 확인되었습니다. "
-                            
-                            # 몇 가지 주요 열 이름 추출
-                            col_names = ", ".join([f"'{col}'" for col in cols[:min(3, len(cols))]])
-                            if len(cols) > 3:
-                                col_names += f" 등 총 {len(cols)}개 항목"
-                                
-                            # 첫 번째 행 데이터 샘플 포함
-                            if sample_data:
-                                bot_response += f"데이터는 {col_names}으로 구성되어 있으며, 첫 번째 항목은 {', '.join(sample_data)} 등의 정보를 포함하고 있습니다."
-                            else:
-                                bot_response += f"데이터는 {col_names}으로 구성되어 있습니다."
-                                
-                            # SQL 질의 의도에 따른 부가 설명 추가
-                            if "COUNT" in sql_query.upper() or "SUM" in sql_query.upper() or "AVG" in sql_query.upper():
-                                bot_response += " 위 테이블은 집계 결과를 보여줍니다."
-                            elif "ORDER BY" in sql_query.upper() and "DESC" in sql_query.upper():
-                                bot_response += " 데이터는 내림차순으로 정렬되어 있어 상위 항목들을 확인할 수 있습니다."
-                            elif "GROUP BY" in sql_query.upper():
-                                bot_response += " 데이터는 특정 기준으로 그룹화되어 있습니다."
-                        else:
-                            bot_response = "조회 결과로 데이터가 확인되었으나, 상세 정보를 분석하는 데 어려움이 있습니다. 테이블을 직접 확인해주세요."
-                    else:
-                        # 오류가 있거나 결과가 없는 경우
-                        bot_response = "데이터베이스에서 해당 질문에 대한 결과를 찾을 수 없습니다. 조건을 변경하여 다시 시도해보세요."
-                
-                print(f"[SQL+LLM] 최종 응답: '{bot_response[:100]}...'")
-                
-            else:
-                # LLM 모델이 없는 경우 기본 응답 생성
-                print("[SQL+LLM] LLM 모델 또는 토크나이저가 초기화되지 않음")
-                if has_valid_results:
-                    rows_count = len(sql_results) if sql_results else 0
-                    cols = list(sql_results[0].keys()) if sql_results and len(sql_results) > 0 else []
-                    
-                    if rows_count > 0:
-                        col_names = ", ".join([f"'{col}'" for col in cols[:min(3, len(cols))]])
-                        if len(cols) > 3:
-                            col_names += f" 등 총 {len(cols)}개 항목"
-                            
-                        bot_response = f"조회 결과로 {rows_count}개의 데이터가 확인되었습니다. 데이터는 {col_names}으로 구성되어 있습니다."
-                    else:
-                        bot_response = f"조회 결과로 {rows_count}개의 데이터가 확인되었습니다. 테이블 내용을 참고해주세요."
-                else:
-                    bot_response = "데이터베이스에서 해당 질문에 대한 결과를 찾을 수 없습니다. 다른 질문을 시도해보세요."
-                
-        except Exception as llm_err:
-            print(f"LLM 응답 생성 오류: {str(llm_err)}")
+            print(f"[SQL+LLM] 향상된 프롬프트 길이: {len(explanation_prompt)} 문자")
             
-            # 오류 발생시 기본 메시지 제공
-            if has_valid_results:
-                rows_count = len(sql_results) if sql_results else 0
-                bot_response = f"조회 결과, 총 {rows_count}개의 데이터가 확인되었습니다. 테이블 내용을 참고해주세요."
-            else:
-                bot_response = "데이터베이스에서 해당 질문에 대한 결과를 찾을 수 없습니다. 다른 질문을 시도해보세요."
+            # LLM을 사용하여 설명 생성 (동기적으로 호출)
+            explanation = generate_text_with_local_llm(
+                prompt=explanation_prompt,
+                model=llm_model,
+                tokenizer=tokenizer,
+                temperature=0.1,  # 낮은 온도로 사실적 응답 생성
+                max_new_tokens=512  # 충분한 응답 길이
+            )
+            
+            print(f"[SQL+LLM] 생성된 응답 길이: {len(explanation)} 문자")
+            print(f"[SQL+LLM] 응답 미리보기: {explanation[:75]}...")
+            
+            # 응답이 비어있거나 오류 메시지가 포함된 경우
+            if not explanation or len(explanation) < 10 or "오류" in explanation:
+                if is_empty:
+                    explanation = "조건에 맞는 데이터가 없습니다. 검색 조건을 변경해 보시거나, 다른 질문을 시도해보세요."
+                else:
+                    explanation = "SQL 쿼리 결과를 기반으로 한 설명입니다. 위 테이블에서 자세한 정보를 확인하세요."
+        except Exception as llm_error:
+            print(f"[SQL+LLM] LLM 응답 생성 중 오류: {str(llm_error)}")
+            traceback.print_exc()
+            explanation = f"응답 생성 중 오류가 발생했습니다: {str(llm_error)}"
         
-        # 응답이 없는 경우 기본 메시지
-        if not bot_response:
-            bot_response = "데이터베이스 조회 결과입니다. 테이블 내용을 참고해주세요."
+        print(f"[SQL+LLM] 최종 응답: '{explanation[:75]}...'")
         
-        # 최종 결과 반환
         return {
-            "sql_query": sql_query,
-            "sql_result": formatted_results,
-            "bot_response": bot_response
+            "status": "success",
+            "sql": sql_query,
+            "results": results_markdown,
+            "explanation": explanation
         }
         
     except Exception as e:
-        print(f"SQL+LLM 쿼리 처리 중 오류 발생: {str(e)}")
+        print(f"SQL+LLM 처리 중 오류 발생: {str(e)}")
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"SQL+LLM 쿼리 처리 중 오류 발생: {str(e)}")
+        return {
+            "status": "error",
+            "sql": "-- SQL 생성 실패",
+            "results": "❌ 오류 발생",
+            "explanation": f"처리 중 오류가 발생했습니다: {str(e)}"
+        }
 
 # 소스 미리보기에 필요한 유틸리티 함수
 def extract_keywords_from_text(text, max_keywords=12):

@@ -1112,6 +1112,18 @@ const exampleQuestions = [
 // 단순 예시 질문 목록 (기존 구현 방식 대체)
 const flatExampleQuestions = exampleQuestions.flatMap(category => category.questions);
 
+// 예시 질문 목록 수정 - 한국어 질문 추가
+const EXAMPLE_QUESTIONS = [
+  "매출이 가장 높은 상위 5개 제품은 무엇인가요?",
+  "지난 달에 가장 많이 주문한 고객 3명을 보여주세요",
+  "카테고리별 판매량을 내림차순으로 정렬해서 보여주세요",
+  "평균 주문 금액이 50,000원 이상인 고객 목록을 보여주세요",
+  "리뷰 평점이 4.5 이상인 제품의 수는 몇 개인가요?",
+  "각 사용자별 총 자원 사용량을 내림차순으로 보여주세요",
+  "최근 30일 내에 등록된 문의사항 개수는 몇 개인가요?",
+  "가상머신 사용량이 90% 이상인 사용자 리스트를 보여주세요"
+];
+
 const SQLQueryPage = () => {
   const [question, setQuestion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -1263,14 +1275,20 @@ const SQLQueryPage = () => {
       setIsLoading(true);
       setErrorMessage('');
       
-      // SQL 변환 API 호출
+      // SQL 변환 API 호출 (타임아웃 설정 추가)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60초 타임아웃
+      
       const response = await fetch('/api/sql-query', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ question: queryText })
+        body: JSON.stringify({ question: queryText }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId); // 타임아웃 해제
       
       if (!response.ok) {
         throw new Error('API 요청 실패');
@@ -1285,7 +1303,7 @@ const SQLQueryPage = () => {
       
       // 응답 메시지 추가
       const isError = result.results && result.results.includes('❌');
-      const isEmpty = result.results && result.results.includes('⚠️ 결과가 없습니다');
+      const isEmpty = result.results && result.results.includes('⚠️');
       
       let responseContent = '';
       
@@ -1319,7 +1337,12 @@ const SQLQueryPage = () => {
       
     } catch (error) {
       console.error('SQL 변환 오류:', error);
-      setErrorMessage('SQL 변환 중 오류가 발생했습니다. 다시 시도해주세요.');
+      // 타임아웃 오류인지 확인
+      if (error.name === 'AbortError') {
+        setErrorMessage('요청 시간이 초과되었습니다. 서버 응답이 지연되고 있습니다.');
+      } else {
+        setErrorMessage('SQL 변환 중 오류가 발생했습니다. 다시 시도해주세요.');
+      }
     } finally {
       setIsLoading(false);
       scrollToBottom();
@@ -1343,14 +1366,21 @@ const SQLQueryPage = () => {
       setIsLoading(true);
       setErrorMessage('');
       
+      // 타임아웃 설정 추가
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 90000); // 90초 타임아웃 (LLM은 더 길게)
+      
       // SQL + LLM 응답 생성 API 호출
       const response = await fetch('/api/sql-and-llm', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ question: queryText })
+        body: JSON.stringify({ question: queryText }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId); // 타임아웃 해제
       
       if (!response.ok) {
         throw new Error('API 요청 실패');
@@ -1370,7 +1400,7 @@ const SQLQueryPage = () => {
       
       // 응답 메시지 추가
       const isError = results && results.includes('❌');
-      const isEmpty = results && results.includes('⚠️ 결과가 없습니다');
+      const isEmpty = results && results.includes('⚠️');
       
       // 오류나 빈 결과가 아니라면 응답 그대로 표시, 아니면 상태에 맞는 보조 메시지 추가
       let finalContent = explanation;
@@ -1399,15 +1429,29 @@ const SQLQueryPage = () => {
         setQuestion('');
       }
       
-      // 결과에서 테이블 데이터 파싱 (차트 준비)
+      // 결과가 테이블 형식이고 오류가 없는 경우 차트 데이터 준비
       if (results && !isError && !isEmpty) {
-        const parsedData = parseTableData(results);
-        setTableData(parsedData);
+        try {
+          const parsedData = parseTableData(results);
+          setTableData(parsedData);
+          // 차트 가능 여부 확인
+          setCanShowChart(isDataChartable(parsedData));
+        } catch (parseError) {
+          console.error('테이블 데이터 파싱 오류:', parseError);
+          setCanShowChart(false);
+        }
+      } else {
+        setCanShowChart(false);
       }
       
     } catch (error) {
-      console.error('SQL + LLM 응답 생성 오류:', error);
-      setErrorMessage('응답 생성 중 오류가 발생했습니다. 다시 시도해주세요.');
+      console.error('SQL+LLM 변환 오류:', error);
+      // 타임아웃 오류인지 확인
+      if (error.name === 'AbortError') {
+        setErrorMessage('요청 시간이 초과되었습니다. LLM 응답 생성이 지연되고 있습니다.');
+      } else {
+        setErrorMessage('SQL+LLM 변환 중 오류가 발생했습니다. 다시 시도해주세요.');
+      }
     } finally {
       setIsLoading(false);
       scrollToBottom();
@@ -1482,6 +1526,11 @@ const SQLQueryPage = () => {
     // 'ai'로 변경 시 이전 상태 유지
     console.log(`탭 변경: ${activeTab} -> ${tab}`);
   };
+
+  // 한국어 메시지 업데이트
+  const placeholderText = activeTab === 'sql' 
+    ? '자연어로 질문을 입력하세요. 예: "최근 주문 5건을 보여줘"' 
+    : '자연어로 질문을 입력하세요. 예: "지난 달 주문 통계를 분석해줘"';
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-gray-900 via-[#111827] to-indigo-900/20 text-gray-100">
@@ -1773,7 +1822,7 @@ const SQLQueryPage = () => {
                     type="text"
                     value={question}
                     onChange={(e) => setQuestion(e.target.value)}
-                    placeholder={activeTab === 'sql' ? "자연어로 질문하면 SQL로 변환해 드립니다" : "SQL 변환 + AI 응답 생성"}
+                    placeholder={placeholderText}
                     className="w-full bg-gray-800/30 border border-gray-700/50 focus:border-indigo-500/60 rounded-full pl-4 pr-36 py-3 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
                   />
                   
