@@ -26,7 +26,9 @@ import {
   FiCode,
   FiMessageCircle,
   FiServer,
-  FiCommand
+  FiCommand,
+  FiAlertCircle,
+  FiTrash
 } from "react-icons/fi";
 import { LOGO_IMAGE, createLogoIcon } from "../assets/3ssoft-logo.js";
 
@@ -95,13 +97,17 @@ function Sidebar({
   onToggleTheme,
   isDarkMode,
   onToggleMode,
-  currentMode = 'chat' // 현재 선택된 모드 prop 추가
+  currentMode = 'chat', // 현재 선택된 모드 prop 추가
+  onDeleteAllConversations // 전체 대화 삭제 추가
 }) {
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
   const [dropdownMenu, setDropdownMenu] = useState(null);
   // 대화 목록 접기/펼치기 상태
   const [showAllConversations, setShowAllConversations] = useState(false);
+
+  // 전체 대화 삭제 모달 상태
+  const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
 
   // 날짜 포맷팅 함수
   const formatDate = (timestamp) => {
@@ -212,9 +218,18 @@ function Sidebar({
         <Logo />
       </div>
 
-      {/* 새 대화 버튼 - 오른쪽 정렬로 변경 */}
+      {/* 새 대화 버튼 & 전체 삭제 버튼 */}
       <div className="px-4 py-2.5 border-b border-gray-800/50">
-        <div className="flex justify-end">
+        <div className="flex justify-between items-center">
+          <button
+            onClick={() => setShowDeleteAllModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-red-400 hover:text-red-300 bg-transparent hover:bg-red-950/50 rounded-md transition-all duration-200 text-sm"
+            title="모든 대화 삭제"
+          >
+            <FiTrash size={15} />
+            <span>전체 삭제</span>
+          </button>
+          
           <button
             onClick={onNewConversation}
             className="flex items-center gap-1.5 px-3 py-1.5 text-gray-300 hover:text-white bg-transparent hover:bg-gray-800/70 rounded-md transition-all duration-200 text-sm"
@@ -304,48 +319,49 @@ function Sidebar({
         )}
       </div>
 
-      {/* 모드 전환 아이콘 영역 (하단 고정) - 디자인 개선 */}
-      <div className="border-t border-gray-800/50 pt-3 pb-4 px-4">
-        <div className="bg-gray-800/50 rounded-xl p-1 flex justify-between">
-          <button 
-            onClick={() => onToggleMode('chat')}
-            className={`flex flex-1 flex-col items-center justify-center py-2.5 px-2 rounded-lg transition-all duration-200 ${
-              currentMode === 'chat' 
-                ? 'bg-gradient-to-br from-blue-600 to-blue-500 text-white shadow-md' 
-                : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'
-            }`}
-            title="챗봇 모드"
-          >
-            <div className={`w-8 h-8 flex items-center justify-center rounded-full mb-1 ${
-              currentMode === 'chat' 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-gray-700 text-blue-400'
-            }`}>
-              <FiMessageCircle size={18} />
+      {/* 전체 대화 삭제 확인 모달 */}
+      {showDeleteAllModal && (
+        <div className="fixed inset-0 bg-gray-900/90 backdrop-blur-sm flex items-center justify-center z-[70] animate-fade-in">
+          <div className="bg-gray-800 rounded-xl p-5 max-w-md w-full border border-gray-700 shadow-2xl animate-slide-up">
+            <div className="flex items-start mb-4">
+              <div className="flex-shrink-0 text-red-500 mr-3">
+                <FiAlertCircle size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-2">
+                  모든 대화 삭제
+                </h3>
+                <p className="text-gray-300 text-sm">
+                  모든 대화 내역이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                </p>
+                <p className="mt-2 text-red-400 text-xs">
+                  정말 모든 대화를 삭제하시겠습니까?
+                </p>
+              </div>
             </div>
-            <span className="text-xs font-medium">챗봇</span>
-          </button>
-          
-          <button 
-            onClick={() => onToggleMode('sql')}
-            className={`flex flex-1 flex-col items-center justify-center py-2.5 px-2 rounded-lg transition-all duration-200 ${
-              currentMode === 'sql' 
-                ? 'bg-gradient-to-br from-indigo-600 to-indigo-500 text-white shadow-md' 
-                : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'
-            }`}
-            title="SQL 질의 모드"
-          >
-            <div className={`w-8 h-8 flex items-center justify-center rounded-full mb-1 ${
-              currentMode === 'sql' 
-                ? 'bg-indigo-500 text-white' 
-                : 'bg-gray-700 text-indigo-400'
-            }`}>
-              <FiCommand size={18} />
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                onClick={() => setShowDeleteAllModal(false)}
+                className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => {
+                  if (onDeleteAllConversations) {
+                    onDeleteAllConversations();
+                  }
+                  setShowDeleteAllModal(false);
+                }}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+              >
+                <FiTrash size={16} />
+                삭제 확인
+              </button>
             </div>
-            <span className="text-xs font-medium">SQL 질의</span>
-          </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

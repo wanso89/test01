@@ -1124,7 +1124,7 @@ const EXAMPLE_QUESTIONS = [
   "가상머신 사용량이 90% 이상인 사용자 리스트를 보여주세요"
 ];
 
-const SQLQueryPage = () => {
+const SQLQueryPage = ({ onToggleMode }) => {
   const [question, setQuestion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
@@ -1533,72 +1533,64 @@ const SQLQueryPage = () => {
     : '자연어로 질문을 입력하세요. 예: "지난 달 주문 통계를 분석해줘"';
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-br from-gray-900 via-[#111827] to-indigo-900/20 text-gray-100">
+    <div className="flex flex-col h-full overflow-hidden bg-gray-900 text-gray-200">
       {/* 헤더 */}
-      <div className="flex flex-col md:flex-row md:items-center px-4 py-3 border-b border-gray-800/50 bg-gray-900/30 backdrop-blur-sm">
-        <div className="flex items-center">
-          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-600 to-indigo-800 mr-3 shadow-md">
-            <FiDatabase size={18} className="text-white" />
+      <div className="flex items-center justify-between gap-4 px-6 h-16 border-b border-gray-800 bg-gray-900">
+        {/* 좌측: 타이틀 */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md">
+            <FiDatabase size={20} className="text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-white">
-              SQL 쿼리 도우미
+            <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-400 to-purple-500 bg-clip-text text-transparent">
+              SQL 질의 어시스턴트
             </h1>
-            <p className="text-xs text-gray-400">자연어를 SQL로 변환해 데이터베이스를 쉽게 조회할 수 있습니다.</p>
+            <p className="text-xs text-gray-400 mt-0.5">자연어로 데이터베이스를 쉽게 검색하세요</p>
           </div>
         </div>
         
-        <div className="mt-3 md:mt-0 md:ml-auto flex items-center gap-2 flex-wrap">
-          <div className="flex px-2 py-1 rounded-lg bg-gray-800/50 border border-gray-700/30">
-            <button
-              onClick={() => handleTabChange('sql')}
-              className={`px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 transition-colors ${
-                activeTab === 'sql' 
-                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-sm' 
-                  : 'text-gray-400 hover:text-gray-300'
-              }`}
-              title="SQL만 생성"
-            >
-              <FiCode size={14} className={activeTab === 'sql' ? 'text-white' : 'text-indigo-400'} />
-              <span>SQL 생성</span>
-            </button>
-            
-            <button
-              onClick={() => handleTabChange('ai')}
-              className={`px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 transition-colors ${
-                activeTab === 'ai' 
-                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-sm' 
-                  : 'text-gray-400 hover:text-gray-300'
-              }`}
-              title="LLM 설명 포함"
-            >
-              <FiZap size={14} className={activeTab === 'ai' ? 'text-white' : 'text-indigo-400'} />
-              <span>AI 응답</span>
-            </button>
-          </div>
-          
-          <button 
-            onClick={() => setShowHistory(!showHistory)}
-            className={`px-3 py-1.5 rounded-md ${
-              showHistory 
-                ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-sm' 
-                : 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700/50'
-            } text-sm flex items-center gap-1.5 transition-colors`}
+        {/* 우측: 버튼 그룹 */}
+        <div className="flex items-center gap-2">
+          {/* 챗봇 모드 전환 버튼 */}
+          <button
+            onClick={() => onToggleMode('chat')}
+            className="relative group flex items-center justify-center p-2 text-gray-400 hover:text-blue-400 transition-colors"
+            title="챗봇 모드로 전환"
           >
-            <FiClock size={14} className={showHistory ? 'text-white' : 'text-indigo-400'} />
-            <span>히스토리</span>
+            <div className="w-9 h-9 rounded-full flex items-center justify-center bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-blue-500/40 transition-all group-hover:shadow-md group-hover:shadow-blue-500/20">
+              <FiMessageSquare size={18} className="group-hover:scale-110 transition-transform" />
+            </div>
+            
+            {/* 툴팁 */}
+            <div className="absolute top-full mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+              <div className="px-3 py-1.5 rounded-lg bg-gray-800 text-xs font-medium text-gray-200 shadow-lg border border-gray-700 whitespace-nowrap">
+                챗봇 모드로 전환
+              </div>
+            </div>
           </button>
           
-          <button 
+          {/* 스키마 토글 버튼 */}
+          <button
             onClick={() => setShowSchema(!showSchema)}
-            className={`px-3 py-1.5 rounded-md ${
-              showSchema 
-                ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-sm' 
-                : 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700/50'
-            } text-sm flex items-center gap-1.5 transition-colors`}
+            className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+              showSchema ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+            }`}
+            title="DB 스키마 보기"
           >
-            <FiColumns size={14} className={showSchema ? 'text-white' : 'text-indigo-400'} />
-            <span>DB 스키마</span>
+            <FiTable size={16} />
+            <span>스키마</span>
+          </button>
+          
+          {/* 히스토리 토글 버튼 */}
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+              showHistory ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+            }`}
+            title="쿼리 히스토리 보기"
+          >
+            <FiClock size={16} />
+            <span>히스토리</span>
           </button>
         </div>
       </div>

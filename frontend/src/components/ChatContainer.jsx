@@ -2,8 +2,8 @@ import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 // FiExternalLink 아이콘 추가
-import { FiLoader, FiArrowUp, FiList, FiX, FiExternalLink, FiTrash2, FiHardDrive, FiFile, FiFolder, FiSearch, FiMessageSquare, FiBookmark, FiUploadCloud, FiPlus } from "react-icons/fi"; 
-import { FiAlertCircle } from "react-icons/fi";
+import { FiLoader, FiArrowUp, FiList, FiX, FiExternalLink, FiTrash2, FiHardDrive, FiFile, FiFolder, FiSearch, FiMessageSquare, FiBookmark, FiUploadCloud, FiPlus, FiCornerDownRight, FiCommand, FiMessageCircle, FiDatabase } from "react-icons/fi"; 
+import { FiAlertCircle, FiFileText, FiHelpCircle } from "react-icons/fi";
 
 // 로딩 인디케이터 컴포넌트 추가
 const LoadingIndicator = ({ active }) => {
@@ -139,6 +139,26 @@ const injectGlobalStyles = () => {
     styleElement.id = 'custom-chat-styles';
     styleElement.innerHTML = globalStyles;
     document.head.appendChild(styleElement);
+    
+    // 추가 애니메이션 스타일 주입
+    const additionalStyles = `
+      @keyframes fade-in-up {
+        from { transform: translateY(10px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+      
+      .animate-fade-in-up {
+        animation: fade-in-up 0.5s ease-out forwards;
+      }
+    `;
+    
+    // 이미 존재하는지 확인
+    if (!document.getElementById('additional-animation-styles')) {
+      const animStyleElement = document.createElement('style');
+      animStyleElement.id = 'additional-animation-styles';
+      animStyleElement.innerHTML = additionalStyles;
+      document.head.appendChild(animStyleElement);
+    }
   }
 };
 
@@ -756,7 +776,8 @@ function ChatContainer({
   onNewConversation,
   fileManagerOpen,
   setFileManagerOpen,
-  sidebarOpen
+  sidebarOpen,
+  onToggleMode // 모드 전환 함수 추가
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -1287,13 +1308,107 @@ function ChatContainer({
     });
   };
 
-  // 메시지 렌더링 부분 수정
+  // 빈 채팅 화면 워터마크 컴포넌트
+  const EmptyChatWatermark = () => {
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+        <div className="flex flex-col items-center justify-center max-w-2xl px-6 py-8 text-center">
+          {/* 물결 애니메이션 배경 효과 */}
+          <div className="absolute inset-0 overflow-hidden opacity-10">
+            <div className="absolute inset-x-0 top-1/4 w-full h-64 bg-gradient-to-r from-indigo-600/30 to-purple-600/30 rounded-full filter blur-3xl transform -translate-y-20 scale-150 animate-pulse" style={{ animationDuration: '8s' }}></div>
+            <div className="absolute inset-x-0 top-1/3 w-full h-64 bg-gradient-to-r from-blue-600/30 to-cyan-600/30 rounded-full filter blur-3xl transform translate-y-16 scale-125 animate-pulse" style={{ animationDuration: '10s', animationDelay: '1s' }}></div>
+          </div>
+          
+          {/* 아이콘 컨테이너 - 퍼지는 링 효과 */}
+          <div className="relative mb-8">
+            <div className="absolute -inset-0 rounded-full bg-gradient-to-r from-indigo-500/20 to-purple-600/20 animate-ping opacity-30" style={{ animationDuration: '3s' }}></div>
+            <div className="absolute -inset-4 rounded-full bg-gradient-to-r from-indigo-500/10 to-purple-600/10 animate-ping opacity-20" style={{ animationDuration: '3.5s' }}></div>
+            <div className="absolute -inset-8 rounded-full bg-gradient-to-r from-indigo-500/5 to-purple-600/5 animate-ping opacity-10" style={{ animationDuration: '4s' }}></div>
+            
+            <div className="relative w-24 h-24 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+              <div className="w-20 h-20 bg-gradient-to-br from-indigo-500/30 to-purple-600/30 rounded-full flex items-center justify-center">
+                <div className="w-16 h-16 bg-gray-900/80 rounded-full flex items-center justify-center ring-2 ring-indigo-500/30">
+                  <FiMessageSquare className="text-indigo-400 animate-pulse" style={{ animationDuration: '2s' }} size={30} />
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* 텍스트 영역 - 부드러운 페이드인 애니메이션 */}
+          <div className="space-y-4 animate-fade-in-up">
+            <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-200 to-purple-300 mb-2">
+              문서 기반 질의응답 챗봇
+            </h2>
+            <p className="text-base text-gray-400 mb-6 max-w-lg leading-relaxed">
+              인덱싱된 문서를 바탕으로 질문에 답변해 드립니다. 아래 입력창에 원하시는 질문을 입력해 보세요.
+            </p>
+          </div>
+          
+          {/* 기능 설명 카드 영역 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-md text-left mt-4 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
+            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-indigo-500/30 transition-all duration-300 transform hover:-translate-y-1">
+              <div className="flex-shrink-0 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 p-2 rounded-md mr-3">
+                <FiSearch className="text-indigo-400" size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-200">정보 검색</h3>
+                <p className="text-xs text-gray-500 mt-1">문서 내 관련 정보를 검색해 답변합니다</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-indigo-500/30 transition-all duration-300 transform hover:-translate-y-1">
+              <div className="flex-shrink-0 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 p-2 rounded-md mr-3">
+                <FiFileText className="text-indigo-400" size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-200">문서 요약</h3>
+                <p className="text-xs text-gray-500 mt-1">주요 내용을 간결하게 요약해 드립니다</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-indigo-500/30 transition-all duration-300 transform hover:-translate-y-1">
+              <div className="flex-shrink-0 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 p-2 rounded-md mr-3">
+                <FiHelpCircle className="text-indigo-400" size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-200">문제 해결</h3>
+                <p className="text-xs text-gray-500 mt-1">문제 해결 방법을 안내해 드립니다</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-indigo-500/30 transition-all duration-300 transform hover:-translate-y-1">
+              <div className="flex-shrink-0 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 p-2 rounded-md mr-3">
+                <FiBookmark className="text-indigo-400" size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-200">맞춤 정보</h3>
+                <p className="text-xs text-gray-500 mt-1">필요한 정보만 선별해 제공합니다</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* 시작 도움말 - 하단 안내 문구 */}
+          <div className="mt-10 flex items-center text-gray-500 text-sm animate-fade-in-up" style={{ animationDelay: '400ms' }}>
+            <FiCornerDownRight className="mr-2 text-indigo-400" size={16} />
+            <span>입력창에 질문을 입력하면 워터마크가 사라지고 대화가 시작됩니다</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderMessages = () => {
-    const displayMessages = searchTerm ? filteredMessages : messages;
+    // 필터된 메시지 또는 전체 메시지를 기준으로 렌더링
+    const messagesToRender = searchTerm ? filteredMessages : messages;
     
-    return displayMessages.map((message, index) => {
-      const prevMessage = index > 0 ? displayMessages[index - 1] : null;
-      const nextMessage = index < displayMessages.length - 1 ? displayMessages[index + 1] : null;
+    if (!messagesToRender || messagesToRender.length === 0) {
+      // 메시지가 없을 때 워터마크 표시 (null/undefined 체크 추가)
+      return <EmptyChatWatermark />;
+    }
+    
+    return messagesToRender.map((message, index) => {
+      const prevMessage = index > 0 ? messagesToRender[index - 1] : null;
+      const nextMessage = index < messagesToRender.length - 1 ? messagesToRender[index + 1] : null;
       
       // 고유한 key 생성 (timestamp + index 조합)
       const messageKey = `${message.timestamp || Date.now()}-${index}`;
@@ -1373,16 +1488,42 @@ function ChatContainer({
           </div>
         </div>
         {/* 헤더 버튼 그룹 */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {/* SQL 모드 전환 버튼 */}
+          <button
+            onClick={() => onToggleMode('sql')}
+            className="relative group flex items-center justify-center p-2 text-gray-400 hover:text-indigo-400 transition-colors"
+            title="SQL 질의 모드로 전환"
+          >
+            <div className="w-9 h-9 rounded-full flex items-center justify-center bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-indigo-500/40 transition-all group-hover:shadow-md group-hover:shadow-indigo-500/20">
+              <FiDatabase size={18} className="group-hover:scale-110 transition-transform" />
+            </div>
+            
+            {/* 툴팁 */}
+            <div className="absolute top-full mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+              <div className="px-3 py-1.5 rounded-lg bg-gray-800 text-xs font-medium text-gray-200 shadow-lg border border-gray-700 whitespace-nowrap">
+                SQL 질의 모드로 전환
+              </div>
+            </div>
+          </button>
+          
+          {/* 파일 관리 버튼 */}
           <button
             onClick={handleFileManager}
-            className="px-3 py-1.5 rounded-lg text-gray-400 hover:text-gray-200 transition-colors
-                     flex items-center gap-2"
+            className="relative group flex items-center justify-center p-2 text-gray-400 hover:text-blue-400 transition-colors"
             title="인덱싱된 파일 관리"
             disabled={isEmbedding}
           >
-            <FiHardDrive size={16} />
-            <span className="hidden sm:inline">파일 관리</span>
+            <div className="w-9 h-9 rounded-full flex items-center justify-center bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-blue-500/40 transition-all group-hover:shadow-md group-hover:shadow-blue-500/20">
+              <FiHardDrive size={18} className="group-hover:scale-110 transition-transform" />
+            </div>
+            
+            {/* 툴팁 */}
+            <div className="absolute top-full mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+              <div className="px-3 py-1.5 rounded-lg bg-gray-800 text-xs font-medium text-gray-200 shadow-lg border border-gray-700 whitespace-nowrap">
+                파일 관리
+              </div>
+            </div>
           </button>
         </div>
       </div>

@@ -13,7 +13,8 @@ import {
   FiFile,
   FiMenu,
   FiAlignLeft,
-  FiDatabase
+  FiDatabase,
+  FiAlertCircle
 } from "react-icons/fi";
 
 const SIDEBAR_WIDTH = 320;
@@ -299,6 +300,21 @@ function App() {
   // 백엔드에서 사용자 설정 불러오기
   const loadUserSettingsFromBackend = async (userId) => {
     try {
+      // 백엔드 연결 시도 전 로컬 기본값 설정
+      const savedTheme = localStorage.getItem("theme") || "dark";
+      const savedDefaultCategory = localStorage.getItem("defaultCategory") || "메뉴얼";
+      
+      // 로컬 저장소의 값 적용
+      setTheme(savedTheme);
+      setDefaultCategory(savedDefaultCategory);
+      document.documentElement.classList.toggle("light", savedTheme === "light");
+      
+      console.log("로컬 설정 적용됨:", { theme: savedTheme, defaultCategory: savedDefaultCategory });
+      
+      // 백엔드 요청 시도 (타임아웃 설정)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3초 타임아웃
+      
       const response = await fetch(
         "http://172.10.2.70:8000/api/settings/load",
         {
@@ -309,13 +325,17 @@ function App() {
           body: JSON.stringify({
             userId: userId,
           }),
+          signal: controller.signal
         }
       );
+      
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
-        throw new Error(
-          `사용자 설정 불러오기 실패: ${response.status} ${response.statusText}`
-        );
+        console.warn(`사용자 설정 불러오기 실패: ${response.status} ${response.statusText}`);
+        return; // 이미 로컬 설정이 적용되었으므로 종료
       }
+      
       const data = await response.json();
       if (data.status === "success" && data.settings) {
         if (data.settings.theme) {
@@ -335,10 +355,12 @@ function App() {
         }
         console.log("사용자 설정이 백엔드에서 불러와졌습니다.");
       } else if (data.status === "not_found") {
-        console.log("사용자 설정이 없습니다. 기본 설정을 사용합니다.");
+        console.log("사용자 설정이 없습니다. 로컬 설정을 유지합니다.");
       }
     } catch (err) {
-      console.error("사용자 설정 불러오기 중 오류 발생:", err);
+      // 오류 발생 시 콘솔에 경고만 표시하고 앱은 계속 실행
+      console.warn("사용자 설정 불러오기 중 오류 발생:", err.message);
+      console.log("로컬 설정을 사용합니다.");
     }
   };
 
@@ -564,6 +586,10 @@ function App() {
     messages
   ) => {
     try {
+      // 백엔드 요청 시도 (타임아웃 설정)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3초 타임아웃
+      
       const response = await fetch(
         "http://172.10.2.70:8000/api/conversations/save",
         {
@@ -580,17 +606,23 @@ function App() {
               sources: msg.sources || [],
             })),
           }),
+          signal: controller.signal
         }
       );
+      
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
-        throw new Error(
-          `대화 저장 실패: ${response.status} ${response.statusText}`
-        );
+        console.warn(`대화 저장 실패: ${response.status} ${response.statusText}`);
+        setSaveError("대화 저장에 실패했습니다. 로컬에만 저장됩니다.");
+        setTimeout(() => setSaveError(null), 5000);
+        return;
       }
+      
       console.log("대화가 백엔드에 저장되었습니다.");
       setSaveError(null); // 성공 시 오류 메시지 초기화
     } catch (err) {
-      console.error("대화 저장 중 오류 발생:", err);
+      console.warn("대화 저장 중 오류 발생:", err.message);
       setSaveError("대화 저장에 실패했습니다. 로컬에만 저장됩니다."); // 오류 메시지 설정
       // 로컬 저장은 이미 conversations 변경 시 useEffect에서 보장됨
       setTimeout(() => setSaveError(null), 5000); // 5초 후 알림 사라짐
@@ -600,6 +632,10 @@ function App() {
   // 백엔드에서 대화 불러오기
   const loadConversationFromBackend = async (userId, conversationId) => {
     try {
+      // 백엔드 요청 시도 (타임아웃 설정)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3초 타임아웃
+      
       const response = await fetch(
         "http://172.10.2.70:8000/api/conversations/load",
         {
@@ -611,13 +647,17 @@ function App() {
             userId: userId,
             conversationId: conversationId,
           }),
+          signal: controller.signal
         }
       );
+      
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
-        throw new Error(
-          `대화 불러오기 실패: ${response.status} ${response.statusText}`
-        );
+        console.warn(`대화 불러오기 실패: ${response.status} ${response.statusText}`);
+        return; // 로컬 데이터 유지
       }
+      
       const data = await response.json();
       if (data.status === "success" && data.conversation) {
         setConversations((prev) =>
@@ -630,7 +670,8 @@ function App() {
         console.log("대화가 백엔드에서 불러와졌습니다.");
       }
     } catch (err) {
-      console.error("대화 불러오기 중 오류 발생:", err);
+      console.warn("대화 불러오기 중 오류 발생:", err.message);
+      console.log("로컬 대화 데이터를 사용합니다.");
     }
   };
 
@@ -728,42 +769,77 @@ function App() {
     try {
       console.log("제목 생성 API 호출 - 메시지:", messages);
       
+      // 백엔드 요청 시도 (타임아웃 설정)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5초 타임아웃
+      
       const response = await fetch("http://172.10.2.70:8000/api/generate-title", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ messages }),
+        signal: controller.signal
       });
       
-      const responseText = await response.text();
-      console.log("제목 생성 API 원본 응답:", responseText);
+      clearTimeout(timeoutId);
       
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (e) {
-        console.error("제목 생성 API 응답 파싱 실패:", e);
+      if (!response.ok) {
+        console.warn(`제목 생성 실패: ${response.status} ${response.statusText}`);
+        // 백엔드 API 호출 실패 시 대화 메시지 기반으로 제목 생성
+        generateFallbackTitle(conversationId, messages);
         return;
       }
       
-      if (!response.ok) {
-        throw new Error(`제목 생성 실패: ${response.status} ${response.statusText}`);
-      }
+      const data = await response.json();
+      console.log("제목 생성 응답:", data);
       
-      console.log("제목 생성 API 응답 데이터:", data);
-      
-      if (data.title) {
-        // 생성된 제목으로 대화 제목 업데이트
-        console.log(`대화 제목 업데이트: ID=${conversationId}, 새 제목="${data.title}"`);
+      if (data.status === "success" && data.title) {
+        // 백엔드에서 제공한 제목으로 업데이트
         handleRenameConversation(conversationId, data.title);
-        console.log("대화 제목이 자동 생성되었습니다:", data.title);
       } else {
-        console.warn("API에서 제목을 반환하지 않았습니다:", data);
+        // 실패하면 폴백 제목 생성
+        generateFallbackTitle(conversationId, messages);
       }
     } catch (err) {
-      console.error("제목 생성 중 오류 발생:", err);
-      // 오류 발생 시 기본 제목 유지하므로 별도 처리 필요 없음
+      console.warn("제목 생성 중 오류 발생:", err.message);
+      // 오류 발생 시 폴백 제목 생성
+      generateFallbackTitle(conversationId, messages);
+    }
+  };
+
+  // 오류 시 폴백 제목 생성 함수
+  const generateFallbackTitle = (conversationId, messages) => {
+    try {
+      // 첫 사용자 메시지를 기반으로 제목 생성
+      const userMessage = messages.find(msg => msg.role === "user");
+      
+      if (userMessage) {
+        // 첫 질문의 처음 15자를 추출하고 말줄임표 추가
+        let title = userMessage.content.trim().substring(0, 15);
+        if (userMessage.content.length > 15) {
+          title += "...";
+        }
+        
+        // 제목이 너무 짧으면 기본 제목 사용
+        if (title.length < 5) {
+          const defaultTitle = `대화 ${new Date().toLocaleDateString('ko-KR')}`;
+          handleRenameConversation(conversationId, defaultTitle);
+        } else {
+          // 추출한 제목으로 업데이트
+          handleRenameConversation(conversationId, title);
+        }
+      }
+    } catch (error) {
+      console.warn("폴백 제목 생성 실패:", error);
+      // 최종 폴백: 현재 날짜/시간 기반 제목
+      const timestamp = new Date().toLocaleDateString('ko-KR', { 
+        month: 'short', 
+        day: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+      handleRenameConversation(conversationId, `대화 ${timestamp}`);
     }
   };
 
@@ -771,13 +847,78 @@ function App() {
   const onToggleMode = (mode) => {
     if (mode === 'sql') {
       setShowSQLPage(true);
+      // 모드 전환 토스트 메시지 표시
+      showModeChangeToast('SQL 질의 모드로 전환했습니다');
     } else if (mode === 'chat') {
       setShowSQLPage(false);
+      // 모드 전환 토스트 메시지 표시
+      showModeChangeToast('챗봇 모드로 전환했습니다');
     } else {
       // 모드가 지정되지 않은 경우 토글
-      setShowSQLPage(!showSQLPage);
+      const newMode = !showSQLPage;
+      setShowSQLPage(newMode);
+      // 모드 전환 토스트 메시지 표시
+      showModeChangeToast(newMode ? 'SQL 질의 모드로 전환했습니다' : '챗봇 모드로 전환했습니다');
     }
   };
+
+  // 모드 전환 토스트 메시지 표시 함수
+  const showModeChangeToast = (message) => {
+    const toast = document.getElementById('mode-switch-toast');
+    if (toast) {
+      // 토스트 메시지 내용 변경
+      const messageElement = toast.querySelector('span');
+      if (messageElement) {
+        messageElement.textContent = message || '모드 전환 완료';
+      }
+      
+      // 토스트 표시
+      toast.style.opacity = '1';
+      
+      // 2.5초 후 숨기기
+      setTimeout(() => {
+        toast.style.opacity = '0';
+      }, 2500);
+    }
+  };
+
+  // 전체 대화 삭제 기능 추가
+  const handleDeleteAllConversations = useCallback(() => {
+    // 확인: 실제 삭제하기 전에 사용자에게 확인 모달은 Sidebar에서 처리됨
+    
+    // 새 대화 하나만 남기고 모두 삭제 (바로 새 대화창으로 전환)
+    const now = new Date();
+    const newConv = {
+      id: Date.now().toString(),
+      title: "대화 1",
+      timestamp: now.getTime(),
+      messages: [
+        {
+          role: "assistant",
+          content: "안녕하세요! 무엇을 도와드릴까요?",
+          sources: [],
+          timestamp: now.getTime(),
+        },
+      ],
+      pinned: false,
+    };
+    
+    // 대화 목록 초기화 및 새 대화 추가
+    setConversations([newConv]);
+    setActiveConversationId(newConv.id);
+    
+    // 로컬 스토리지 업데이트
+    localStorage.setItem("conversations", JSON.stringify([newConv]));
+    localStorage.setItem("activeConversationId", JSON.stringify(newConv.id));
+    
+    // 현재 메시지 갱신
+    setCurrentMessages(newConv.messages);
+    
+    // 검색어 초기화
+    setSearchTerm('');
+    
+    console.log("모든 대화가 삭제되었습니다. 새 대화를 시작합니다.");
+  }, []);
 
   return (
     <div className="flex flex-col md:flex-row h-screen bg-gray-900 text-gray-100 overflow-hidden relative">
@@ -807,6 +948,7 @@ function App() {
           isDarkMode={theme === "dark"}
           onToggleMode={onToggleMode}
           currentMode={showSQLPage ? 'sql' : 'chat'}
+          onDeleteAllConversations={handleDeleteAllConversations}
         />
         <div
           className="absolute top-0 -right-3 h-full w-3 cursor-ew-resize z-10"
@@ -817,7 +959,7 @@ function App() {
       {/* 채팅 컨테이너 또는 SQL 쿼리 페이지 */}
       <div className="flex-grow relative overflow-hidden">
         {showSQLPage ? (
-          <SQLQueryPage />
+          <SQLQueryPage onToggleMode={onToggleMode} />
         ) : (
           <>
             {/* 사이드바 토글 버튼 (모바일) */}
@@ -842,9 +984,16 @@ function App() {
               fileManagerOpen={fileManagerOpen}
               setFileManagerOpen={setFileManagerOpen}
               sidebarOpen={sidebarOpen}
+              onToggleMode={onToggleMode}
             />
           </>
         )}
+      </div>
+      
+      {/* 모드 전환 성공 알림 */}
+      <div id="mode-switch-toast" className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none flex items-center gap-2 z-50">
+        <FiCheckCircle size={16} />
+        <span className="text-sm font-medium">모드 전환 완료</span>
       </div>
     </div>
   );
