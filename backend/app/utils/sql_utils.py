@@ -631,7 +631,7 @@ def run_sql_query(query: str, db_config=None):
         traceback.print_exc()
         return {"error": error_message}
 
-def generate_sql_with_llm(model, tokenizer, prompt, max_new_tokens=512, temperature=0.1):
+def generate_sql_with_llm(model, tokenizer, prompt, max_new_tokens=512, temperature=0.0):
     """LLM을 직접 호출하여 SQL을 생성하는 함수"""
     try:
         print(f"SQL 생성용 프롬프트 길이: {len(prompt)} 문자")
@@ -652,8 +652,6 @@ def generate_sql_with_llm(model, tokenizer, prompt, max_new_tokens=512, temperat
                 max_new_tokens=max_new_tokens,
                 do_sample=False,  # 결정적 생성을 위해 False로 설정
                 temperature=temperature,
-                top_p=0.95,
-                top_k=40,
                 pad_token_id=tokenizer.eos_token_id,
                 num_return_sequences=1,
                 repetition_penalty=1.2  # 반복 방지 패널티 추가

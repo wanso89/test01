@@ -19,7 +19,7 @@ DB_CONFIG = {
 }
 
 # SQLCoder 모델 경로
-SQLCODER_MODEL_PATH = "/home/root/sqlcoder-7b-2"
+SQLCODER_MODEL_PATH = "/home/root/llama-3-sqlcoder-8b"
 
 # SQLCoder 시스템 프롬프트
 SQLCODER_SYSTEM_PROMPT = """
@@ -438,12 +438,11 @@ def generate_sql_with_sqlcoder(question: str, schema: str = None) -> str:
         with torch.no_grad():
             generation_config = {
                 "max_new_tokens": 512,
-                "temperature": 0.1,  # 낮은 온도로 결정적인 응답 생성
-                "top_p": 0.95,
+                "temperature": 0.0,  # 온도 0으로 설정 (결정적인 출력)
                 "repetition_penalty": 1.1,
                 "num_return_sequences": 1,
                 "pad_token_id": tokenizer.eos_token_id,
-                "do_sample": True
+                "do_sample": False  # 샘플링 비활성화
             }
             
             try:
