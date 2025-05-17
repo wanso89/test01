@@ -49,35 +49,36 @@ import {
 // 키워드 하이라이트 애니메이션을 위한 키프레임 스타일 정의
 const keyframesStyle = `
 @keyframes highlightPulse {
-  0% { background-color: rgba(253, 224, 71, 0.75); box-shadow: 0 0 3px rgba(250, 204, 21, 0.4); }
-  50% { background-color: rgba(250, 204, 21, 0.9); box-shadow: 0 0 5px rgba(250, 204, 21, 0.6); }
-  100% { background-color: rgba(253, 224, 71, 0.75); box-shadow: 0 0 3px rgba(250, 204, 21, 0.4); }
+  0% { background-color: rgba(253, 224, 71, 0.75); box-shadow: 0 0 5px rgba(250, 204, 21, 0.6); transform: scale(1); }
+  50% { background-color: rgba(250, 204, 21, 0.9); box-shadow: 0 0 8px rgba(250, 204, 21, 0.8); transform: scale(1.03); }
+  100% { background-color: rgba(253, 224, 71, 0.75); box-shadow: 0 0 5px rgba(250, 204, 21, 0.6); transform: scale(1); }
 }
 
 .animate-highlight-pulse {
-  animation: highlightPulse 2.5s ease-in-out infinite;
+  animation: highlightPulse 2s ease-in-out infinite;
 }
 
 .highlight-keyword {
-  background-color: rgba(253, 224, 71, 0.8);
+  background-color: rgba(253, 224, 71, 0.85);
   color: rgba(0, 0, 0, 0.95);
   text-shadow: 0 0 0 rgba(0, 0, 0, 0.1);
-  border-radius: 3px;
-  padding: 2px 4px;
+  border-radius: 4px;
+  padding: 2px 5px;
   margin: 0 -1px;
-  font-weight: 600;
+  font-weight: 700;
   position: relative;
-  box-shadow: 0 0 3px rgba(250, 204, 21, 0.7);
+  box-shadow: 0 0 5px rgba(250, 204, 21, 0.8);
   display: inline-block;
-  border-bottom: 1px solid rgba(234, 179, 8, 0.3);
+  border-bottom: 1px solid rgba(234, 179, 8, 0.5);
+  z-index: 1;
 }
 
 /* 다크 모드 스타일 */
 @media (prefers-color-scheme: dark) {
   .highlight-keyword {
-    background-color: rgba(253, 224, 71, 0.7);
+    background-color: rgba(253, 224, 71, 0.85);
     color: rgba(0, 0, 0, 0.9);
-    box-shadow: 0 0 3px rgba(250, 204, 21, 0.7);
+    box-shadow: 0 0 6px rgba(250, 204, 21, 0.8);
   }
 }
 `;
@@ -996,9 +997,25 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
   // 키워드 추출 함수 (간단한 버전)
   const extractKeywords = useCallback((text) => {
     if (!text || typeof text !== 'string' || text.trim() === "") return [];
-    const words = text.toLowerCase().split(/[\s\.,\?!;\(\)\[\]\{\}"""'']+/)
-                       .filter(word => word.length > 0 && !KOREAN_STOPWORDS.has(word));
-    const uniqueKeywords = [...new Set(words)].filter(kw => kw.length > 0).slice(0, 5);
+    
+    console.log("키워드 추출 시도:", text.substring(0, 100) + "...");
+    
+    // 정규식으로 문자와 한글만 추출
+    const cleaned = text.toLowerCase().replace(/[^\w\s가-힣]/g, ' ');
+    const words = cleaned.split(/\s+/)
+                         .filter(word => word.length >= 2 && !KOREAN_STOPWORDS.has(word));
+    
+    // 단어 빈도수 계산
+    const wordFreq = {};
+    words.forEach(word => {
+      wordFreq[word] = (wordFreq[word] || 0) + 1;
+    });
+    
+    // 빈도수 기준 정렬
+    const sortedWords = Object.keys(wordFreq).sort((a, b) => wordFreq[b] - wordFreq[a]);
+    const uniqueKeywords = [...new Set(sortedWords)].slice(0, 8); // 중복 제거 후 상위 8개 추출
+    
+    console.log("추출된 키워드:", uniqueKeywords);
     return uniqueKeywords;
   }, []);
 
@@ -1027,11 +1044,14 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
       const chunkId = source.chunk_id || "";
       const page = source.page || 1;
       
+      // 메시지 내용에서 키워드 추출
+      const extractedKeywords = extractKeywords(message.content);
       console.log("출처 미리보기 요청:", {
         path: sourcePath,
         page: page,
         chunk_id: chunkId,
-        has_answer_text: !!message.content
+        has_answer_text: !!message.content,
+        extracted_keywords: extractedKeywords
       });
 
       const response = await fetch("http://172.10.2.70:8000/api/source-preview", {
@@ -1044,6 +1064,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
           page: page,
           chunk_id: chunkId,
           answer_text: message.content || "", // 챗봇 응답 텍스트 전달 (null 값 방지)
+          keywords: extractedKeywords // 클라이언트에서 추출한 키워드 전달
         }),
       });
       
@@ -1098,20 +1119,30 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
         setPreviewContent(contentToUse);
         setPreviewImage(null);
         
-        // 백엔드에서 제공한 키워드 설정
-        if (data.keywords && Array.isArray(data.keywords)) {
-          setSourceKeywords(data.keywords);
-          setHighlightKeywords(data.keywords);
+        // 키워드 설정 - API에서 제공된 키워드 또는 추출한 키워드 사용
+        let keywordsToUse = [];
+        
+        if (data.keywords && Array.isArray(data.keywords) && data.keywords.length > 0) {
+          console.log("API에서 제공된 키워드:", data.keywords);
+          keywordsToUse = data.keywords;
         } else {
-          setSourceKeywords([]);
-          setHighlightKeywords([]);
+          console.log("자체 추출 키워드 사용:", extractedKeywords);
+          keywordsToUse = extractedKeywords;
         }
+        
+        // 짧은 키워드 제외 (1글자)
+        keywordsToUse = keywordsToUse.filter(kw => kw && kw.length > 1);
+        
+        console.log("최종 사용 키워드:", keywordsToUse);
+        setSourceKeywords(keywordsToUse);
+        setHighlightKeywords(keywordsToUse);
       }
     } catch (error) {
       console.error("소스 미리보기 오류:", error);
       setPreviewContent(`소스를 불러오는 중 오류가 발생했습니다: ${error.message}`);
       setPreviewImage(null);
       setSourceKeywords([]);
+      setHighlightKeywords([]);
     } finally {
       setLoadingContent(false);
     }
@@ -1224,6 +1255,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
                 
                 // 정규식 특수문자 이스케이프
                 const escapedKeywords = highlightKeywords.map(kw => String(kw).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+                // 더 정밀한 키워드 매칭을 위해 단어 경계 추가
                 const pattern = new RegExp(`(${escapedKeywords.join('|')})`, 'gi');
                 
                 // 키워드 매칭 및 하이라이트 처리
@@ -1262,6 +1294,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
             },
             // 볼드체 텍스트 처리 (키워드 하이라이트용)
             strong({ node, children, ...props }) {
+              // 키워드가 존재하고 텍스트 내용이 키워드 중 하나와 일치하는지 확인
               if (highlightKeywords.some(kw => {
                 // 대소문자 구분 없이 비교
                 const kwRegex = new RegExp(`^${String(kw).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
@@ -1277,6 +1310,57 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
                 );
               }
               return <strong {...props}>{children}</strong>;
+            },
+            // 일반 텍스트 노드에 대한 처리 추가
+            text({ node, ...props }) {
+              const { children } = props;
+              
+              // 텍스트 내용이 없으면 그대로 반환
+              if (!children || typeof children !== 'string' || !highlightKeywords.length) {
+                return <>{children}</>;
+              }
+              
+              // 키워드 하이라이트 처리
+              const parts = [];
+              let lastIndex = 0;
+              
+              // 정규식 특수문자 이스케이프
+              const escapedKeywords = highlightKeywords.map(kw => 
+                String(kw).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+              );
+              
+              // 키워드 패턴 생성
+              const pattern = new RegExp(`(${escapedKeywords.join('|')})`, 'gi');
+              
+              // 텍스트 내에서 키워드 매칭
+              let match;
+              const text = children;
+              
+              while ((match = pattern.exec(text)) !== null) {
+                // 매치 이전 텍스트 추가
+                if (match.index > lastIndex) {
+                  parts.push(text.substring(lastIndex, match.index));
+                }
+                
+                // 하이라이트된 키워드 추가
+                parts.push(
+                  <span 
+                    key={`kw-${match.index}`} 
+                    className="highlight-keyword animate-highlight-pulse"
+                  >
+                    {match[0]}
+                  </span>
+                );
+                
+                lastIndex = pattern.lastIndex;
+              }
+              
+              // 마지막 텍스트 추가
+              if (lastIndex < text.length) {
+                parts.push(text.substring(lastIndex));
+              }
+              
+              return parts.length > 1 ? <>{parts}</> : <>{children}</>;
             }
           }}
         >
@@ -1659,12 +1743,6 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
                                     <span className="flex items-center">
                                       <FiHash size={10} className="mr-1" /> 
                                       페이지 {source.page}
-                                    </span>
-                                  )}
-                                  {source.score && (
-                                    <span className="ml-3 flex items-center">
-                                      <FiStar size={10} className="mr-1" /> 
-                                      관련도: {Math.round(source.score * 100) / 100}
                                     </span>
                                   )}
                                   <span className="ml-auto text-indigo-300 flex items-center">

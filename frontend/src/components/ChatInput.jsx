@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { FiLoader, FiSend, FiPaperclip, FiX, FiCheck, FiImage, FiMessageSquare, FiFile, FiSmile, FiUploadCloud } from 'react-icons/fi';
+import EmojiPicker from 'emoji-picker-react';
 import FileUpload from './FileUpload';
 
 const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isEmbedding }, ref) => {
@@ -8,9 +9,11 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
   const [isUploading, setIsUploading] = useState(false);
   const [files, setFiles] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('메뉴얼'); // 기본 카테고리 (이제 하나만 사용)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
   const dropZoneRef = useRef(null);
+  const emojiPickerRef = useRef(null);
   const typingTimerRef = useRef(null);
   const [isFocused, setIsFocused] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -22,6 +25,39 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
       setShowFileUploadModal(true);
     }
   }, []);
+
+  // 이모지 피커 외부 클릭 감지를 위한 이벤트 핸들러
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target) && 
+          !e.target.closest('button[aria-label="이모지"]')) {
+        setShowEmojiPicker(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // 이모지 선택 핸들러
+  const onEmojiClick = (emojiObject) => {
+    const emoji = emojiObject.emoji;
+    const cursorPos = textareaRef.current?.selectionStart || message.length;
+    const updatedMessage = message.slice(0, cursorPos) + emoji + message.slice(cursorPos);
+    setMessage(updatedMessage);
+    
+    // 다음 틱에 커서 위치 조정
+    setTimeout(() => {
+      if (textareaRef.current) {
+        const newCursorPos = cursorPos + emoji.length;
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 0);
+    
+    // 이모지 피커 닫기
+    setShowEmojiPicker(false);
+  };
 
   useImperativeHandle(ref, () => ({
     focus: () => {
@@ -230,9 +266,36 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
         />
       )}
       
-      {/* 메인 입력창 */}
-      <div className={`p-3 bg-gray-850 border border-gray-700/50 rounded-2xl shadow-inner mx-4 mb-4 transition-all duration-200 ${isFocused ? 'bg-gray-800/80' : ''}`}>
-        <div className="relative flex items-end">
+      {/* 메인 입력창 영역 리디자인 */}
+      <div className="fixed bottom-0 left-0 right-0 w-full bg-gradient-to-t from-gray-900/90 to-transparent z-20 px-2 py-3 sm:px-4 flex justify-center items-end">
+        <div className="w-full sm:max-w-2xl md:max-w-3xl flex flex-row items-center gap-2 rounded-2xl shadow-2xl bg-gray-800/80 backdrop-blur px-6 py-2.5 relative ml-auto mr-auto justify-center">
+          {/* 이모지 버튼 */}
+          <button className="p-2 rounded-full hover:bg-gray-700 transition focus:outline-none focus:ring-2 focus:ring-indigo-500" title="이모지" tabIndex={0} aria-label="이모지" onClick={() => setShowEmojiPicker(!showEmojiPicker)}>
+            <FiSmile className="text-gray-400" size={20} />
+          </button>
+          
+          {/* 이모지 피커 */}
+          {showEmojiPicker && (
+            <div 
+              ref={emojiPickerRef}
+              className="absolute bottom-full mb-2 left-0 z-50"
+            >
+              <EmojiPicker
+                onEmojiClick={onEmojiClick}
+                searchDisabled={false}
+                width={300}
+                height={400}
+                previewConfig={{ showPreview: false }}
+                skinTonesDisabled
+              />
+            </div>
+          )}
+          
+          {/* 파일 업로드 버튼 */}
+          <button onClick={handleFileButtonClick} type="button" disabled={disabled || isEmbedding} className={`p-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${disabled || isEmbedding ? 'text-gray-500 bg-gray-800/40 cursor-not-allowed' : 'text-gray-300 hover:bg-indigo-600/30 hover:text-indigo-300'}`} aria-label="파일 첨부" title="파일 첨부">
+            <FiUploadCloud className="w-5 h-5" />
+          </button>
+          {/* 입력창 */}
           <textarea
             ref={textareaRef}
             value={message}
@@ -240,51 +303,33 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
             onKeyDown={handleKeyDown}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            placeholder="메시지를 입력하세요..."
-            className="w-full bg-transparent border-none outline-none resize-none text-gray-200 placeholder-gray-500 py-2 pr-24 max-h-[150px] custom-scrollbar"
+            placeholder="메시지를 입력하세요... (Shift+Enter 줄바꿈)"
+            className="flex-1 min-h-[40px] max-h-32 resize-none bg-transparent text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-xl px-3 py-2 custom-scrollbar"
             disabled={disabled || isEmbedding}
             rows={1}
+            aria-label="메시지 입력"
           />
-          
-          {/* 버튼 그룹 */}
-          <div className="flex space-x-2 absolute right-0 bottom-1">
-            {/* 파일 업로드 버튼 - 전송 버튼 옆으로 이동 */}
-            <button
-              onClick={handleFileButtonClick}
-              type="button"
-              disabled={disabled || isEmbedding}
-              className={`p-2 text-sm rounded-xl transition-colors ${
-                disabled || isEmbedding 
-                  ? 'text-gray-500 bg-gray-800/40 cursor-not-allowed' 
-                  : 'text-gray-300 hover:bg-indigo-600/30 hover:text-indigo-300'
-              }`}
-              aria-label="파일 첨부"
-              title="파일 첨부"
-            >
-              <FiUploadCloud className="w-5 h-5" />
-            </button>
-            
-            {/* 전송 버튼 */}
-            <button
-              onClick={handleSend}
-              type="button"
-              disabled={disabled || (message.trim() === '' && files.length === 0) || isEmbedding}
-              className={`p-2 rounded-xl transition-colors ${
-                disabled || (message.trim() === '' && files.length === 0) || isEmbedding
-                  ? 'text-gray-500 bg-gray-800/40 cursor-not-allowed' 
-                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-              }`}
-              aria-label="메시지 보내기"
-            >
-              {isEmbedding ? (
-                <FiLoader className="w-5 h-5 animate-spin" />
-              ) : (
-                <FiSend className="w-5 h-5" />
-              )}
-            </button>
-          </div>
+          {/* 전송 버튼 */}
+          <button
+            onClick={handleSend}
+            type="button"
+            disabled={disabled || (message.trim() === '' && files.length === 0) || isEmbedding}
+            className={`ml-2 p-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg hover:from-indigo-600 hover:to-purple-600 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${disabled || (message.trim() === '' && files.length === 0) || isEmbedding ? 'opacity-50 cursor-not-allowed' : ''}`}
+            aria-label="메시지 보내기"
+          >
+            {isEmbedding ? (
+              <FiLoader className="w-5 h-5 animate-spin" />
+            ) : (
+              <FiSend className="w-5 h-5" />
+            )}
+          </button>
+          {/* 타이핑 인디케이터 (예시) */}
+          {/* <div className="absolute left-2 bottom-14 typing-indicator flex items-center gap-1">
+            <span className="typing-indicator-dot" />
+            <span className="typing-indicator-dot" />
+            <span className="typing-indicator-dot" />
+          </div> */}
         </div>
-        
         {/* 드롭 영역 안내 메시지 - 드래그 중일 때만 표시 */}
         {isDragging && (
           <div className="absolute inset-0 flex items-center justify-center bg-indigo-900/20 rounded-2xl backdrop-blur-sm z-10">

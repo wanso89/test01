@@ -284,15 +284,15 @@ body {
   }
 
   .typing-indicator-dot:nth-child(1) {
-    @apply animate-delay-0;
+    animation-delay: 0ms;
   }
   
   .typing-indicator-dot:nth-child(2) {
-    @apply animate-delay-150;
+    animation-delay: 150ms;
   }
   
   .typing-indicator-dot:nth-child(3) {
-    @apply animate-delay-300;
+    animation-delay: 300ms;
   }
   
   /* 소스 항목 */
@@ -678,15 +678,15 @@ body {
   }
 
   .typing-indicator-dot:nth-child(1) {
-    animation-delay: 0s;
+    animation-delay: 0ms;
   }
 
   .typing-indicator-dot:nth-child(2) {
-    animation-delay: 0.2s;
+    animation-delay: 150ms;
   }
 
   .typing-indicator-dot:nth-child(3) {
-    animation-delay: 0.4s;
+    animation-delay: 300ms;
   }
 
   @keyframes typingAnimation {

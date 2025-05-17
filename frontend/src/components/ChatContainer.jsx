@@ -1392,6 +1392,32 @@ function ChatContainer({
             <FiCornerDownRight className="mr-2 text-indigo-400" size={16} />
             <span>입력창에 질문을 입력하면 워터마크가 사라지고 대화가 시작됩니다</span>
           </div>
+
+          {/* 예시 질문 버튼 */}
+          <div className="mt-6 flex flex-wrap gap-2 justify-center">
+            <button
+              type="button"
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow transition"
+              onClick={() => {
+                if (window && window.setExampleQuestion) {
+                  window.setExampleQuestion("보안서약서 3조 내용 답변해줘");
+                }
+              }}
+            >
+              보안서약서 3조 내용 답변해줘
+            </button>
+            <button
+              type="button"
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-full shadow transition"
+              onClick={() => {
+                if (window && window.setExampleQuestion) {
+                  window.setExampleQuestion("회사 보안 정책 요약해줘");
+                }
+              }}
+            >
+              회사 보안 정책 요약해줘
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -1401,8 +1427,10 @@ function ChatContainer({
     // 필터된 메시지 또는 전체 메시지를 기준으로 렌더링
     const messagesToRender = searchTerm ? filteredMessages : messages;
     
-    if (!messagesToRender || messagesToRender.length === 0) {
-      // 메시지가 없을 때 워터마크 표시 (null/undefined 체크 추가)
+    // 새 대화 시작 시 또는 메시지가 없는 경우 무조건 워터마크 표시
+    // 강제로 워터마크를 표시하기 위해 조건 변경
+    if (messages.length === 0) {
+      console.log('EmptyChatWatermark 표시 - 메시지 없음');
       return <EmptyChatWatermark />;
     }
     
