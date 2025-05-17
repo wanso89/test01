@@ -4,7 +4,8 @@ import {
   FiHelpCircle, FiInfo, FiPlay, FiExternalLink, FiTrendingUp, FiCommand, 
   FiZap, FiArrowRight, FiColumns, FiTerminal, FiCpu, FiSquare, FiUser,
   FiBarChart2, FiPieChart, FiList, FiClock, FiMessageSquare, FiMessageCircle,
-  FiSave, FiChevronRight, FiChevronLeft, FiActivity, FiX, FiTrash2, FiChevronDown
+  FiSave, FiChevronRight, FiChevronLeft, FiActivity, FiX, FiTrash2, FiChevronDown,
+  FiCornerDownRight
 } from 'react-icons/fi';
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus as vs2015 } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -1124,7 +1125,7 @@ const EXAMPLE_QUESTIONS = [
   "가상머신 사용량이 90% 이상인 사용자 리스트를 보여주세요"
 ];
 
-const SQLQueryPage = ({ onToggleMode }) => {
+const SQLQueryPage = ({ setMode }) => {
   const [question, setQuestion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
@@ -1532,10 +1533,161 @@ const SQLQueryPage = ({ onToggleMode }) => {
     ? '자연어로 질문을 입력하세요. 예: "최근 주문 5건을 보여줘"' 
     : '자연어로 질문을 입력하세요. 예: "지난 달 주문 통계를 분석해줘"';
 
+  // 모드 전환 토글 컴포넌트 추가
+  const ModeToggleSwitch = () => {
+    // 사용자 상호작용 시 토글 상태 변경
+    const handleToggleMode = (e) => {
+      // 이벤트 버블링 방지
+      e.preventDefault();
+      e.stopPropagation();
+      
+      console.log('SQLQueryPage ModeToggleSwitch: 챗봇 모드로 전환 시작');
+      console.log('SQLQueryPage ModeToggleSwitch: setMode props 값:', setMode);
+      
+      try {
+        // 명시적으로 'chat' 모드로 전환
+        if (typeof setMode === 'function') {
+          setMode('chat');
+          console.log('챗봇 모드 전환 함수 호출 완료');
+        } else {
+          console.error('setMode가 함수가 아닙니다:', setMode);
+        }
+        
+        // 사용자에게 시각적 피드백 제공
+        const button = e.currentTarget;
+        button.classList.add('scale-95', 'bg-blue-700');
+        setTimeout(() => {
+          button.classList.remove('scale-95', 'bg-blue-700');
+        }, 200);
+      } catch (err) {
+        console.error('모드 전환 중 오류 발생:', err);
+        alert('모드 전환 중 오류가 발생했습니다: ' + err.message);
+      }
+    };
+
+    useEffect(() => {
+      console.log('SQLQueryPage ModeToggleSwitch 마운트됨, setMode:', setMode);
+    }, [setMode]);
+
+    return (
+      <div className="fixed right-6 top-1/2 transform -translate-y-1/2 z-20">
+        <div className="relative group">
+          <button 
+            onClick={handleToggleMode}
+            className="transition-all duration-300 w-14 h-14 bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-md hover:from-blue-600/70 hover:to-blue-800/70 rounded-full flex items-center justify-center shadow-lg border border-gray-700/50 hover:border-blue-500/50 hover:shadow-blue-500/20"
+            title="챗봇 모드로 전환"
+            data-testid="chat-mode-toggle"
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-800/80 hover:bg-blue-600/30 backdrop-blur-sm">
+              <FiMessageSquare size={20} className="text-gray-300 group-hover:text-white transition-colors" />
+            </div>
+          </button>
+          
+          {/* 모드 라벨 */}
+          <div className="absolute top-1/2 right-full transform -translate-y-1/2 mr-3 px-3 py-1.5 rounded-lg bg-gray-800/80 backdrop-blur-sm border border-gray-700/50 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+            <span className="text-xs font-medium whitespace-nowrap">챗봇 모드로 전환</span>
+          </div>
+          
+          {/* 장식 효과 */}
+          <div className="absolute -inset-0.5 rounded-full bg-blue-500/20 filter blur opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+        </div>
+      </div>
+    );
+  };
+  
+  // 빈 채팅 화면 워터마크 컴포넌트
+  const EmptySQLQueryWatermark = () => {
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+        <div className="flex flex-col items-center justify-center max-w-2xl px-6 py-8 text-center">
+          {/* 물결 애니메이션 배경 효과 */}
+          <div className="absolute inset-0 overflow-hidden opacity-10">
+            <div className="absolute inset-x-0 top-1/4 w-full h-64 bg-gradient-to-r from-indigo-600/30 to-purple-600/30 rounded-full filter blur-3xl transform -translate-y-20 scale-150 animate-pulse" style={{ animationDuration: '8s' }}></div>
+            <div className="absolute inset-x-0 top-1/3 w-full h-64 bg-gradient-to-r from-blue-600/30 to-cyan-600/30 rounded-full filter blur-3xl transform translate-y-16 scale-125 animate-pulse" style={{ animationDuration: '10s', animationDelay: '1s' }}></div>
+          </div>
+          
+          {/* 아이콘 컨테이너 - 퍼지는 링 효과 */}
+          <div className="relative mb-8">
+            <div className="absolute -inset-0 rounded-full bg-gradient-to-r from-indigo-500/20 to-purple-600/20 animate-ping opacity-30" style={{ animationDuration: '3s' }}></div>
+            <div className="absolute -inset-4 rounded-full bg-gradient-to-r from-indigo-500/10 to-purple-600/10 animate-ping opacity-20" style={{ animationDuration: '3.5s' }}></div>
+            <div className="absolute -inset-8 rounded-full bg-gradient-to-r from-indigo-500/5 to-purple-600/5 animate-ping opacity-10" style={{ animationDuration: '4s' }}></div>
+            
+            <div className="relative w-24 h-24 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+              <div className="w-20 h-20 bg-gradient-to-br from-indigo-500/30 to-purple-600/30 rounded-full flex items-center justify-center">
+                <div className="w-16 h-16 bg-gray-900/80 rounded-full flex items-center justify-center ring-2 ring-indigo-500/30">
+                  <FiDatabase className="text-indigo-400 animate-pulse" style={{ animationDuration: '2s' }} size={30} />
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* 텍스트 영역 - 부드러운 페이드인 애니메이션 */}
+          <div className="space-y-4 animate-fade-in-up">
+            <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-200 to-purple-300 mb-2">
+              SQL 질의 어시스턴트
+            </h2>
+            <p className="text-base text-gray-400 mb-6 max-w-lg leading-relaxed">
+              자연어로 질문하면 SQL 쿼리를 만들어 데이터를 검색해 드립니다. 아래 입력창에 원하시는 질문을 입력해 보세요.
+            </p>
+          </div>
+          
+          {/* 기능 설명 카드 영역 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-md text-left mt-4 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
+            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-indigo-500/30 transition-all duration-300 transform hover:-translate-y-1">
+              <div className="flex-shrink-0 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 p-2 rounded-md mr-3">
+                <FiSearch className="text-indigo-400" size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-200">쿼리 생성</h3>
+                <p className="text-xs text-gray-500 mt-1">자연어를 SQL로 자동 변환</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-indigo-500/30 transition-all duration-300 transform hover:-translate-y-1">
+              <div className="flex-shrink-0 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 p-2 rounded-md mr-3">
+                <FiBarChart2 className="text-indigo-400" size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-200">데이터 시각화</h3>
+                <p className="text-xs text-gray-500 mt-1">쿼리 결과를 차트로 표시</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-indigo-500/30 transition-all duration-300 transform hover:-translate-y-1">
+              <div className="flex-shrink-0 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 p-2 rounded-md mr-3">
+                <FiZap className="text-indigo-400" size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-200">AI 설명</h3>
+                <p className="text-xs text-gray-500 mt-1">쿼리와 결과에 대한 해석 제공</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-indigo-500/30 transition-all duration-300 transform hover:-translate-y-1">
+              <div className="flex-shrink-0 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 p-2 rounded-md mr-3">
+                <FiTable className="text-indigo-400" size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-200">스키마 탐색</h3>
+                <p className="text-xs text-gray-500 mt-1">DB 구조를 쉽게 확인</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* 시작 도움말 - 하단 안내 문구 */}
+          <div className="mt-10 flex items-center text-gray-500 text-sm animate-fade-in-up" style={{ animationDelay: '400ms' }}>
+            <FiCornerDownRight className="mr-2 text-indigo-400" size={16} />
+            <span>입력창에 질문을 입력하면 워터마크가 사라지고 SQL 생성이 시작됩니다</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col h-full overflow-hidden bg-gray-900 text-gray-200">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between gap-4 px-6 h-16 border-b border-gray-800 bg-gray-900">
+      {/* 헤더 - 디자인 통일 */}
+      <div className="h-16 flex items-center justify-between px-6 bg-gray-900 border-b border-gray-800 shadow-sm z-10">
         {/* 좌측: 타이틀 */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md">
@@ -1549,26 +1701,8 @@ const SQLQueryPage = ({ onToggleMode }) => {
           </div>
         </div>
         
-        {/* 우측: 버튼 그룹 */}
+        {/* 우측: 기능 버튼 */}
         <div className="flex items-center gap-2">
-          {/* 챗봇 모드 전환 버튼 */}
-          <button
-            onClick={() => onToggleMode('chat')}
-            className="relative group flex items-center justify-center p-2 text-gray-400 hover:text-blue-400 transition-colors"
-            title="챗봇 모드로 전환"
-          >
-            <div className="w-9 h-9 rounded-full flex items-center justify-center bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-blue-500/40 transition-all group-hover:shadow-md group-hover:shadow-blue-500/20">
-              <FiMessageSquare size={18} className="group-hover:scale-110 transition-transform" />
-            </div>
-            
-            {/* 툴팁 */}
-            <div className="absolute top-full mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-              <div className="px-3 py-1.5 rounded-lg bg-gray-800 text-xs font-medium text-gray-200 shadow-lg border border-gray-700 whitespace-nowrap">
-                챗봇 모드로 전환
-              </div>
-            </div>
-          </button>
-          
           {/* 스키마 토글 버튼 */}
           <button
             onClick={() => setShowSchema(!showSchema)}
@@ -1596,7 +1730,7 @@ const SQLQueryPage = ({ onToggleMode }) => {
       </div>
       
       <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-        {/* 히스토리 사이드바 */}
+        {/* 히스토리 사이드바 - 디자인 통일 */}
         {showHistory && (
           <div className="w-full md:w-64 h-64 md:h-auto border-b md:border-b-0 md:border-r border-gray-800/70 bg-gray-900/30 md:flex-shrink-0 overflow-hidden flex flex-col">
             <div className="px-4 py-3 border-b border-gray-800/50 bg-gray-900/40 backdrop-blur-sm sticky top-0 z-10">
@@ -1654,7 +1788,7 @@ const SQLQueryPage = ({ onToggleMode }) => {
           </div>
         )}
         
-        {/* 메인 영역 */}
+        {/* 메인 영역 - 디자인 통일 */}
         <div className="flex-1 overflow-hidden flex flex-col">
           {/* 예시 질문 영역 개선 - 드롭다운 메뉴 방식으로 변경 */}
           <div className="bg-gray-900/40 border-b border-gray-800/50 py-2 px-4">
@@ -1706,21 +1840,26 @@ const SQLQueryPage = ({ onToggleMode }) => {
           </div>
           
           {/* 챗 영역 */}
-          <div className="flex-1 overflow-hidden flex flex-col">
+          <div className="flex-1 overflow-hidden flex flex-col relative">
             <div className="flex-1 overflow-y-auto p-4">
               {/* 채팅 메시지 */}
               <div className="max-w-3xl mx-auto">
-                {chatMessages.map((msg, index) => (
-                  <MessageBubble 
-                    key={index}
-                    type={msg.type}
-                    content={msg.content}
-                    timestamp={msg.timestamp}
-                    sql={msg.sql}
-                    result={msg.result}
-                    onViewChart={handleViewChart}
-                  />
-                ))}
+                {/* 메시지가 없을 때 워터마크 표시 */}
+                {chatMessages.length === 0 ? <EmptySQLQueryWatermark /> : (
+                  <>
+                    {chatMessages.map((msg, index) => (
+                      <MessageBubble 
+                        key={index}
+                        type={msg.type}
+                        content={msg.content}
+                        timestamp={msg.timestamp}
+                        sql={msg.sql}
+                        result={msg.result}
+                        onViewChart={handleViewChart}
+                      />
+                    ))}
+                  </>
+                )}
                 
                 {/* 로딩 인디케이터 */}
                 {isLoading && (
@@ -1803,7 +1942,7 @@ const SQLQueryPage = ({ onToggleMode }) => {
               </div>
             )}
             
-            {/* 입력창 */}
+            {/* 입력창 - ChatContainer와 디자인 통일 */}
             <div className="px-4 py-3 border-t border-gray-800/50 bg-gray-900/70 backdrop-blur-sm">
               <form onSubmit={(e) => {
                 e.preventDefault();
@@ -1914,6 +2053,9 @@ const SQLQueryPage = ({ onToggleMode }) => {
           </div>
         )}
       </div>
+      
+      {/* 모드 전환 스위치 추가 */}
+      <ModeToggleSwitch />
       
       {/* 확인 모달 */}
       <ConfirmModal

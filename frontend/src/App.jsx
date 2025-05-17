@@ -120,8 +120,74 @@ function App() {
   
   // SQL 쿼리 페이지 표시 여부 상태 추가
   const [showSQLPage, setShowSQLPage] = useState(false);
+  // 모드 상태 추가 (chat 또는 sql)
+  const [mode, setMode] = useState('chat');
   // 파일 매니저 상태 추가
   const [fileManagerOpen, setFileManagerOpen] = useState(false);
+
+  console.log('===============================================');
+  console.log('앱 컴포넌트 초기화');
+  console.log('showSQLPage 초기값:', showSQLPage);
+  console.log('mode 초기값:', mode);
+  
+  // 브라우저 콘솔에서 직접 상태를 변경할 수 있는 디버깅 함수 추가
+  useEffect(() => {
+    // 전역 함수로 등록
+    window.setAppMode = (newMode) => {
+      if (newMode === 'sql' || newMode === 'chat') {
+        console.log('콘솔에서 모드 변경:', newMode);
+        setMode(newMode);
+        return true;
+      }
+      console.error('유효하지 않은 모드:', newMode, '(sql 또는 chat만 가능)');
+      return false;
+    };
+
+    window.toggleAppMode = () => {
+      const newMode = mode === 'chat' ? 'sql' : 'chat';
+      console.log('콘솔에서 모드 토글:', mode, '->', newMode);
+      setMode(newMode);
+      return newMode;
+    };
+    
+    window.debugAppState = () => {
+      console.log('현재 앱 상태:');
+      console.log('- 현재 모드:', mode);
+      console.log('- showSQLPage:', showSQLPage);
+      console.log('- sidebarOpen:', sidebarOpen);
+      console.log('- activeConversationId:', activeConversationId);
+      console.log('- isEmbedding:', isEmbedding);
+      console.log('- theme:', theme);
+    };
+    
+    console.log('디버깅 함수가 콘솔에 등록되었습니다. 사용법:');
+    console.log('window.setAppMode("chat" 또는 "sql") - 모드 직접 설정');
+    console.log('window.toggleAppMode() - 모드 전환');
+    console.log('window.debugAppState() - 현재 앱 상태 출력');
+    
+    return () => {
+      // 정리 함수
+      delete window.setAppMode;
+      delete window.toggleAppMode;
+      delete window.debugAppState;
+    };
+  }, [mode, showSQLPage, sidebarOpen, activeConversationId, isEmbedding, theme]);
+  
+  // mode 상태가 변경될 때 toast 메시지 표시
+  useEffect(() => {
+    console.log('모드 변경됨:', mode);
+    // 모드 변경 시 토스트 메시지 표시
+    if (mode === 'sql') {
+      showModeChangeToast('SQL 질의 모드로 전환했습니다');
+    } else if (mode === 'chat') {
+      showModeChangeToast('챗봇 모드로 전환했습니다');
+    }
+  }, [mode]);
+
+  // showSQLPage 상태 변경 감지 useEffect 추가
+  useEffect(() => {
+    console.log('showSQLPage 상태 변경됨:', showSQLPage);
+  }, [showSQLPage]);
 
   // 테마 변경 함수
   const toggleTheme = useCallback(() => {
@@ -412,8 +478,42 @@ function App() {
     }
   }, [conversations, activeConversationId, userId]);
 
+  // 전체 대화 삭제 기능 추가
+  const deleteAllConversations = () => {
+    try {
+      // 로컬 상태 초기화
+      setConversations([]);
+      setActiveConversationId(null);
+      setCurrentMessages([]);
+      
+      // 로컬 스토리지 데이터 삭제
+      localStorage.removeItem('conversations');
+      localStorage.removeItem('activeConversationId');
+      
+      // 백엔드에 요청 (옵션)
+      fetch("http://172.10.2.70:8000/api/conversations/delete-all", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId: "user123" }),
+      }).catch(err => {
+        console.warn("백엔드에 전체 삭제 요청 실패:", err);
+        // 백엔드 실패해도 로컬에서는 삭제된 상태로 유지
+      });
+      
+      // 성공 메시지 표시
+      showModeChangeToast("모든 대화가 삭제되었습니다");
+      
+      // 새 대화 시작 - 항상 '대화 1'로 시작
+      handleNewConversation(null, defaultCategory, true);
+    } catch (err) {
+      console.error("대화 전체 삭제 중 오류 발생:", err);
+    }
+  };
+
   // 새 대화 생성
-  const handleNewConversation = (topic, category) => {
+  const handleNewConversation = (topic, category, forceFirst = false) => {
     // 새 대화 ID 생성 (UUID 형식)
     const newConversationId = `conversation-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     
@@ -424,19 +524,22 @@ function App() {
     let defaultTitle = "새 대화";
     
     try {
-      // 기존 '대화 N' 형식의 제목 중 가장 큰 번호 찾기
-      const conversationNumbers = conversations
-        .map(conv => {
-          if (!conv || !conv.title) return 0;
-          const match = /^대화 (\d+)$/.exec(conv.title);
-          return match ? parseInt(match[1], 10) : 0;
-        })
-        .filter(num => !isNaN(num));
-      
-      const maxNumber = conversationNumbers.length > 0 ? 
-        Math.max(...conversationNumbers) : 0;
-      
-      defaultTitle = `대화 ${maxNumber + 1}`;
+      let maxNumber = 0;
+      if (forceFirst) {
+        defaultTitle = "대화 1";
+      } else {
+        // 기존 '대화 N' 형식의 제목 중 가장 큰 번호 찾기
+        const conversationNumbers = conversations
+          .map(conv => {
+            if (!conv || !conv.title) return 0;
+            const match = /^대화 (\d+)$/.exec(conv.title);
+            return match ? parseInt(match[1], 10) : 0;
+          })
+          .filter(num => !isNaN(num));
+        maxNumber = conversationNumbers.length > 0 ? 
+          Math.max(...conversationNumbers) : 0;
+        defaultTitle = `대화 ${maxNumber + 1}`;
+      }
     } catch (error) {
       console.error("대화 제목 생성 중 오류:", error);
       defaultTitle = `대화 ${Date.now() % 1000}`;
@@ -845,80 +948,132 @@ function App() {
 
   // 모드 전환 함수 - 챗봇 <-> SQL 질의 모드 전환
   const onToggleMode = (mode) => {
-    if (mode === 'sql') {
-      setShowSQLPage(true);
-      // 모드 전환 토스트 메시지 표시
-      showModeChangeToast('SQL 질의 모드로 전환했습니다');
-    } else if (mode === 'chat') {
-      setShowSQLPage(false);
-      // 모드 전환 토스트 메시지 표시
-      showModeChangeToast('챗봇 모드로 전환했습니다');
-    } else {
-      // 모드가 지정되지 않은 경우 토글
-      const newMode = !showSQLPage;
-      setShowSQLPage(newMode);
-      // 모드 전환 토스트 메시지 표시
-      showModeChangeToast(newMode ? 'SQL 질의 모드로 전환했습니다' : '챗봇 모드로 전환했습니다');
+    console.log('onToggleMode 호출됨:', mode, '현재 상태:', showSQLPage);
+    
+    try {
+      if (mode === 'sql') {
+        console.log('SQL 모드로 전환 중...');
+        if (!showSQLPage) {  // 현재 SQL 모드가 아닐 때만 전환
+          setShowSQLPage(true);
+          // 모드 전환 토스트 메시지 표시
+          showModeChangeToast('SQL 질의 모드로 전환했습니다');
+        }
+      } else if (mode === 'chat') {
+        console.log('챗봇 모드로 전환 중...');
+        if (showSQLPage) {  // 현재 SQL 모드일 때만 전환
+          setShowSQLPage(false);
+          // 모드 전환 토스트 메시지 표시
+          showModeChangeToast('챗봇 모드로 전환했습니다');
+        }
+      } else {
+        // 모드가 지정되지 않은 경우 토글
+        const newMode = !showSQLPage;
+        console.log('모드 토글 중...', newMode ? 'SQL로' : '챗봇으로');
+        setShowSQLPage(newMode);
+        // 모드 전환 토스트 메시지 표시
+        showModeChangeToast(newMode ? 'SQL 질의 모드로 전환했습니다' : '챗봇 모드로 전환했습니다');
+      }
+      console.log('모드 전환 요청 완료. 현재 showSQLPage 상태:', showSQLPage, '(실제 변경은 리렌더링 후 적용됨)');
+    } catch (error) {
+      console.error('모드 전환 중 오류 발생:', error);
     }
   };
 
   // 모드 전환 토스트 메시지 표시 함수
   const showModeChangeToast = (message) => {
-    const toast = document.getElementById('mode-switch-toast');
-    if (toast) {
-      // 토스트 메시지 내용 변경
-      const messageElement = toast.querySelector('span');
-      if (messageElement) {
-        messageElement.textContent = message || '모드 전환 완료';
-      }
-      
-      // 토스트 표시
-      toast.style.opacity = '1';
-      
-      // 2.5초 후 숨기기
-      setTimeout(() => {
-        toast.style.opacity = '0';
-      }, 2500);
+    console.log('토스트 메시지 표시:', message);
+    
+    // 기존 토스트가 있으면 제거
+    const existingToast = document.getElementById('mode-switch-toast');
+    if (existingToast) {
+      document.body.removeChild(existingToast);
     }
+    
+    // 새 토스트 생성
+    const toast = document.createElement('div');
+    toast.id = 'mode-switch-toast';
+    toast.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-indigo-600 to-indigo-800 text-white px-5 py-3 rounded-xl shadow-2xl z-[9999] flex items-center gap-3 transition-all duration-150 pointer-events-none';
+    toast.style.opacity = '0';
+    
+    // 토스트 내용 생성
+    const iconDiv = document.createElement('div');
+    iconDiv.className = 'w-10 h-10 rounded-full bg-white/20 flex items-center justify-center';
+    
+    // 모드에 따라 다른 아이콘 표시
+    const isSqlMode = message.includes('SQL');
+    
+    const iconSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    iconSvg.setAttribute('viewBox', '0 0 24 24');
+    iconSvg.setAttribute('width', '24');
+    iconSvg.setAttribute('height', '24');
+    iconSvg.setAttribute('fill', 'none');
+    iconSvg.setAttribute('stroke', 'currentColor');
+    iconSvg.setAttribute('stroke-width', '2');
+    iconSvg.setAttribute('stroke-linecap', 'round');
+    iconSvg.setAttribute('stroke-linejoin', 'round');
+    
+    // SQL 또는 챗봇 아이콘 패스 설정
+    if (isSqlMode) {
+      // Database 아이콘
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', 'M12 2a8 8 0 0 0-8 8v12c0 .6.4 1 1 1h14c.6 0 1-.4 1-1V10a8 8 0 0 0-8-8zm0 0v8m-8 2h16m-8 2v8');
+      iconSvg.appendChild(path);
+    } else {
+      // Message 아이콘
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z');
+      iconSvg.appendChild(path);
+    }
+    
+    iconDiv.appendChild(iconSvg);
+    toast.appendChild(iconDiv);
+    
+    const messageSpan = document.createElement('span');
+    messageSpan.className = 'font-medium';
+    messageSpan.textContent = message;
+    toast.appendChild(messageSpan);
+    
+    // 토스트에 애니메이션 효과 추가
+    const animDiv = document.createElement('div');
+    animDiv.className = 'absolute bottom-0 left-0 h-1 bg-white/30 rounded-b-xl';
+    animDiv.style.width = '100%';
+    animDiv.style.animation = 'toast-timer 400ms linear forwards';
+    toast.appendChild(animDiv);
+    
+    // 토스트 애니메이션 키프레임 추가
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+      @keyframes toast-timer {
+        from { width: 100%; }
+        to { width: 0%; }
+      }
+    `;
+    document.head.appendChild(styleElement);
+    
+    // 토스트를 body에 추가
+    document.body.appendChild(toast);
+    
+    // 토스트 표시 애니메이션
+    setTimeout(() => {
+      toast.style.opacity = "1";
+      console.log('토스트 표시됨');
+    }, 10);
+    
+    // 토스트 제거 (0.4초 후)
+    setTimeout(() => {
+      toast.style.opacity = "0";
+      console.log('토스트 숨김 처리');
+      setTimeout(() => {
+        if (document.body.contains(toast)) {
+          document.body.removeChild(toast);
+          console.log('토스트 제거됨');
+        }
+        if (document.head.contains(styleElement)) {
+          document.head.removeChild(styleElement);
+        }
+      }, 150);
+    }, 400);
   };
-
-  // 전체 대화 삭제 기능 추가
-  const handleDeleteAllConversations = useCallback(() => {
-    // 확인: 실제 삭제하기 전에 사용자에게 확인 모달은 Sidebar에서 처리됨
-    
-    // 새 대화 하나만 남기고 모두 삭제 (바로 새 대화창으로 전환)
-    const now = new Date();
-    const newConv = {
-      id: Date.now().toString(),
-      title: "대화 1",
-      timestamp: now.getTime(),
-      messages: [
-        {
-          role: "assistant",
-          content: "안녕하세요! 무엇을 도와드릴까요?",
-          sources: [],
-          timestamp: now.getTime(),
-        },
-      ],
-      pinned: false,
-    };
-    
-    // 대화 목록 초기화 및 새 대화 추가
-    setConversations([newConv]);
-    setActiveConversationId(newConv.id);
-    
-    // 로컬 스토리지 업데이트
-    localStorage.setItem("conversations", JSON.stringify([newConv]));
-    localStorage.setItem("activeConversationId", JSON.stringify(newConv.id));
-    
-    // 현재 메시지 갱신
-    setCurrentMessages(newConv.messages);
-    
-    // 검색어 초기화
-    setSearchTerm('');
-    
-    console.log("모든 대화가 삭제되었습니다. 새 대화를 시작합니다.");
-  }, []);
 
   return (
     <div className="flex flex-col md:flex-row h-screen bg-gray-900 text-gray-100 overflow-hidden relative">
@@ -946,9 +1101,9 @@ function App() {
           onTogglePinConversation={handleTogglePinConversation}
           onToggleTheme={toggleTheme}
           isDarkMode={theme === "dark"}
-          onToggleMode={onToggleMode}
-          currentMode={showSQLPage ? 'sql' : 'chat'}
-          onDeleteAllConversations={handleDeleteAllConversations}
+          onToggleMode={setMode}
+          currentMode={mode}
+          onDeleteAllConversations={deleteAllConversations}
         />
         <div
           className="absolute top-0 -right-3 h-full w-3 cursor-ew-resize z-10"
@@ -958,11 +1113,20 @@ function App() {
 
       {/* 채팅 컨테이너 또는 SQL 쿼리 페이지 */}
       <div className="flex-grow relative overflow-hidden">
-        {showSQLPage ? (
-          <SQLQueryPage onToggleMode={onToggleMode} />
+        {console.log('렌더링 시점의 mode 값:', mode)}
+        {mode === 'sql' ? (
+          // SQL 쿼리 페이지 렌더링
+          <div className="w-full h-full">
+            {console.log('SQL 페이지 렌더링 중...')}
+            <SQLQueryPage 
+              setMode={setMode} 
+              key="sql-page-component" 
+            />
+          </div>
         ) : (
-          <>
-            {/* 사이드바 토글 버튼 (모바일) */}
+          // 챗봇 컨테이너 렌더링
+          <div className="w-full h-full">
+            {console.log('챗봇 컨테이너 렌더링 중...')}
             {!sidebarOpen && (
               <button
                 className="absolute left-4 top-4 z-10 md:hidden p-2 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
@@ -984,16 +1148,11 @@ function App() {
               fileManagerOpen={fileManagerOpen}
               setFileManagerOpen={setFileManagerOpen}
               sidebarOpen={sidebarOpen}
-              onToggleMode={onToggleMode}
+              setMode={setMode}
+              key="chat-container-component"
             />
-          </>
+          </div>
         )}
-      </div>
-      
-      {/* 모드 전환 성공 알림 */}
-      <div id="mode-switch-toast" className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none flex items-center gap-2 z-50">
-        <FiCheckCircle size={16} />
-        <span className="text-sm font-medium">모드 전환 완료</span>
       </div>
     </div>
   );

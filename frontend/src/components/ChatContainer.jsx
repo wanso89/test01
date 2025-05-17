@@ -777,7 +777,7 @@ function ChatContainer({
   fileManagerOpen,
   setFileManagerOpen,
   sidebarOpen,
-  onToggleMode // 모드 전환 함수 추가
+  setMode // onToggleMode 대신 setMode를 받습니다
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -1456,6 +1456,68 @@ function ChatContainer({
     }
   };
 
+  // 모드 전환 토글 컴포넌트 추가
+  const ModeToggleSwitch = () => {
+    // 사용자 상호작용 시 토글 상태 변경
+    const handleToggleMode = (e) => {
+      // 이벤트 버블링 방지
+      e.preventDefault();
+      e.stopPropagation();
+      
+      console.log('ModeToggleSwitch: SQL 모드로 전환 시작');
+      console.log('ModeToggleSwitch: setMode props 값:', setMode);
+      
+      try {
+        // 명시적으로 'sql' 모드로 전환 - 사이드바 버튼과 동일한 방식으로 호출
+        if (typeof setMode === 'function') {
+          setMode('sql');
+          console.log('SQL 모드 전환 함수 호출 완료');
+        } else {
+          console.error('setMode가 함수가 아닙니다:', setMode);
+        }
+        
+        // 사용자에게 시각적 피드백 제공
+        const button = e.currentTarget;
+        button.classList.add('scale-95', 'bg-indigo-700');
+        setTimeout(() => {
+          button.classList.remove('scale-95', 'bg-indigo-700');
+        }, 200);
+      } catch (err) {
+        console.error('모드 전환 중 오류 발생:', err);
+        alert('모드 전환 중 오류가 발생했습니다: ' + err.message);
+      }
+    };
+
+    useEffect(() => {
+      console.log('ModeToggleSwitch 마운트됨, setMode:', setMode);
+    }, [setMode]);
+
+    return (
+      <div className="fixed right-6 top-1/2 transform -translate-y-1/2 z-20">
+        <div className="relative group">
+          <button 
+            onClick={handleToggleMode}
+            className="transition-all duration-300 w-14 h-14 bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-md hover:from-indigo-600/70 hover:to-indigo-800/70 rounded-full flex items-center justify-center shadow-lg border border-gray-700/50 hover:border-indigo-500/50 hover:shadow-indigo-500/20"
+            title="SQL 질의 모드로 전환"
+            data-testid="sql-mode-toggle"
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-800/80 hover:bg-indigo-600/30 backdrop-blur-sm">
+              <FiDatabase size={20} className="text-gray-300 group-hover:text-white transition-colors" />
+            </div>
+          </button>
+          
+          {/* 모드 라벨 */}
+          <div className="absolute top-1/2 right-full transform -translate-y-1/2 mr-3 px-3 py-1.5 rounded-lg bg-gray-800/80 backdrop-blur-sm border border-gray-700/50 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+            <span className="text-xs font-medium whitespace-nowrap">SQL 질의 모드로 전환</span>
+          </div>
+          
+          {/* 장식 효과 */}
+          <div className="absolute -inset-0.5 rounded-full bg-indigo-500/20 filter blur opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col h-full relative bg-gray-900" ref={dropZoneRef}>
       {/* 로딩 인디케이터 추가 */}
@@ -1487,43 +1549,20 @@ function ChatContainer({
             <p className="text-xs text-gray-400 mt-0.5">AI 기반 업무 지능화 솔루션</p>
           </div>
         </div>
+
         {/* 헤더 버튼 그룹 */}
         <div className="flex gap-2 items-center">
-          {/* SQL 모드 전환 버튼 */}
-          <button
-            onClick={() => onToggleMode('sql')}
-            className="relative group flex items-center justify-center p-2 text-gray-400 hover:text-indigo-400 transition-colors"
-            title="SQL 질의 모드로 전환"
-          >
-            <div className="w-9 h-9 rounded-full flex items-center justify-center bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-indigo-500/40 transition-all group-hover:shadow-md group-hover:shadow-indigo-500/20">
-              <FiDatabase size={18} className="group-hover:scale-110 transition-transform" />
-            </div>
-            
-            {/* 툴팁 */}
-            <div className="absolute top-full mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-              <div className="px-3 py-1.5 rounded-lg bg-gray-800 text-xs font-medium text-gray-200 shadow-lg border border-gray-700 whitespace-nowrap">
-                SQL 질의 모드로 전환
-              </div>
-            </div>
-          </button>
-          
           {/* 파일 관리 버튼 */}
           <button
             onClick={handleFileManager}
-            className="relative group flex items-center justify-center p-2 text-gray-400 hover:text-blue-400 transition-colors"
+            className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+              fileManagerOpen ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+            }`}
             title="인덱싱된 파일 관리"
             disabled={isEmbedding}
           >
-            <div className="w-9 h-9 rounded-full flex items-center justify-center bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-blue-500/40 transition-all group-hover:shadow-md group-hover:shadow-blue-500/20">
-              <FiHardDrive size={18} className="group-hover:scale-110 transition-transform" />
-            </div>
-            
-            {/* 툴팁 */}
-            <div className="absolute top-full mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-              <div className="px-3 py-1.5 rounded-lg bg-gray-800 text-xs font-medium text-gray-200 shadow-lg border border-gray-700 whitespace-nowrap">
-                파일 관리
-              </div>
-            </div>
+            <FiHardDrive size={16} />
+            <span>파일</span>
           </button>
         </div>
       </div>
@@ -1549,8 +1588,8 @@ function ChatContainer({
           
           {/* 메시지 목록 */}
           {renderMessages()}
-        <div ref={messagesEndRef} />
-      </div>
+          <div ref={messagesEndRef} />
+        </div>
 
         {/* 스크롤 위로 이동 버튼 */}
         {showScrollToTop && (
@@ -1562,6 +1601,9 @@ function ChatContainer({
           </button>
         )}
       </div>
+
+      {/* 모드 전환 스위치 추가 */}
+      <ModeToggleSwitch />
 
       {/* 입력 영역 */}
       <div className="bg-gray-900 relative z-10">

@@ -28,8 +28,16 @@ import {
   FiServer,
   FiCommand,
   FiAlertCircle,
-  FiTrash
+  FiTrash,
+  FiCheckCircle,
+  FiExternalLink,
+  FiGitBranch,
+  FiSettings,
+  FiTool,
+  FiXCircle,
+  FiZap
 } from "react-icons/fi";
+import { BsSun, BsMoon } from "react-icons/bs";
 import { LOGO_IMAGE, createLogoIcon } from "../assets/3ssoft-logo.js";
 
 // 로고 컴포넌트 - 이미지 로드 상태를 관리
@@ -210,6 +218,32 @@ function Sidebar({
   const visibleUnpinnedConversations = showAllConversations 
     ? unpinnedConversations 
     : unpinnedConversations.slice(0, MAX_VISIBLE_CONVERSATIONS);
+
+  // 새 대화 컨테이너 - 최상단 고정
+  const renderNewChatButton = () => {
+    return (
+      <div className="mb-2 px-2">
+        <button
+          className="w-full flex items-center gap-2 justify-start py-2.5 pl-3 pr-2 rounded-md hover:bg-gray-700/40 text-gray-300 transition-colors"
+          onClick={onNewConversation}
+        >
+          <FiPlus className="flex-shrink-0" size={18} />
+          <span className="truncate">새 대화</span>
+        </button>
+        
+        {/* 전체 대화 삭제 버튼 */}
+        {conversations.length > 0 && (
+          <button
+            className="mt-1 w-full flex items-center gap-2 justify-start py-2.5 pl-3 pr-2 rounded-md hover:bg-red-900/30 text-gray-300 transition-colors border border-transparent hover:border-red-800/30 group"
+            onClick={() => setShowDeleteAllModal(true)}
+          >
+            <FiTrash className="flex-shrink-0 text-gray-400 group-hover:text-red-400 transition-colors" size={18} />
+            <span className="truncate group-hover:text-red-200 transition-colors">전체 대화 삭제</span>
+          </button>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-gray-900">
