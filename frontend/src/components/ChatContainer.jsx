@@ -1319,16 +1319,16 @@ function ChatContainer({
             <div className="absolute inset-x-0 top-1/3 w-full h-64 bg-gradient-to-r from-blue-600/30 to-cyan-600/30 rounded-full filter blur-3xl transform translate-y-16 scale-125 animate-pulse" style={{ animationDuration: '10s', animationDelay: '1s' }}></div>
           </div>
           
-          {/* 아이콘 컨테이너 - 퍼지는 링 효과 */}
+          {/* 아이콘 컨테이너 - 문서 아이콘으로 변경 */}
           <div className="relative mb-8">
-            <div className="absolute -inset-0 rounded-full bg-gradient-to-r from-indigo-500/20 to-purple-600/20 animate-ping opacity-30" style={{ animationDuration: '3s' }}></div>
-            <div className="absolute -inset-4 rounded-full bg-gradient-to-r from-indigo-500/10 to-purple-600/10 animate-ping opacity-20" style={{ animationDuration: '3.5s' }}></div>
-            <div className="absolute -inset-8 rounded-full bg-gradient-to-r from-indigo-500/5 to-purple-600/5 animate-ping opacity-10" style={{ animationDuration: '4s' }}></div>
+            <div className="absolute -inset-0 rounded-full bg-gradient-to-r from-blue-500/20 to-indigo-600/20 animate-ping opacity-30" style={{ animationDuration: '3s' }}></div>
+            <div className="absolute -inset-4 rounded-full bg-gradient-to-r from-blue-500/10 to-indigo-600/10 animate-ping opacity-20" style={{ animationDuration: '3.5s' }}></div>
+            <div className="absolute -inset-8 rounded-full bg-gradient-to-r from-blue-500/5 to-indigo-600/5 animate-ping opacity-10" style={{ animationDuration: '4s' }}></div>
             
-            <div className="relative w-24 h-24 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 rounded-full flex items-center justify-center backdrop-blur-sm">
-              <div className="w-20 h-20 bg-gradient-to-br from-indigo-500/30 to-purple-600/30 rounded-full flex items-center justify-center">
-                <div className="w-16 h-16 bg-gray-900/80 rounded-full flex items-center justify-center ring-2 ring-indigo-500/30">
-                  <FiMessageSquare className="text-indigo-400 animate-pulse" style={{ animationDuration: '2s' }} size={30} />
+            <div className="relative w-24 h-24 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500/30 to-indigo-600/30 rounded-full flex items-center justify-center">
+                <div className="w-16 h-16 bg-gray-900/80 rounded-full flex items-center justify-center ring-2 ring-blue-500/30">
+                  <FiFileText className="text-blue-400 animate-pulse" style={{ animationDuration: '2s' }} size={30} />
                 </div>
               </div>
             </div>
@@ -1336,19 +1336,19 @@ function ChatContainer({
           
           {/* 텍스트 영역 - 부드러운 페이드인 애니메이션 */}
           <div className="space-y-4 animate-fade-in-up">
-            <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-200 to-purple-300 mb-2">
+            <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-200 to-indigo-300 mb-2">
               문서 기반 질의응답 챗봇
             </h2>
             <p className="text-base text-gray-400 mb-6 max-w-lg leading-relaxed">
-              인덱싱된 문서를 바탕으로 질문에 답변해 드립니다. 아래 입력창에 원하시는 질문을 입력해 보세요.
+              업로드한 문서에 관련된 질문을 해보세요. 정확한 정보와 함께 답변해 드립니다.
             </p>
           </div>
           
           {/* 기능 설명 카드 영역 */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-md text-left mt-4 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
-            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-indigo-500/30 transition-all duration-300 transform hover:-translate-y-1">
-              <div className="flex-shrink-0 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 p-2 rounded-md mr-3">
-                <FiSearch className="text-indigo-400" size={18} />
+            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-blue-500/30 transition-all duration-300 transform hover:-translate-y-1">
+              <div className="flex-shrink-0 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 p-2 rounded-md mr-3">
+                <FiSearch className="text-blue-400" size={18} />
               </div>
               <div>
                 <h3 className="text-sm font-medium text-gray-200">정보 검색</h3>
@@ -1356,9 +1356,9 @@ function ChatContainer({
               </div>
             </div>
             
-            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-indigo-500/30 transition-all duration-300 transform hover:-translate-y-1">
-              <div className="flex-shrink-0 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 p-2 rounded-md mr-3">
-                <FiFileText className="text-indigo-400" size={18} />
+            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-blue-500/30 transition-all duration-300 transform hover:-translate-y-1">
+              <div className="flex-shrink-0 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 p-2 rounded-md mr-3">
+                <FiFileText className="text-blue-400" size={18} />
               </div>
               <div>
                 <h3 className="text-sm font-medium text-gray-200">문서 요약</h3>
@@ -1366,57 +1366,31 @@ function ChatContainer({
               </div>
             </div>
             
-            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-indigo-500/30 transition-all duration-300 transform hover:-translate-y-1">
-              <div className="flex-shrink-0 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 p-2 rounded-md mr-3">
-                <FiHelpCircle className="text-indigo-400" size={18} />
+            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-blue-500/30 transition-all duration-300 transform hover:-translate-y-1">
+              <div className="flex-shrink-0 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 p-2 rounded-md mr-3">
+                <FiMessageCircle className="text-blue-400" size={18} />
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-200">문제 해결</h3>
-                <p className="text-xs text-gray-500 mt-1">문제 해결 방법을 안내해 드립니다</p>
+                <h3 className="text-sm font-medium text-gray-200">질의응답</h3>
+                <p className="text-xs text-gray-500 mt-1">문서 기반 질문에 정확히 답변합니다</p>
               </div>
             </div>
             
-            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-indigo-500/30 transition-all duration-300 transform hover:-translate-y-1">
-              <div className="flex-shrink-0 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 p-2 rounded-md mr-3">
-                <FiBookmark className="text-indigo-400" size={18} />
+            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-blue-500/30 transition-all duration-300 transform hover:-translate-y-1">
+              <div className="flex-shrink-0 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 p-2 rounded-md mr-3">
+                <FiBookmark className="text-blue-400" size={18} />
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-200">맞춤 정보</h3>
-                <p className="text-xs text-gray-500 mt-1">필요한 정보만 선별해 제공합니다</p>
+                <h3 className="text-sm font-medium text-gray-200">출처 제공</h3>
+                <p className="text-xs text-gray-500 mt-1">답변의 정확한 출처를 함께 제공합니다</p>
               </div>
             </div>
           </div>
           
           {/* 시작 도움말 - 하단 안내 문구 */}
           <div className="mt-10 flex items-center text-gray-500 text-sm animate-fade-in-up" style={{ animationDelay: '400ms' }}>
-            <FiCornerDownRight className="mr-2 text-indigo-400" size={16} />
+            <FiCornerDownRight className="mr-2 text-blue-400" size={16} />
             <span>입력창에 질문을 입력하면 워터마크가 사라지고 대화가 시작됩니다</span>
-          </div>
-
-          {/* 예시 질문 버튼 */}
-          <div className="mt-6 flex flex-wrap gap-2 justify-center">
-            <button
-              type="button"
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow transition"
-              onClick={() => {
-                if (window && window.setExampleQuestion) {
-                  window.setExampleQuestion("보안서약서 3조 내용 답변해줘");
-                }
-              }}
-            >
-              보안서약서 3조 내용 답변해줘
-            </button>
-            <button
-              type="button"
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-full shadow transition"
-              onClick={() => {
-                if (window && window.setExampleQuestion) {
-                  window.setExampleQuestion("회사 보안 정책 요약해줘");
-                }
-              }}
-            >
-              회사 보안 정책 요약해줘
-            </button>
           </div>
         </div>
       </div>
@@ -1427,32 +1401,40 @@ function ChatContainer({
     // 필터된 메시지 또는 전체 메시지를 기준으로 렌더링
     const messagesToRender = searchTerm ? filteredMessages : messages;
     
-    // 새 대화 시작 시 또는 메시지가 없는 경우 무조건 워터마크 표시
-    // 강제로 워터마크를 표시하기 위해 조건 변경
-    if (messages.length === 0) {
-      console.log('EmptyChatWatermark 표시 - 메시지 없음');
-      return <EmptyChatWatermark />;
-    }
+    // 메시지 목록과 워터마크를 함께 표시하는 방식으로 변경
+    // 사용자 메시지가 없는 경우에만 워터마크 표시
+    const hasUserMessage = messages.some(msg => msg.role === 'user');
     
-    return messagesToRender.map((message, index) => {
-      const prevMessage = index > 0 ? messagesToRender[index - 1] : null;
-      const nextMessage = index < messagesToRender.length - 1 ? messagesToRender[index + 1] : null;
-      
-      // 고유한 key 생성 (timestamp + index 조합)
-      const messageKey = `${message.timestamp || Date.now()}-${index}`;
-      
-      return (
-        <ChatMessage
-          key={messageKey}
-          message={message}
-          searchTerm={searchTerm}
-          isSearchMode={!!searchTerm}
-          prevMessage={prevMessage}
-          nextMessage={nextMessage}
-          onAskFollowUp={handleAskFollowUp}
-        />
-      );
-    });
+    // 메시지가 없거나, 유일한 메시지가 "안녕하세요! 무엇을 도와드릴까요?"인 경우 워터마크 표시
+    const showWatermark = !hasUserMessage;
+    
+    return (
+      <>
+        {/* 메시지 목록 출력 */}
+        {messagesToRender.map((message, index) => {
+          const prevMessage = index > 0 ? messagesToRender[index - 1] : null;
+          const nextMessage = index < messagesToRender.length - 1 ? messagesToRender[index + 1] : null;
+          
+          // 고유한 key 생성 (timestamp + index 조합)
+          const messageKey = `${message.timestamp || Date.now()}-${index}`;
+          
+          return (
+            <ChatMessage
+              key={messageKey}
+              message={message}
+              searchTerm={searchTerm}
+              isSearchMode={!!searchTerm}
+              prevMessage={prevMessage}
+              nextMessage={nextMessage}
+              onAskFollowUp={handleAskFollowUp}
+            />
+          );
+        })}
+        
+        {/* 사용자 메시지가 없을 때만 워터마크 표시 */}
+        {showWatermark && <EmptyChatWatermark />}
+      </>
+    );
   };
 
   // 파일 관리 버튼 클릭 핸들러

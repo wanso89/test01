@@ -514,92 +514,80 @@ function App() {
 
   // 새 대화 생성
   const handleNewConversation = (topic, category, forceFirst = false) => {
-    // 새 대화 ID 생성 (UUID 형식)
-    const newConversationId = `conversation-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    
-    // 첫 시스템 메시지 설정 (대화 컨텍스트 정보)
-    let contextMessage = "안녕하세요! 무엇을 도와드릴까요?";
-    
-    // 기본 제목 설정 (항상 "대화 N" 형식으로 생성)
-    let defaultTitle = "새 대화";
-    
     try {
-      let maxNumber = 0;
+      console.log('새 대화 시작...', topic, category);
+      
+      // 초기 제목 설정
+      const initialTitle = topic || `대화 ${conversations.length + 1}`;
+      
+      // 고유 ID 생성
+      const newId = `conv_${Date.now()}`;
+      
+      // 새 대화 객체 생성 (구조 개선 - 메타데이터 추가)
+      const newConversation = {
+        id: newId,
+        title: initialTitle,
+        messages: [
+          // 시스템 시작 메시지 추가하여 챗봇이 먼저 인사하도록 함
+          {
+            role: "assistant",
+            content: "안녕하세요! 무엇을 도와드릴까요?",
+            sources: [],
+            timestamp: Date.now(),
+          }
+        ],
+        timestamp: Date.now(),
+        category: category || defaultCategory,
+        pinned: false,
+        metadata: {
+          messageCount: 1,
+          firstMessageTimestamp: Date.now(),
+          lastActivity: Date.now()
+        }
+      };
+      
+      // 새 대화 추가 (맨 앞 또는 맨 뒤)
       if (forceFirst) {
-        defaultTitle = "대화 1";
+        // 가장 최근 대화로 추가 (맨 앞)
+        setConversations(prevConversations => [
+          newConversation,
+          ...prevConversations
+        ]);
       } else {
-        // 기존 '대화 N' 형식의 제목 중 가장 큰 번호 찾기
-        const conversationNumbers = conversations
-          .map(conv => {
-            if (!conv || !conv.title) return 0;
-            const match = /^대화 (\d+)$/.exec(conv.title);
-            return match ? parseInt(match[1], 10) : 0;
-          })
-          .filter(num => !isNaN(num));
-        maxNumber = conversationNumbers.length > 0 ? 
-          Math.max(...conversationNumbers) : 0;
-        defaultTitle = `대화 ${maxNumber + 1}`;
+        // 새 대화 추가 (맨 뒤)
+        setConversations(prevConversations => [
+          ...prevConversations,
+          newConversation
+        ]);
       }
-    } catch (error) {
-      console.error("대화 제목 생성 중 오류:", error);
-      defaultTitle = `대화 ${Date.now() % 1000}`;
-    }
-    
-    const timestamp = Date.now();
-    
-    // 새 대화 생성 - 항상 기본 제목 사용
-    const newConversation = {
-      id: newConversationId,
-      messages: [
+      
+      // 새 대화를 현재 활성 대화로 설정
+      setActiveConversationId(newId);
+      
+      // 메시지 초기화
+      setCurrentMessages([
+        // 시스템 시작 메시지 추가하여 챗봇이 먼저 인사하도록 함
         {
           role: "assistant",
-          content: contextMessage,
-          timestamp: timestamp,
-          sources: []
+          content: "안녕하세요! 무엇을 도와드릴까요?",
+          sources: [],
+          timestamp: Date.now(),
         }
-      ],
-      title: defaultTitle, // topic 무시하고 항상 기본 제목 사용
-      created_at: new Date(timestamp).toISOString(),
-      pinned: false,
-      timestamp: timestamp
-    };
-    
-    // 상태 업데이트 안전하게 수행
-    setConversations(prev => {
-      const prevCopy = Array.isArray(prev) ? [...prev] : [];
-      return [newConversation, ...prevCopy];
-    });
-    
-    setActiveConversationId(newConversationId);
-    
-    // localStorage 직접 업데이트 (useEffect 의존하지 않음)
-    try {
-      const currentConversations = localStorage.getItem("conversations");
-      let savedConversations = [];
+      ]);
       
-      if (currentConversations) {
-        try {
-          savedConversations = JSON.parse(currentConversations);
-          if (!Array.isArray(savedConversations)) {
-            savedConversations = [];
-          }
-        } catch (e) {
-          console.error("기존 대화 파싱 오류:", e);
-          savedConversations = [];
-        }
+      // 검색어 초기화
+      setSearchTerm("");
+      
+      // 사이드바 모바일에서 자동으로 닫기
+      if (window.innerWidth < 768) {
+        setSidebarOpen(false);
       }
       
-      // 새 대화를 맨 앞에 추가
-      const updatedConversations = [newConversation, ...savedConversations];
-      localStorage.setItem("conversations", JSON.stringify(updatedConversations));
-      localStorage.setItem("activeConversationId", JSON.stringify(newConversationId));
-      console.log("새 대화가 생성되었습니다:", newConversation.title);
+      return newId;
     } catch (error) {
-      console.error("대화 저장 중 오류 발생:", error);
+      console.error('새 대화 생성 중 오류 발생:', error);
+      return null;
     }
-    
-    // 검색어 초기화
-    setSearchTerm('');
   };
 
   // 대화 선택

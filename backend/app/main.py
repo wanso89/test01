@@ -663,7 +663,7 @@ async def generate_llm_response(
                 asyncio.to_thread(
                     llm_model.generate,
                     **inputs,
-                    max_new_tokens=300,  # 토큰 수 감소 (512 → 300): 대부분의 응답에 충분하며 생성 속도 향상
+                    max_new_tokens=1024,  # 토큰 수 감소 (512 → 300): 대부분의 응답에 충분하며 생성 속도 향상
                     repetition_penalty=1.15,  # 약간 감소 (1.2 → 1.15): 처리 속도 향상
                     temperature=0.0,  # 완전 결정적 생성 (0.01 → 0.0): 가장 빠른 추론 속도
                     do_sample=False,  # 결정적인 디코딩 유지
