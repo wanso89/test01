@@ -1,0 +1,86 @@
+nohup: ignoring input
+/home/test_code/test01/rag-chatbot/.venv/lib/python3.10/site-packages/transformers/utils/hub.py:105: FutureWarning: Using `TRANSFORMERS_CACHE` is deprecated and will be removed in v5 of Transformers. Use `HF_HOME` instead.
+  warnings.warn(
+NoneType: None
+2025-05-16 14:59:44,374 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
+2025-05-16 14:59:44,393 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
+2025-05-16 14:59:45,009 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.002s]
+2025-05-16 14:59:45,010 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag-documents [status:404 duration:0.001s]
+2025-05-16 14:59:45,050 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.001s]
+2025-05-16 14:59:45,050 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag-documents [status:404 duration:0.000s]
+2025-05-16 14:59:45,887 - elastic_transport.transport - INFO - PUT http://172.10.2.70:9200/rag-documents [status:400 duration:0.836s]
+2025-05-16 14:59:46,427 - elastic_transport.transport - INFO - PUT http://172.10.2.70:9200/rag-documents [status:200 duration:1.416s]
+2025-05-16 14:59:47,100 - accelerate.utils.modeling - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+2025-05-16 15:09:55,967 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
+2025-05-16 15:09:56,986 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.001s]
+2025-05-16 15:09:56,987 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag-documents [status:200 duration:0.000s]
+2025-05-16 15:09:57,689 - accelerate.utils.modeling - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+2025-05-16 15:10:44,811 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
+2025-05-16 15:10:45,444 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.001s]
+2025-05-16 15:10:45,445 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag-documents [status:200 duration:0.000s]
+2025-05-16 15:10:46,117 - accelerate.utils.modeling - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+2025-05-16 15:12:22,734 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
+2025-05-16 15:12:23,642 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.001s]
+2025-05-16 15:12:23,643 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag-documents [status:200 duration:0.000s]
+2025-05-16 15:12:24,276 - accelerate.utils.modeling - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+2025-05-16 15:12:24,642 - sentence_transformers.cross_encoder.CrossEncoder - INFO - Use pytorch device: cuda
+2025-05-16 15:48:26,687 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cuda
+2025-05-16 15:48:26,687 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
+2025-05-16 15:48:30,916 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.001s]
+2025-05-16 15:48:30,917 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag-documents [status:200 duration:0.000s]
+2025-05-16 15:48:33,464 - sentence_transformers.cross_encoder.CrossEncoder - INFO - Use pytorch device: cuda
+2025-05-16 15:49:42,273 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cuda
+2025-05-16 15:49:42,299 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
+2025-05-16 15:49:49,042 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.001s]
+2025-05-16 15:49:49,043 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag-documents [status:200 duration:0.000s]
+2025-05-16 15:49:51,204 - sentence_transformers.cross_encoder.CrossEncoder - INFO - Use pytorch device: cuda
+2025-05-16 15:51:03,989 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cuda
+2025-05-16 15:51:03,989 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
+2025-05-16 15:51:04,596 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.001s]
+2025-05-16 15:51:04,597 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag-documents [status:200 duration:0.000s]
+2025-05-16 15:51:05,155 - accelerate.utils.modeling - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+2025-05-16 15:51:10,127 - accelerate.big_modeling - WARNING - Some parameters are on the meta device because they were offloaded to the cpu.
+2025-05-16 15:51:10,590 - sentence_transformers.cross_encoder.CrossEncoder - INFO - Use pytorch device: cuda
+2025-05-16 15:52:10,059 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cuda
+2025-05-16 15:52:10,074 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
+2025-05-16 15:52:12,133 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.002s]
+2025-05-16 15:52:12,135 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag-documents [status:200 duration:0.001s]
+2025-05-16 15:52:13,478 - accelerate.utils.modeling - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+2025-05-16 15:52:23,494 - sentence_transformers.cross_encoder.CrossEncoder - INFO - Use pytorch device: cuda
+2025-05-16 15:54:01,270 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cuda
+2025-05-16 15:54:01,288 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
+2025-05-16 15:54:09,105 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.001s]
+2025-05-16 15:54:09,106 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag-documents [status:200 duration:0.001s]
+2025-05-16 15:54:12,461 - accelerate.utils.modeling - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+2025-05-16 15:54:23,603 - sentence_transformers.cross_encoder.CrossEncoder - INFO - Use pytorch device: cuda
+2025-05-16 15:55:21,401 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cuda
+2025-05-16 15:55:21,401 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cuda
+2025-05-16 15:55:21,493 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
+2025-05-16 15:55:21,493 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
+2025-05-16 15:55:25,870 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.001s]
+2025-05-16 15:55:25,871 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag-documents [status:200 duration:0.001s]
+2025-05-16 15:55:25,876 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.001s]
+2025-05-16 15:55:25,876 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag-documents [status:200 duration:0.000s]
+2025-05-16 15:55:28,698 - accelerate.utils.modeling - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+2025-05-16 15:55:28,700 - accelerate.utils.modeling - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+2025-05-16 15:55:34,737 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cuda
+2025-05-16 15:55:34,737 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
+2025-05-16 15:55:35,589 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.002s]
+2025-05-16 15:55:35,590 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag-documents [status:200 duration:0.001s]
+2025-05-16 15:55:36,456 - accelerate.utils.modeling - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+2025-05-16 15:55:48,678 - sentence_transformers.cross_encoder.CrossEncoder - INFO - Use pytorch device: cuda
+2025-05-16 15:55:48,836 - sentence_transformers.cross_encoder.CrossEncoder - INFO - Use pytorch device: cuda
+2025-05-16 15:55:48,878 - sentence_transformers.cross_encoder.CrossEncoder - INFO - Use pytorch device: cuda
+2025-05-16 15:56:16,294 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cuda
+2025-05-16 15:56:16,294 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
+2025-05-16 15:56:16,928 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.001s]
+2025-05-16 15:56:16,929 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag-documents [status:200 duration:0.000s]
+2025-05-16 15:56:17,300 - sentence_transformers.cross_encoder.CrossEncoder - INFO - Use pytorch device: cuda
+2025-05-16 15:56:33,395 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cuda
+2025-05-16 15:56:33,395 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
+2025-05-16 15:56:34,209 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.002s]
+2025-05-16 15:56:34,210 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag-documents [status:200 duration:0.001s]
+2025-05-16 15:57:30,114 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cuda
+2025-05-16 15:57:30,130 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
+2025-05-16 15:57:32,822 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.001s]
+2025-05-16 15:57:32,822 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag-documents [status:200 duration:0.001s]

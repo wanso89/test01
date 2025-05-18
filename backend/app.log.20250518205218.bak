@@ -1,0 +1,50 @@
+/home/test_code/test01/rag-chatbot/.venv/lib/python3.10/site-packages/transformers/utils/hub.py:105: FutureWarning: Using `TRANSFORMERS_CACHE` is deprecated and will be removed in v5 of Transformers. Use `HF_HOME` instead.
+  warnings.warn(
+NoneType: None
+2025-05-18 20:50:29,074 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.001s]
+2025-05-18 20:50:29,075 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag_documents_kure_v1 [status:200 duration:0.000s]
+2025-05-18 20:50:29,079 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
+2025-05-18 20:50:29,672 - accelerate.utils.modeling - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+Initializing Elasticsearch client...
+Elasticsearch client connected successfully.
+Loading embedding function...
+임베딩 모델 로드 성공: /home/root/kpf-sbert-v1.1
+Loading LLM model and tokenizer...
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:01<00:04,  1.34s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:02<00:02,  1.49s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:04<00:01,  1.49s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:04<00:00,  1.05it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:04<00:00,  1.14s/it]
+2025-05-18 20:50:35,059 - accelerate.utils.modeling - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+LLM model loaded successfully with Flash Attention.
+GPU 메모리 사용량: 5.62 GB
+Loading reranker model...
+Reranker model loaded successfully.
+SQLCoder 모델 로딩 중...
+SQLCoder 모델 로드 시작: /home/root/llama-3-sqlcoder-8b
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:01<00:04,  1.46s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:03<00:03,  1.57s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:04<00:01,  1.62s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:04<00:00,  1.04s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:04<00:00,  1.24s/it]
+/home/test_code/test01/rag-chatbot/.venv/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:631: UserWarning: `do_sample` is set to `False`. However, `temperature` is set to `0` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `temperature`. This was detected when initializing the generation config instance, which means the corresponding file may hold incorrect parameterization and should be fixed.
+  warnings.warn(
+/home/test_code/test01/rag-chatbot/.venv/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:631: UserWarning: `do_sample` is set to `False`. However, `temperature` is set to `0` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `temperature`.
+  warnings.warn(
+/home/test_code/test01/rag-chatbot/backend/app/main.py:1688: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("startup")
+INFO:     Started server process [4035502]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+GPU 메모리 사용량: 13.02 GB
+SQLCoder 모델 로드 완료
+SQLCoder 모델 로드 성공
+Qwen2.5-7B 모델로 서버 시작 중...
+SQLCoder 모듈 초기화 중...
+SQLCoder 모델을 성공적으로 로드했습니다.
+SQLCoder 초기화 성공: SQLCoder 초기화 성공
+--- DEBUG: search_and_combine ---
+Processed query: '안녕하세요?'
+Redis 서버 연결 성공 (localhost:6379)
+캐시된 결과 사용: chat:21224979aeee90e03391087a84c57a64
+API 응답 데이터 - 출처 정보: sources=3, cited_sources=1
+인용된 출처 샘플: {'path': '004d94c0-aec1-4b62-ac00-e4d3962d0755_IT 보안서약서_2025.pdf', 'display_name': 'IT 보안서약서_2025.pdf', 'page': 1, 'chunk_id': '1', 'score': 2.995379449372284, 'is_cited': True}
+INFO:     127.0.0.1:38618 - "POST /api/chat HTTP/1.1" 200 OK

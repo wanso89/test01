@@ -168,7 +168,7 @@ def get_embedding_function():
                 try:
                     # 빠른 토크나이저 및 장치 최적화 설정 추가
                     self.embeddings_model = HuggingFaceEmbeddings(
-                        model_name=model_name,
+                    model_name=model_name,
                         model_kwargs={"device": "cuda" if torch.cuda.is_available() else "cpu"},
                         encode_kwargs={"normalize_embeddings": True},
                         cache_folder="./.cache",  # 명시적 캐시 폴더 설정
@@ -227,38 +227,37 @@ def get_llm_model_and_tokenizer():
     try:
         torch.cuda.empty_cache()  # 메모리 정리
 
-        # 토크나이저 로드 최적화: 병렬 처리 옵션 활성화
+        # 토크나이저 로드 최적화 - Qwen2.5 ChatML 형식 대응
         tokenizer = AutoTokenizer.from_pretrained(
             LLM_MODEL_NAME,
             use_fast=True,  # 빠른 토크나이저 사용
             padding_side="left",  # 왼쪽 패딩 (생성 모델에 적합)
-            use_auth_token=None,  # 인증 토큰 불필요 시 명시적으로 None
-            trust_remote_code=True,  # 원격 코드 신뢰 (일부 모델에 필요)
+            trust_remote_code=True,  # Qwen 모델에 필수
         )
 
         # 특수 토큰 설정
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
 
-        # Qwen2.5 모델에 최적화된 양자화 설정
+        # 양자화 설정 고급 옵션 - 최적화
         quantization_config = BitsAndBytesConfig(
             load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.bfloat16,  # float16 -> bfloat16로 변경 (Qwen 최적화)
+            bnb_4bit_compute_dtype=torch.bfloat16,  # RTX A6000에 최적화
             bnb_4bit_quant_type="nf4",
             bnb_4bit_use_double_quant=True,
-            llm_int8_enable_fp32_cpu_offload=False  # A6000 환경에서는 비활성화하는 것이 더 효율적
+            llm_int8_enable_fp32_cpu_offload=False  # 고성능 GPU에서는 비활성화가 유리
         )
 
         # 모델 로드 최적화 설정
         model_kwargs = {
             "quantization_config": quantization_config,
-            "torch_dtype": torch.bfloat16,  # float16 -> bfloat16로 변경 (Qwen 최적화)
+            "torch_dtype": torch.bfloat16,  # float16에서 변경 - RTX A6000에 최적
             "device_map": "auto",  # 자동 장치 맵핑
             "revision": "main",
             "low_cpu_mem_usage": True,  # 낮은 CPU 메모리 사용
-            "attn_implementation": "flash_attention_2",  # Flash Attention 2 사용 (지원 시)
+            "attn_implementation": "flash_attention_2",  # Flash Attention 2 유지
             "use_cache": True,  # KV 캐시 활성화
-            "trust_remote_code": True,  # 원격 코드 신뢰
+            "trust_remote_code": True,  # Qwen 모델에 필수
         }
 
         # 모델 로드 시도
@@ -585,7 +584,7 @@ async def generate_llm_response(
     tokenizer: Any,
     question: str,
     top_docs: List[Document],
-    temperature: float = 0.2,
+    temperature: float = 0.0,  # 0.2에서 0.0으로 변경 (결정론적 생성)
     conversation_history=None,
 ) -> str:
     if not llm_model or not tokenizer:
@@ -608,45 +607,36 @@ async def generate_llm_response(
 
     combined_context = "\n\n".join(context_parts)
 
-    # 이전 대화 기록을 ChatML 포맷으로 변환
-    messages = []
-    
-    # 시스템 메시지 추가
-    system_message = {
-        "role": "system", 
-        "content": "당신은 사용자 질문에 대해 주어진 참고 문서를 기반으로 답변하는 AI 어시스턴트입니다. "
-                  "답변은 반드시 제공된 참고 문서 내용에 근거해야 합니다. "
-                  "문서에 질문과 관련된 정보가 없다면, \"제공된 문서에서 관련 정보를 찾을 수 없습니다.\"라고 명확히 답변하세요. "
-                  "답변은 명확하고 간결하게 작성해주세요. "
-                  "HTML 태그는 <b>, <ul>, <li>만 사용할 수 있습니다. "
-                  f"참고 문서:\n{combined_context}"
-    }
-    messages.append(system_message)
-    
-    # 대화 기록 포맷팅 - 최적화: 최근 3개 턴으로 제한
+    # 이전 대화 기록 포맷팅 - 최적화: 최근 3개 턴으로 제한 (기존 5개에서 감소)
+    conversation_context = ""
     if conversation_history:
+        conversation_parts = []
         # 대화 기록의 최대 길이 제한 (최근 3개 턴)
         recent_history = (
             conversation_history[-3:]
             if len(conversation_history) > 3
             else conversation_history
         )
-        
+
+        # ChatML 형식으로 대화 기록 포맷팅
         for msg in recent_history:
-            messages.append({
-                "role": msg["role"],  # "user" 또는 "assistant"
-                "content": msg["content"]
-            })
-    
-    # 현재 질문 추가
-    messages.append({"role": "user", "content": question})
-    
-    # ChatML 포맷으로 변환
-    prompt = tokenizer.apply_chat_template(
-        messages,
-        tokenize=False,
-        add_generation_prompt=True
-    )
+            role = "user" if msg["role"] == "user" else "assistant"
+            conversation_parts.append(f"<|im_start|>{role}\n{msg['content']}\n<|im_end|>")
+
+        conversation_context = "\n".join(conversation_parts) + "\n"
+
+    # ChatML 형식의 프롬프트 - Qwen2.5-7B에 최적화
+    prompt = f"""<|im_start|>system
+당신은 사용자 질문에 대해 주어진 참고 문서를 기반으로 답변하는 AI 어시스턴트입니다.
+답변은 반드시 제공된 참고 문서 내용에 근거해야 합니다.
+<|im_end|>
+
+{conversation_context}<|im_start|>user
+{question}
+<|im_end|>
+
+<|im_start|>assistant
+"""
 
     try:
         # 메모리 최적화를 위한 캐시 정리
@@ -658,73 +648,108 @@ async def generate_llm_response(
             inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=4096)
             inputs = {k: v.to(llm_model.device) for k, v in inputs.items()}
 
-            # 생성 파라미터 최적화 - Qwen2.5에 맞게 조정
+            # 모델 컨텍스트 제공 - 참고 문서를 별도로 처리
+            context_prompt = f"""참고 문서:
+{combined_context}
+"""
+            context_inputs = tokenizer(context_prompt, return_tensors="pt", truncation=True, max_length=4096)
+            context_inputs = {k: v.to(llm_model.device) for k, v in context_inputs.items()}
+            
+            # 입력 토큰 ID를 결합 (프롬프트 + 컨텍스트)
+            combined_input_ids = torch.cat([inputs.input_ids, context_inputs.input_ids[:, 1:]], dim=1)
+            combined_attention_mask = torch.cat([inputs.attention_mask, context_inputs.attention_mask[:, 1:]], dim=1)
+            combined_inputs = {
+                'input_ids': combined_input_ids,
+                'attention_mask': combined_attention_mask,
+            }
+
+            # 생성 파라미터 최적화 - Qwen2.5-7B에 최적화된 설정
             outputs = await asyncio.wait_for(
                 asyncio.to_thread(
                     llm_model.generate,
-                    **inputs,
-                    max_new_tokens=300,  # 토큰 수 감소 (512 → 300): 대부분의 응답에 충분하며 생성 속도 향상
-                    repetition_penalty=1.15,  # 약간 감소 (1.2 → 1.15): 처리 속도 향상
-                    temperature=0.0,  # 완전 결정적 생성 (0.01 → 0.0): 가장 빠른 추론 속도
+                    **combined_inputs,
+                    max_new_tokens=384,  # 300에서 384로 증가 - Qwen 최적화
+                    repetition_penalty=1.1,  # 1.15에서 1.1로 감소 - 더 자연스러운 응답
+                    temperature=0.0,  # 완전 결정적 생성 (0.0) - 빠른 추론 속도
                     do_sample=False,  # 결정적인 디코딩 유지
-                    top_p=1.0,  # 결정적 생성에 최적화 (0.95 → 1.0)
-                    top_k=1,    # 결정적 생성에 최적화 (40 → 1)
+                    top_p=1.0,  # 결정적 생성에 최적화
+                    top_k=1,    # 결정적 생성에 최적화
                     pad_token_id=tokenizer.eos_token_id,
                     num_beams=1,  # 빔 서치 없이 유지
                     use_cache=True,  # KV 캐시 활성화 - 큰 속도 향상
                 ),
-                timeout=30.0,  # 타임아웃 감소 (60초 → 30초): 빠른 실패 처리
+                timeout=30.0,  # 타임아웃 유지
             )
 
-            # 효율적인 텍스트 디코딩 (skip_special_tokens=True)
+            # 효율적인 텍스트 디코딩
             generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+            # 실제 응답 부분만 추출 (입력 프롬프트 부분 제거) - 개선된 버전
+            answer = ""
+            assistant_tag = "<|im_start|>assistant"
             
-            # ChatML 응답 처리 - assistant 응답 추출
-            assistant_response = ""
-            
-            # Qwen 모델의 ChatML 응답 처리 개선
-            # 1. "<|im_start|>assistant" 또는 "assistant" 태그 이후의 응답만 추출
-            if "<|im_start|>assistant" in generated_text:
-                assistant_part = generated_text.split("<|im_start|>assistant")[-1].strip()
-                # "<|im_end|>" 이전의 부분 추출
-                if "<|im_end|>" in assistant_part:
-                    assistant_response = assistant_part.split("<|im_end|>")[0].strip()
-                else:
-                    assistant_response = assistant_part
-            elif "assistant\n" in generated_text:
-                # "assistant\n" 다음 부분을 추출
-                assistant_part = generated_text.split("assistant\n")[-1].strip()
-                # 다음 role이 나오는 부분까지만 추출
-                for role in ["user\n", "system\n", "\nassistant", "\nuser", "\nsystem"]:
-                    if role in assistant_part:
-                        assistant_response = assistant_part.split(role)[0].strip()
-                        break
-                else:
-                    assistant_response = assistant_part
+            # 특정 패턴이 있는지 확인 (Qwen 모델 출력 포맷)
+            if assistant_tag in generated_text:
+                # 마지막 assistant 태그 이후의 내용만 추출
+                answer_parts = generated_text.split(assistant_tag)
+                raw_answer = answer_parts[-1].strip()
+                
+                # im_end 태그가 있다면 그 앞까지만 사용
+                if "<|im_end|>" in raw_answer:
+                    raw_answer = raw_answer.split("<|im_end|>")[0].strip()
+                
+                answer = raw_answer
             else:
-                # 포맷이 예상대로 나오지 않을 경우 prompt 제거 시도
-                try:
-                    assistant_response = generated_text.replace(prompt, "").strip()
-                    
-                    # 여전히 role 태그가 포함되어 있다면 깨끗이 제거
-                    for prefix in ["system\n", "user\n", "assistant\n"]:
-                        if assistant_response.startswith(prefix):
-                            assistant_response = assistant_response[len(prefix):].strip()
-                except Exception as e:
-                    print(f"응답 정제 중 오류: {e}")
-                    assistant_response = generated_text
+                # 백업 방식
+                    answer = generated_text
             
-            # 불필요한 태그들이 여전히 있다면 제거
-            if assistant_response.startswith("assistant"):
-                assistant_response = assistant_response[len("assistant"):].strip()
-            if assistant_response.startswith("\n"):
-                assistant_response = assistant_response[1:].strip()
-                
+            # === 모든 프롬프트 내용 제거 로직 (적용 순서 중요) ===
+            
+            # 1. ChatML 태그 제거
+            answer = re.sub(r'<\|im_(start|end)\|>(user|assistant|system)?', '', answer, flags=re.DOTALL)
+            
+            # 2. 시스템 프롬프트 제거
+            system_prompts = [
+                r'당신은 사용자 질문에 대해.*?근거해야 합니다\.',
+                r'system\s*당신은 사용자 질문에 대해.*?근거해야 합니다\.',
+                r'당신은 사용자 질문에 대해 주어진 참고 문서를 기반으로 답변하는 AI 어시스턴트입니다\.'
+            ]
+            for prompt in system_prompts:
+                answer = re.sub(prompt, '', answer, flags=re.DOTALL)
+            
+            # 3. 참고 문서 섹션 완전 제거
+            doc_patterns = [
+                r'참고 문서:[\s\S]*?(?=\n\n\S)',  # 참고 문서 섹션과 그 내용
+                r'참고 문서:[\s\S]*',             # 문서 끝까지인 경우
+                r'\[문서 \d+\].*?(?=\[문서 \d+\]|\Z)', # [문서 N] 형식 패턴
+            ]
+            for pattern in doc_patterns:
+                answer = re.sub(pattern, '', answer, flags=re.DOTALL)
+            
+            # 4. user/assistant 역할 표시 제거
+            answer = re.sub(r'(^|\n)user\s+', '', answer)
+            answer = re.sub(r'(^|\n)assistant\s+', '', answer)
+            
+            # 5. "현재 질문:" 제거 및 질문 자체 제거
+            answer = re.sub(r'현재 질문:.*?\n', '', answer, flags=re.DOTALL)
+            if question in answer:
+                answer = answer.replace(question, "").strip()
+            
+            # 6. 문서 내용 명시적 제거
+            for doc in top_docs[:7]:
+                content = doc.page_content.strip()
+                if content and len(content) > 10 and content in answer:
+                    answer = answer.replace(content, "").strip()
+            
+            # 7. 중복된 줄바꿈 정리
+            answer = re.sub(r'\n{3,}', '\n\n', answer)
+            answer = answer.strip()
+
             # 빈 응답 처리
-            if not assistant_response.strip():
-                assistant_response = "죄송합니다, 답변을 생성하는 데 문제가 발생했습니다. 다시 질문해 주세요."
+            if not answer.strip():
+                answer = "죄송합니다, 답변을 생성하는 데 문제가 발생했습니다. 다시 질문해 주세요."
                 
-            return assistant_response
+            return answer
     except asyncio.TimeoutError:
         print(f"LLM 답변 생성 시간 초과 (질문: {question[:50]}...)")
         return "답변 생성 시간이 초과되었습니다. 더 짧은 질문으로 다시 시도해 주세요."
@@ -921,54 +946,13 @@ async def search_and_combine(
             llm_model, tokenizer, query, final_docs, 0.2, conversation_history
         )
         
+        # 소스 텍스트가 LLM 출력에 직접 인용된 경우를 확인
+        cited_sources = []
+        
         # 응답이 None인 경우 대체 응답 사용 (방어 코드)
         if answer is None:
             print("LLM 응답이 None입니다. 대체 응답을 사용합니다.")
             answer = "죄송합니다. 응답을 생성하는 중 오류가 발생했습니다. 다시 질문해 주세요."
-        
-        # 응답 정제 - Qwen의 ChatML 포맷 처리
-        def clean_response(resp):
-            """응답 텍스트에서 불필요한 시스템 메시지, 사용자 메시지 등을 제거합니다."""
-            if not resp:
-                return "죄송합니다. 응답을 생성하는 중 오류가 발생했습니다."
-                
-            # 1. 시스템 메시지 제거
-            if resp.startswith("system\n"):
-                parts = resp.split("user\n")
-                if len(parts) > 1:
-                    resp = parts[1]
-                    parts = resp.split("assistant\n")
-                    if len(parts) > 1:
-                        resp = parts[1].strip()
-                        return resp
-            
-            # 2. assistant 접두사 제거
-            if "assistant\n" in resp:
-                parts = resp.split("assistant\n")
-                if len(parts) > 1:
-                    resp = parts[-1].strip()
-                    return resp
-            
-            # 3. 그 외의 경우
-            # 불필요한 태그 제거
-            for tag in ["system\n", "user\n", "assistant\n", "system:", "user:", "assistant:", "system", "user", "assistant"]:
-                if resp.startswith(tag):
-                    resp = resp[len(tag):].strip()
-                    
-            return resp.strip()
-            
-        # 응답 정제 적용
-        cleaned_answer = clean_response(answer)
-        print(f"원본 응답 시작 부분: {answer[:50]}...")
-        print(f"정제된 응답 시작 부분: {cleaned_answer[:50]}...")
-        
-        # 소스 텍스트가 LLM 출력에 직접 인용된 경우를 확인
-        cited_sources = []
-        
-        # 응답 처리 - 정제된 응답 사용
-        if not cleaned_answer or cleaned_answer.strip() == "":
-            print("정제된 응답이 비어있어 원본 응답을 사용합니다.")
-            cleaned_answer = "안녕하세요! 어떻게 도와드릴까요?"
         
         # 인용 감지를 위한 간단한 키워드 추출
         def extract_keywords(text, min_length=3, max_keywords=20):
@@ -986,10 +970,10 @@ async def search_and_combine(
             return unique_words
             
         # 응답에서 키워드 추출
-        answer_keywords = extract_keywords(cleaned_answer)
+        answer_keywords = extract_keywords(answer)
         
         # answer가 None이 아닌 경우만 인용 처리 진행 
-        if cleaned_answer and isinstance(cleaned_answer, str):
+        if answer and isinstance(answer, str):
             for i, meta in enumerate(source_metadata):
                 cited = False
                 source_text = context_chunks[i] if i < len(context_chunks) else ""
@@ -998,7 +982,7 @@ async def search_and_combine(
                 if len(source_text) > 50:
                     for j in range(0, len(source_text) - 30, 10):
                         snippet = source_text[j:j+30]
-                        if snippet in cleaned_answer:
+                        if snippet in answer:
                             cited = True
                             break
     
@@ -1008,7 +992,7 @@ async def search_and_combine(
                     source_keywords = extract_keywords(source_text)
                     # 키워드 일치율 계산
                     if source_keywords:
-                        matches = [k for k in source_keywords if k in cleaned_answer]
+                        matches = [k for k in source_keywords if k in answer]
                         match_ratio = len(matches) / len(source_keywords)
                         # 키워드의 30% 이상이 응답에 포함되어 있으면 인용으로 간주
                         if match_ratio > 0.3:
@@ -1030,7 +1014,7 @@ async def search_and_combine(
 
         # 최종 응답 생성
         final_result = {
-            "answer": cleaned_answer,  # 정제된 응답 사용
+            "answer": answer,
             "sources": source_metadata,
             "cited_sources": cited_sources,
             "processing_time": {
@@ -2728,9 +2712,3 @@ def highlight_keywords(content, keywords, answer_text=None):
 
 # 상수 선언
 ES_INDEX_NAME = "rag_documents_kure_v1"
-
-# 직접 실행을 위한 코드 추가
-if __name__ == "__main__":
-    import uvicorn
-    print("Qwen2.5-7B 모델로 서버 시작 중...")
-    uvicorn.run(app, host="0.0.0.0", port=8000)

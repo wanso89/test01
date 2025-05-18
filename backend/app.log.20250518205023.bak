@@ -1,0 +1,100 @@
+/home/test_code/test01/rag-chatbot/.venv/lib/python3.10/site-packages/transformers/utils/hub.py:105: FutureWarning: Using `TRANSFORMERS_CACHE` is deprecated and will be removed in v5 of Transformers. Use `HF_HOME` instead.
+  warnings.warn(
+NoneType: None
+2025-05-18 20:48:02,499 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.001s]
+2025-05-18 20:48:02,499 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag_documents_kure_v1 [status:200 duration:0.000s]
+2025-05-18 20:48:02,504 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
+2025-05-18 20:48:03,106 - accelerate.utils.modeling - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+Initializing Elasticsearch client...
+Elasticsearch client connected successfully.
+Loading embedding function...
+임베딩 모델 로드 성공: /home/root/kpf-sbert-v1.1
+Loading LLM model and tokenizer...
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:01<00:04,  1.44s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:03<00:03,  1.57s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:04<00:01,  1.54s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:04<00:00,  1.02it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:04<00:00,  1.18s/it]
+2025-05-18 20:48:08,757 - accelerate.utils.modeling - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+LLM model loaded successfully with Flash Attention.
+GPU 메모리 사용량: 5.62 GB
+Loading reranker model...
+Reranker model loaded successfully.
+SQLCoder 모델 로딩 중...
+SQLCoder 모델 로드 시작: /home/root/llama-3-sqlcoder-8b
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:01<00:04,  1.56s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:03<00:03,  1.69s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:05<00:01,  1.70s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:05<00:00,  1.09s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:05<00:00,  1.30s/it]
+/home/test_code/test01/rag-chatbot/.venv/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:631: UserWarning: `do_sample` is set to `False`. However, `temperature` is set to `0` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `temperature`. This was detected when initializing the generation config instance, which means the corresponding file may hold incorrect parameterization and should be fixed.
+  warnings.warn(
+/home/test_code/test01/rag-chatbot/.venv/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:631: UserWarning: `do_sample` is set to `False`. However, `temperature` is set to `0` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `temperature`.
+  warnings.warn(
+/home/test_code/test01/rag-chatbot/backend/app/main.py:1664: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("startup")
+INFO:     Started server process [4033789]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+GPU 메모리 사용량: 13.02 GB
+SQLCoder 모델 로드 완료
+SQLCoder 모델 로드 성공
+Qwen2.5-7B 모델로 서버 시작 중...
+SQLCoder 모듈 초기화 중...
+SQLCoder 모델을 성공적으로 로드했습니다.
+SQLCoder 초기화 성공: SQLCoder 초기화 성공
+INFO:     127.0.0.1:40648 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40654 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53196 - "GET / HTTP/1.1" 200 OK
+2025-05-18 20:49:01,259 - sentence_transformers.SentenceTransformer - INFO - Start multi-process pool on devices: cuda:0
+--- DEBUG: search_and_combine ---
+Processed query: '안녕하세요?'
+Redis 서버 연결 성공 (localhost:6379)
+/home/test_code/test01/rag-chatbot/.venv/lib/python3.10/site-packages/transformers/utils/hub.py:105: FutureWarning: Using `TRANSFORMERS_CACHE` is deprecated and will be removed in v5 of Transformers. Use `HF_HOME` instead.
+  warnings.warn(
+NoneType: None
+2025-05-18 20:49:04,819 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.001s]
+2025-05-18 20:49:04,820 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag_documents_kure_v1 [status:200 duration:0.000s]
+2025-05-18 20:49:04,824 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
+2025-05-18 20:49:05,403 - accelerate.utils.modeling - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+Initializing Elasticsearch client...
+Elasticsearch client connected successfully.
+Loading embedding function...
+임베딩 모델 로드 성공: /home/root/kpf-sbert-v1.1
+Loading LLM model and tokenizer...
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:01<00:04,  1.49s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:03<00:03,  1.57s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:04<00:01,  1.50s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:04<00:00,  1.05it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:04<00:00,  1.16s/it]
+2025-05-18 20:49:10,959 - accelerate.utils.modeling - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+LLM model loaded successfully with Flash Attention.
+GPU 메모리 사용량: 5.62 GB
+Loading reranker model...
+Reranker model loaded successfully.
+SQLCoder 모델 로딩 중...
+SQLCoder 모델 로드 시작: /home/root/llama-3-sqlcoder-8b
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:01<00:04,  1.56s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:03<00:03,  1.64s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:04<00:01,  1.68s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:05<00:00,  1.07s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:05<00:00,  1.28s/it]
+/home/test_code/test01/rag-chatbot/.venv/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:631: UserWarning: `do_sample` is set to `False`. However, `temperature` is set to `0` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `temperature`. This was detected when initializing the generation config instance, which means the corresponding file may hold incorrect parameterization and should be fixed.
+  warnings.warn(
+/home/test_code/test01/rag-chatbot/.venv/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:631: UserWarning: `do_sample` is set to `False`. However, `temperature` is set to `0` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `temperature`.
+  warnings.warn(
+Chunks:   0%|          | 0/1 [00:00<?, ?it/s]Chunks: 100%|██████████| 1/1 [00:01<00:00,  1.33s/it]Chunks: 100%|██████████| 1/1 [00:01<00:00,  1.33s/it]
+/home/test_code/test01/rag-chatbot/backend/app/main.py:423: DeprecationWarning: Passing transport options in the API method is deprecated. Use 'Elasticsearch.options()' instead.
+  response = self.es_client.search(
+2025-05-18 20:49:17,685 - elastic_transport.transport - INFO - POST http://172.10.2.70:9200/rag_documents_kure_v1/_search [status:200 duration:0.003s]
+/home/test_code/test01/rag-chatbot/backend/app/main.py:528: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.no_grad(), torch.cuda.amp.autocast(enabled=True):
+검색 완료: 10 문서 검색됨
+Retrieval time: 16.43s, Found 10 docs from ES.
+Enhanced search with query variants: 안녕하세요, 안녕하세요?
+Search enhancement time: 0.00s
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.96it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  1.96it/s]
+/home/test_code/test01/rag-chatbot/backend/app/main.py:656: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.no_grad(), torch.cuda.amp.autocast(enabled=True):  # Mixed precision 활성화
+/home/test_code/test01/rag-chatbot/.venv/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:631: UserWarning: `do_sample` is set to `False`. However, `temperature` is set to `0.0` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `temperature`.
+  warnings.warn(
+/home/test_code/test01/rag-chatbot/.venv/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:653: UserWarning: `do_sample` is set to `False`. However, `top_k` is set to `1` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `top_k`.
+  warnings.warn(
+Reranking time: 0.54s, Reranked to 3 docs.
+Combined context length: 505 characters.
+LLM generation time: 1.46s
+응답에 포함된 출처 수: 1
+응답 결과 캐싱 완료: chat:21224979aeee90e03391087a84c57a64
+API 응답 데이터 - 출처 정보: sources=3, cited_sources=1
+인용된 출처 샘플: {'path': '004d94c0-aec1-4b62-ac00-e4d3962d0755_IT 보안서약서_2025.pdf', 'display_name': 'IT 보안서약서_2025.pdf', 'page': 1, 'chunk_id': '1', 'score': 2.995379449372284, 'is_cited': True}
+INFO:     127.0.0.1:34200 - "POST /api/chat HTTP/1.1" 200 OK
