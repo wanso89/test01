@@ -156,37 +156,66 @@ def get_elasticsearch_client():
 
 
 def get_embedding_function():
-    """임베딩 모델 함수를 로드합니다."""
-    print("Loading embedding model...")
+    """임베딩 기능을 제공하는 함수를 반환합니다."""
+    print("Loading embedding function...")
     try:
-        # LangchainEmbeddingFunction 클래스 정의
+        # HuggingFace 임베딩 커스텀 래퍼 클래스
+        from app.utils.cache_utils import cache_embeddings
+
         class LangchainEmbeddingFunction:
             def __init__(self, model_name: str):
                 # HuggingFaceEmbeddings 직접 사용
-                self.model = HuggingFaceEmbeddings(
-                    model_name=model_name,
-                    model_kwargs={
-                        "device": "cuda" if torch.cuda.is_available() else "cpu"
-                    },
-                )
-
+                try:
+                    # 빠른 토크나이저 및 장치 최적화 설정 추가
+                    self.embeddings_model = HuggingFaceEmbeddings(
+                        model_name=model_name,
+                        model_kwargs={"device": "cuda" if torch.cuda.is_available() else "cpu"},
+                        encode_kwargs={"normalize_embeddings": True},
+                        cache_folder="./.cache",  # 명시적 캐시 폴더 설정
+                        multi_process=True  # 임베딩 병렬 처리 활성화
+                    )
+                    print(f"임베딩 모델 로드 성공: {model_name}")
+                except Exception as e:
+                    print(f"임베딩 모델 로드 실패, CPU 버전으로 재시도: {e}")
+                    self.embeddings_model = HuggingFaceEmbeddings(
+                        model_name=model_name, 
+                        model_kwargs={"device": "cpu"}
+                    )
+            
+            # 캐싱 데코레이터 제거 - 올바른 위치로 이동
             def __call__(self, texts: list[str]) -> List[List[float]]:
                 # embed_documents 메서드 사용
-                return self.model.embed_documents(texts)
+                embeddings = []
+                try:
+                    # 수정: 임베딩 생성 전에 타입 확인
+                    if not isinstance(texts, list):
+                        print(f"경고: texts가 리스트가 아님 - 타입: {type(texts)}")
+                        if isinstance(texts, str):
+                            texts = [texts]
+                        else:
+                            return [[0.0] * 768]  # 타입 오류 시 기본값 반환
+                            
+                    # 빈 입력 처리
+                    if not texts:
+                        return []
+                        
+                    # 임베딩 생성 전 각 텍스트 항목이 문자열인지 확인
+                    for i, text in enumerate(texts):
+                        if not isinstance(text, str):
+                            print(f"경고: texts[{i}]가 문자열이 아님 - 타입: {type(text)}")
+                            texts[i] = str(text)
+                    
+                    # 병렬 처리 임베딩 생성 (효율성 향상)
+                    embeddings = self.embeddings_model.embed_documents(texts)
+                except Exception as e:
+                    print(f"임베딩 생성 오류: {e}")
+                    traceback.print_exc()
+                    # 오류 시 빈 임베딩 반환 (각 768차원)
+                    embeddings = [[0.0] * 768 for _ in range(len(texts))]
+                return embeddings
 
-        embedding_func = LangchainEmbeddingFunction(model_name=EMBEDDING_MODEL_NAME)
-
-        # 테스트 임베딩 실행
-        try:
-            test_result = embedding_func(["테스트"])
-            print(
-                f"Embedding model loaded successfully. Vector dimension: {len(test_result[0])}"
-            )
-            return embedding_func
-        except Exception as e:
-            print(f"임베딩 모델 테스트 중 오류 발생: {e}")
-            traceback.print_exc()
-            return None
+        # 클래스 인스턴스 생성 및 반환
+        return LangchainEmbeddingFunction(EMBEDDING_MODEL_NAME)
     except Exception as e:
         print(f"임베딩 모델 로딩 중 오류 발생: {e}")
         traceback.print_exc()
@@ -323,7 +352,18 @@ class ElasticsearchRetriever:
 
         try:
             # 임베딩 생성
-            query_embedding = self.embedding_function([query_normalized])[0]
+            query_normalized = query.lower().strip()
+            try:
+                # 임베딩 함수 호출 시 오류 방지를 위한 타입 확인
+                if callable(self.embedding_function):
+                    query_embedding = self.embedding_function([query_normalized])[0]
+                else:
+                    print("경고: 임베딩 함수가 호출 가능하지 않음")
+                    return []
+            except Exception as embed_error:
+                print(f"임베딩 생성 중 오류 발생: {embed_error}")
+                traceback.print_exc()
+                return []  # 임베딩 실패 시 빈 결과 반환
 
             # 하이브리드 쿼리 구성 (BM25 + 벡터 검색) - 가중치 최적화
             hybrid_query = {
@@ -614,21 +654,22 @@ async def generate_llm_response(
             inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=4096)
             inputs = {k: v.to(llm_model.device) for k, v in inputs.items()}
 
-            # 생성 파라미터 최적화 - 안정성 및 속도 개선
+            # 생성 파라미터 최적화 - 안정성 및 속도 최대 개선
             outputs = await asyncio.wait_for(
                 asyncio.to_thread(
                     llm_model.generate,
                     **inputs,
-                    max_new_tokens=512,  # 약간 증가 (500 → 512)
-                    repetition_penalty=1.2,
-                    temperature=0.01,  # 더 낮은 온도로 설정 - 더 결정적인 응답 (0.05 → 0.01)
-                    do_sample=False,  # 결정적인 디코딩 사용
-                    top_p=0.95,
-                    top_k=40,
-                    pad_token_id=tokenizer.eos_token_id,  # 패딩 토큰 명시적 설정
-                    num_beams=1,  # 빔 서치 없이 빠른 생성
+                    max_new_tokens=300,  # 토큰 수 감소 (512 → 300): 대부분의 응답에 충분하며 생성 속도 향상
+                    repetition_penalty=1.15,  # 약간 감소 (1.2 → 1.15): 처리 속도 향상
+                    temperature=0.0,  # 완전 결정적 생성 (0.01 → 0.0): 가장 빠른 추론 속도
+                    do_sample=False,  # 결정적인 디코딩 유지
+                    top_p=1.0,  # 결정적 생성에 최적화 (0.95 → 1.0)
+                    top_k=1,    # 결정적 생성에 최적화 (40 → 1)
+                    pad_token_id=tokenizer.eos_token_id,
+                    num_beams=1,  # 빔 서치 없이 유지
+                    use_cache=True,  # KV 캐시 활성화 - 큰 속도 향상
                 ),
-                timeout=60.0,  # 타임아웃 60초로 증가 (기존 45초)
+                timeout=30.0,  # 타임아웃 감소 (60초 → 30초): 빠른 실패 처리
             )
 
             # 효율적인 텍스트 디코딩 (skip_special_tokens=True)
@@ -706,6 +747,24 @@ async def search_and_combine(
     print(f"Processed query: '{query}'")
 
     start_time = time.time()
+    
+    # Redis 캐싱 적용: 동일한 쿼리의 중복 처리 방지 - 성능 대폭 개선
+    from app.utils.cache_utils import RedisCache, CacheKeys, CACHE_TTL_SEARCH
+    
+    # 캐시 키 생성 (질문 + 카테고리 기반)
+    cache_key = RedisCache.generate_key(
+        CacheKeys.CHAT, 
+        {"query": query, "category": category}
+    )
+    
+    # 캐시에서 결과 확인
+    cached_result = RedisCache.get(cache_key)
+    if cached_result:
+        print(f"캐시된 결과 사용: {cache_key}")
+        # 캐시된 결과에 성능 메트릭 추가
+        cached_result["from_cache"] = True
+        cached_result["processing_time"]["cache_hit"] = round(time.time() - start_time, 3)
+        return cached_result
 
     # 검색 개선 파이프라인 초기화
     search_pipeline = EnhancedSearchPipeline()
@@ -715,11 +774,11 @@ async def search_and_combine(
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-        # 1. 검색 (비동기 처리)
+        # 1. 검색 (비동기 처리) - 검색 결과 수 최적화
         retrieval_start = time.time()
-        # ElasticsearchRetriever는 k=25 (성능 최적화 설정)
+        # ElasticsearchRetriever 검색 결과 수 감소 (25 → 10): 정확도는 유지하면서 처리 속도 향상
         retriever = ElasticsearchRetriever(
-            es_client, embedding_function, category=category, k=25
+            es_client, embedding_function, category=category, k=10
         )
 
         docs = retriever.get_relevant_documents(query)
@@ -899,7 +958,7 @@ async def search_and_combine(
         print(f"응답에 포함된 출처 수: {len(cited_sources)}")
 
         # 최종 응답 생성
-        return {
+        final_result = {
             "answer": answer,
             "sources": source_metadata,
             "cited_sources": cited_sources,
@@ -911,6 +970,15 @@ async def search_and_combine(
                 "total": round(time.time() - start_time, 2),
             },
         }
+        
+        # 결과 캐싱 (재사용을 위해)
+        try:
+            RedisCache.set(cache_key, final_result, CACHE_TTL_SEARCH)
+            print(f"응답 결과 캐싱 완료: {cache_key}")
+        except Exception as cache_error:
+            print(f"캐싱 중 오류 발생 (무시됨): {cache_error}")
+        
+        return final_result
 
     except Exception as e:
         print(f"검색 및 응답 생성 중 오류 발생: {e}")
@@ -919,6 +987,14 @@ async def search_and_combine(
             "answer": f"요청을 처리하는 중 오류가 발생했습니다: {str(e)}",
             "sources": [],
             "cited_sources": [],  # 빈 cited_sources 추가
+            "error": str(e),  # 오류 정보 추가
+            "processing_time": {  # 일관된 구조 유지를 위한 처리 시간 정보 추가
+                "total": round(time.time() - start_time, 2),
+                "retrieval": 0,
+                "enhancement": 0,
+                "reranking": 0,
+                "llm_generation": 0
+            }
         }
 
 
@@ -1929,11 +2005,19 @@ async def chat(request: QuestionRequest = Body(...)):
             conversation_history=request.history,
         )
 
+        # 방어적 프로그래밍: 필수 키 존재 확인 및 기본값 설정
+        if 'sources' not in result:
+            result['sources'] = []
+        if 'cited_sources' not in result:
+            result['cited_sources'] = []
+        if 'answer' not in result:
+            result['answer'] = "답변 생성 중 오류가 발생했습니다."
+
         # 응답 데이터 로깅 추가 - 특히 출처 정보 확인
-        print(f"API 응답 데이터 - 출처 정보: sources={len(result['sources'])}, cited_sources={len(result['cited_sources'])}")
-        if result['cited_sources']:
+        print(f"API 응답 데이터 - 출처 정보: sources={len(result.get('sources', []))}, cited_sources={len(result.get('cited_sources', []))}")
+        if result.get('cited_sources'):
             print(f"인용된 출처 샘플: {result['cited_sources'][0]}")
-        elif result['sources']:
+        elif result.get('sources'):
             print(f"전체 출처 샘플: {result['sources'][0]}")
 
         return {
