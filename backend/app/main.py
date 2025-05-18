@@ -2387,6 +2387,13 @@ async def process_sql_query(request: SQLQueryRequest = Body(...)):
                 "results": f"❌ SQL 실행 오류: {error_msg}"
             }
         
+        # 결과가 문자열인 경우 (이미 포맷팅된 메시지일 수 있음)
+        if isinstance(results, str):
+            return {
+                "sql": sql,
+                "results": results
+            }
+        
         # 결과가 비어있는 경우
         if not results or len(results) == 0:
             return {
@@ -2420,10 +2427,10 @@ async def process_sql_query(request: SQLQueryRequest = Body(...)):
             }
         except Exception as e:
             print(f"결과 포맷팅 오류: {str(e)}")
-            # JSON 형태로 반환
+            # 결과를 문자열로 변환하여 안전하게 반환
             return {
                 "sql": sql,
-                "results": str(results)
+                "results": f"결과 처리 중 오류가 발생했습니다: {str(e)}\n\n원본 결과: {str(results)}"
             }
             
     except Exception as e:
@@ -2669,7 +2676,7 @@ def highlight_keywords(content, keywords, answer_text=None):
             
             # 하이라이트 적용 및 관련 문단 표시
             if is_relevant:
-                # 키워드 하이라이트 처리
+                # 키워드 볼드 처리와 함께 문단 전체에 배경색 적용
                 highlighted_paragraph = paragraph
                 for keyword in matching_keywords:
                     try:
@@ -2684,6 +2691,12 @@ def highlight_keywords(content, keywords, answer_text=None):
                         )
                     except Exception as e:
                         print(f"하이라이트 오류: {e}")
+                
+                # 관련성에 따라 다른 클래스 적용 (강한 관련성은 진한 노란색, 중간 관련성은 연한 노란색)
+                highlight_class = "highlight-strong" if direct_match else "highlight-medium"
+                
+                # HTML 태그로 감싸서 노란색 배경 적용
+                highlighted_paragraph = f'<span class="{highlight_class}">{highlighted_paragraph}</span>'
                 
                 highlighted_paragraphs.append(highlighted_paragraph)
                 relevant_paragraphs.append({

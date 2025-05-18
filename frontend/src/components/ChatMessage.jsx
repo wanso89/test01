@@ -45,6 +45,8 @@ import {
   FiAlertTriangle,
   FiFileText
 } from "react-icons/fi";
+import rehypeRaw from 'rehype-raw';  // HTML 태그 처리를 위한 플러그인 추가
+import parse from 'html-react-parser'; // HTML 파싱을 위한 라이브러리 추가
 
 // 키워드 하이라이트 애니메이션을 위한 키프레임 스타일 정의
 const keyframesStyle = `
@@ -591,6 +593,85 @@ const SourcePreviewModal = ({ isOpen, onClose, source, content, image, isLoading
     setTimeout(() => setCopySuccess(false), 2000);
   };
   
+  // HTML 태그가 포함된 콘텐츠인지 확인
+  const hasHtmlTags = (text) => {
+    return text && typeof text === 'string' && (
+      text.includes('<span class="highlight-strong">') || 
+      text.includes('<span class="highlight-medium">')
+    );
+  };
+  
+  // 렌더링 콘텐츠 결정
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-400 mb-3"></div>
+          <p className="text-gray-400 text-sm">문서 내용을 불러오는 중...</p>
+        </div>
+      );
+    }
+    
+    if (image) {
+      return (
+        <div className="flex justify-center">
+          <img 
+            src={image} 
+            alt="문서 이미지" 
+            className="max-w-full max-h-[70vh] object-contain"
+          />
+        </div>
+      );
+    }
+    
+    if (!content) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full py-8">
+          <FiFileText className="text-gray-600 mb-4" size={32} />
+          <p className="text-gray-500">내용이 없습니다.</p>
+        </div>
+      );
+    }
+    
+    if (isErrorMessage(content)) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[200px] text-center py-8">
+          <FiAlertTriangle className="text-yellow-500 mb-4" size={32} />
+          <p className="text-gray-300 mb-2 font-medium">문서 내용을 불러올 수 없습니다</p>
+          <div className="text-gray-500 text-sm max-w-md">
+            {formatErrorMessage(content.includes(":") ? content.split(":")[1].trim() : content)}
+          </div>
+        </div>
+      );
+    }
+    
+    // HTML 태그가 포함된 콘텐츠 처리
+    if (hasHtmlTags(content)) {
+      return (
+        <div className="prose prose-sm dark:prose-invert max-w-none">
+          <ReactMarkdown 
+            remarkPlugins={[remarkGfm]} 
+            rehypePlugins={[rehypeHighlight, rehypeRaw]}
+          >
+            {content}
+          </ReactMarkdown>
+        </div>
+      );
+    }
+    
+    // 일반 마크다운 콘텐츠
+    return (
+      <div className="prose prose-sm dark:prose-invert max-w-none">
+        <ReactMarkdown 
+          remarkPlugins={[remarkGfm]} 
+          rehypePlugins={[rehypeHighlight]}
+        >
+          {content}
+        </ReactMarkdown>
+      </div>
+    );
+  };
+  
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
       <div className="bg-gray-900 rounded-xl max-w-3xl w-full max-h-[85vh] flex flex-col">
@@ -627,44 +708,7 @@ const SourcePreviewModal = ({ isOpen, onClose, source, content, image, isLoading
         
         {/* 본문 */}
         <div className="flex-1 overflow-auto p-4">
-          {isLoading ? (
-            <div className="flex flex-col items-center justify-center h-full">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-400 mb-3"></div>
-              <p className="text-gray-400 text-sm">문서 내용을 불러오는 중...</p>
-            </div>
-          ) : image ? (
-            <div className="flex justify-center">
-              <img 
-                src={image} 
-                alt="문서 이미지" 
-                className="max-w-full max-h-[70vh] object-contain"
-              />
-            </div>
-          ) : content ? (
-            isErrorMessage(content) ? (
-              <div className="flex flex-col items-center justify-center min-h-[200px] text-center py-8">
-                <FiAlertTriangle className="text-yellow-500 mb-4" size={32} />
-                <p className="text-gray-300 mb-2 font-medium">문서 내용을 불러올 수 없습니다</p>
-                <div className="text-gray-500 text-sm max-w-md">
-                  {formatErrorMessage(content.includes(":") ? content.split(":")[1].trim() : content)}
-                </div>
-              </div>
-            ) : (
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown 
-                  remarkPlugins={[remarkGfm]} 
-                  rehypePlugins={[rehypeHighlight]}
-                >
-                  {content}
-                </ReactMarkdown>
-              </div>
-            )
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full py-8">
-              <FiFileText className="text-gray-600 mb-4" size={32} />
-              <p className="text-gray-500">내용이 없습니다.</p>
-            </div>
-          )}
+          {renderContent()}
         </div>
         
         {/* 키워드 표시 영역 */}

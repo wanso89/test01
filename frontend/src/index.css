@@ -803,4 +803,28 @@ body {
   .animate-bounce {
     animation: bounce 1s infinite;
   }
+
+  /* 출처 문서 하이라이트 스타일 */
+  .highlight-strong {
+    @apply bg-yellow-300/60 dark:bg-yellow-500/40 p-1 rounded-sm block my-1 border-l-4 border-yellow-400 dark:border-yellow-500;
+  }
+
+  .highlight-medium {
+    @apply bg-yellow-200/40 dark:bg-yellow-600/20 p-1 rounded-sm block my-1 border-l-2 border-yellow-300 dark:border-yellow-600;
+  }
+  
+  /* 키워드 하이라이트 스타일 */
+  .highlight-keyword {
+    @apply font-bold text-amber-900 dark:text-yellow-300 bg-yellow-200/40 dark:bg-yellow-500/20 px-0.5 py-0.5 rounded;
+  }
+  
+  @keyframes highlight-pulse {
+    0% { background-color: rgba(252, 211, 77, 0.3); }
+    50% { background-color: rgba(252, 211, 77, 0.5); }
+    100% { background-color: rgba(252, 211, 77, 0.3); }
+  }
+  
+  .animate-highlight-pulse {
+    animation: highlight-pulse 2s ease-in-out infinite;
+  }
 }

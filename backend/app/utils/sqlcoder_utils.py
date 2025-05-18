@@ -97,7 +97,9 @@ TABLE_KR_MAPPING = {
     "inquiries": ["문의", "질문", "문의사항"],
     "user": ["사용자", "유저", "회원"],
     "user_resource": ["자원", "리소스", "VM", "가상머신"],
-    "user_monthly_stats": ["통계", "월간", "현황"]
+    "user_monthly_stats": ["통계", "월간", "현황"],
+    "admins": ["관리자", "어드민", "운영자"],
+    "inquiry_responses": ["답변", "응답", "문의응답", "문의답변"]
 }
 
 # 로컬 변수로 모델과 토크나이저 저장
@@ -256,7 +258,7 @@ def preprocess_korean_query(question: str) -> str:
     
     return question
 
-
+_schema_cache = None
 def get_mariadb_schema(db_config=None) -> str:
     """
     MariaDB 스키마 정보를 가져옵니다.
@@ -437,7 +439,7 @@ def generate_sql_with_sqlcoder(question: str, schema: str = None) -> str:
         # 생성 설정
         with torch.no_grad():
             generation_config = {
-                "max_new_tokens": 512,
+                "max_new_tokens": 1024,
                 "temperature": 0.0,  # 온도 0으로 설정 (결정적인 출력)
                 "repetition_penalty": 1.1,
                 "num_return_sequences": 1,
