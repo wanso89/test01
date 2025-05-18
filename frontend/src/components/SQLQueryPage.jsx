@@ -903,6 +903,34 @@ const parseTableData = (markdownTable) => {
   }
 };
 
+// 테이블 데이터가 차트로 표시 가능한지 확인하는 함수 추가
+const isDataChartable = (data) => {
+  // 데이터가 비어있거나 유효하지 않은 경우
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return false;
+  }
+  
+  // 최소 1개 이상의 레코드가 필요
+  if (data.length < 1) {
+    return false;
+  }
+  
+  // 키가 2개 이상 있어야 함 (카테고리와 값)
+  const keys = Object.keys(data[0]);
+  if (keys.length < 2) {
+    return false;
+  }
+  
+  // 최소 하나의 숫자 필드가 있는지 확인
+  const hasNumericField = keys.some(key => {
+    // 첫 번째 값이 숫자인지 확인
+    const firstValue = data[0][key];
+    return typeof firstValue === 'number' && !isNaN(firstValue);
+  });
+  
+  return hasNumericField;
+};
+
 // 메시지 버블 컴포넌트
 const MessageBubble = ({ type, content, timestamp, sql, result, onViewChart = () => {} }) => {
   const isUser = type === 'user';
@@ -1010,16 +1038,34 @@ const MessageBubble = ({ type, content, timestamp, sql, result, onViewChart = ()
               
               {/* SQL 코드 */}
               {showSql && (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto max-w-full">
                   <SyntaxHighlighter
                     language="sql"
                     style={vs2015}
+                    wrapLines={true}
+                    wrapLongLines={true}
+                    showLineNumbers={false}
                     customStyle={{
                       margin: 0,
                       padding: '1rem',
                       background: 'transparent',
                       fontSize: '0.8rem',
-                      borderRadius: '0'
+                      borderRadius: '0',
+                      whiteSpace: 'pre-wrap',
+                      overflowWrap: 'break-word',
+                      wordBreak: 'break-all',
+                      width: '100%',
+                      maxWidth: '100%',
+                      overflow: 'hidden'
+                    }}
+                    codeTagProps={{
+                      style: {
+                        whiteSpace: 'pre-wrap',
+                        overflowWrap: 'break-word',
+                        wordBreak: 'break-all',
+                        display: 'block',
+                        width: '100%'
+                      }
                     }}
                   >
                     {sql}
@@ -1435,14 +1481,15 @@ const SQLQueryPage = ({ setMode }) => {
         try {
           const parsedData = parseTableData(results);
           setTableData(parsedData);
-          // 차트 가능 여부 확인
-          setCanShowChart(isDataChartable(parsedData));
+          // 차트 가능 여부 확인 - 클래스 변수로 setCanShowChart 대신 직접 showChart 값 변경
+          const isChartable = isDataChartable(parsedData);
+          setShowChart(isChartable); // setCanShowChart는 존재하지 않으므로 setShowChart 사용
         } catch (parseError) {
           console.error('테이블 데이터 파싱 오류:', parseError);
-          setCanShowChart(false);
+          setShowChart(false); // setCanShowChart 대신 setShowChart 사용
         }
       } else {
-        setCanShowChart(false);
+        setShowChart(false); // setCanShowChart 대신 setShowChart 사용
       }
       
     } catch (error) {

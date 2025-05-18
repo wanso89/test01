@@ -2517,8 +2517,8 @@ async def process_sql_and_llm(request: SQLAndLLMRequest = Body(...)):
                 prompt=explanation_prompt,
                 model=llm_model,
                 tokenizer=tokenizer,
-                temperature=0.1,  # 낮은 온도로 사실적 응답 생성
-                max_new_tokens=512  # 충분한 응답 길이
+                temperature=0.0,  # 낮은 온도로 사실적 응답 생성
+                max_new_tokens=1024  # 충분한 응답 길이
             )
             
             print(f"[SQL+LLM] 생성된 응답 길이: {len(explanation)} 문자")

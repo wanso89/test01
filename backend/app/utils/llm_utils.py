@@ -3,6 +3,7 @@ from functools import lru_cache
 import torch
 import traceback
 from typing import Any
+import re
 
 # 기존 함수들 유지하면서 아래 함수 개선
 
@@ -125,7 +126,7 @@ async def generate_response_async(model, tokenizer, prompt, max_tokens=1000, tem
     """
     LLM 모델을 사용하여 프롬프트에 대한 응답을 생성합니다.
     """
-    from app.utils.generator import generate_llm_response
+    from app.main import generate_llm_response
     
     # 기존 LLM 응답 생성 함수 활용
     return await generate_llm_response(
@@ -247,20 +248,58 @@ def generate_text_with_local_llm(
         # Gemma 모델인 경우 <end_of_turn> 태그 제거
         if is_gemma and "<end_of_turn>" in generated_text:
             generated_text = generated_text.split("<end_of_turn>")[0].strip()
-            
-        print(f"[LLM_UTILS] 생성 완료: {len(generated_text)} 문자")
-        return generated_text.strip()
         
-    except RuntimeError as e:
-        error_msg = str(e)
-        print(f"[LLM_UTILS] 로컬 LLM 텍스트 생성 중 오류: {error_msg}")
-        if "CUDA out of memory" in error_msg:
-            return "GPU 메모리 부족으로 텍스트 생성에 실패했습니다. 더 짧은 프롬프트를 사용하거나 관리자에게 문의하세요."
-        elif "Cannot run the event loop while another loop is running" in error_msg:
-            return "이벤트 루프 충돌 문제가 발생했습니다. 관리자에게 문의하세요."
-        else:
-            return f"텍스트 생성 중 런타임 오류가 발생했습니다: {error_msg}"
+        # 응답 후처리 강화
+        # 1. 번호로 시작하는 불필요한 접두어 제거
+        # 숫자+점+공백으로 시작하는 패턴 제거 (예: "8. 결과가 많다면...")
+        generated_text = re.sub(r'^(\d+\.\s+[^a-zA-Z가-힣]*)', '', generated_text)
+        
+        # 2. 일반적인 마커 검출 및 제거
+        markers = [
+            "## 답변", "답변:", "답변은 다음과 같습니다:", "응답:", "결과:", 
+            "위 정보를 바탕으로", "결과가 많다면", "분석 결과:"
+        ]
+        
+        for marker in markers:
+            if marker in generated_text:
+                parts = generated_text.split(marker, 1)
+                if len(parts) > 1:
+                    generated_text = parts[1].strip()
+                    break
+        
+        # 3. 여러 줄의 번호 패턴 제거 (예: 1. ... 2. ... 3. ... 형태에서 번호만 제거)
+        lines = generated_text.split('\n')
+        clean_lines = []
+        
+        for line in lines:
+            # 줄의 시작 부분이 번호로 시작하는 경우 (예: "1. ", "2) ", "[3]" 등)
+            cleaned_line = re.sub(r'^(\d+[\.\)\]]\s+)', '', line)
+            clean_lines.append(cleaned_line)
+        
+        generated_text = '\n'.join(clean_lines)
+        
+        # 4. 불필요한 항목 지시 제거
+        unwanted_phrases = [
+            "다음과 같습니다:",
+            "다음과 같습니다.",
+            "위 SQL 쿼리의 결과를 바탕으로",
+            "SQL 쿼리 결과에 따르면",
+            "결과가 많다면 상위 몇 명을 제시하는 것이 좋습니다.",
+            "이 결과는",
+            "쿼리 결과를 분석하면",
+        ]
+        
+        for phrase in unwanted_phrases:
+            generated_text = generated_text.replace(phrase, "")
+        
+        # 최종 정리 및 공백 제거
+        generated_text = generated_text.strip()
+                
+        print(f"[LLM_UTILS] 생성 완료: {len(generated_text)} 문자")
+        return generated_text
+        
     except Exception as e:
-        print(f"[LLM_UTILS] 로컬 LLM 텍스트 생성 중 오류: {str(e)}")
+        print(f"[LLM_UTILS] 텍스트 생성 중 오류: {str(e)}")
+        import traceback
         traceback.print_exc()
-        return f"텍스트 생성 중 오류가 발생했습니다: {str(e)}" 
+        return f"응답 생성 중 오류가 발생했습니다: {str(e)}" 
