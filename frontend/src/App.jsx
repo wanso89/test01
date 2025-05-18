@@ -176,6 +176,11 @@ function App() {
   // mode 상태가 변경될 때 toast 메시지 표시
   useEffect(() => {
     console.log('모드 변경됨:', mode);
+    // 전역 변수에 현재 모드 저장 (ModeToggleSwitch 컴포넌트에서 참조)
+    if (typeof window !== 'undefined') {
+      window.currentAppMode = mode;
+    }
+    
     // 모드 변경 시 토스트 메시지 표시
     if (mode === 'sql') {
       showModeChangeToast('SQL 질의 모드로 전환했습니다');
@@ -980,20 +985,21 @@ function App() {
     // 새 토스트 생성
     const toast = document.createElement('div');
     toast.id = 'mode-switch-toast';
-    toast.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-indigo-600 to-indigo-800 text-white px-5 py-3 rounded-xl shadow-2xl z-[9999] flex items-center gap-3 transition-all duration-150 pointer-events-none';
+    toast.className = 'fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900/95 backdrop-blur text-white px-5 py-3.5 rounded-xl shadow-2xl z-[9999] flex items-center gap-3 transition-all duration-300 pointer-events-none border border-indigo-500/30';
     toast.style.opacity = '0';
+    toast.style.transform = 'translate(-50%, 20px)';
     
     // 토스트 내용 생성
     const iconDiv = document.createElement('div');
-    iconDiv.className = 'w-10 h-10 rounded-full bg-white/20 flex items-center justify-center';
+    iconDiv.className = 'w-8 h-8 rounded-full bg-indigo-600/30 flex items-center justify-center';
     
     // 모드에 따라 다른 아이콘 표시
     const isSqlMode = message.includes('SQL');
     
     const iconSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     iconSvg.setAttribute('viewBox', '0 0 24 24');
-    iconSvg.setAttribute('width', '24');
-    iconSvg.setAttribute('height', '24');
+    iconSvg.setAttribute('width', '20');
+    iconSvg.setAttribute('height', '20');
     iconSvg.setAttribute('fill', 'none');
     iconSvg.setAttribute('stroke', 'currentColor');
     iconSvg.setAttribute('stroke-width', '2');
@@ -1006,26 +1012,38 @@ function App() {
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       path.setAttribute('d', 'M12 2a8 8 0 0 0-8 8v12c0 .6.4 1 1 1h14c.6 0 1-.4 1-1V10a8 8 0 0 0-8-8zm0 0v8m-8 2h16m-8 2v8');
       iconSvg.appendChild(path);
+      iconDiv.classList.add('text-indigo-400');
     } else {
       // Message 아이콘
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       path.setAttribute('d', 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z');
       iconSvg.appendChild(path);
+      iconDiv.classList.add('text-blue-400');
     }
     
     iconDiv.appendChild(iconSvg);
     toast.appendChild(iconDiv);
     
+    const messageContainer = document.createElement('div');
+    messageContainer.className = 'flex flex-col';
+    
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'text-xs font-semibold text-indigo-300 mb-0.5';
+    titleSpan.textContent = isSqlMode ? 'SQL 모드' : '챗봇 모드';
+    messageContainer.appendChild(titleSpan);
+    
     const messageSpan = document.createElement('span');
-    messageSpan.className = 'font-medium';
+    messageSpan.className = 'font-medium text-sm';
     messageSpan.textContent = message;
-    toast.appendChild(messageSpan);
+    messageContainer.appendChild(messageSpan);
+    
+    toast.appendChild(messageContainer);
     
     // 토스트에 애니메이션 효과 추가
     const animDiv = document.createElement('div');
-    animDiv.className = 'absolute bottom-0 left-0 h-1 bg-white/30 rounded-b-xl';
+    animDiv.className = 'absolute bottom-0 left-0 h-1 bg-indigo-500/50 rounded-b-xl';
     animDiv.style.width = '100%';
-    animDiv.style.animation = 'toast-timer 400ms linear forwards';
+    animDiv.style.animation = 'toast-timer 1500ms ease-in-out forwards';
     toast.appendChild(animDiv);
     
     // 토스트 애니메이션 키프레임 추가
@@ -1044,12 +1062,14 @@ function App() {
     // 토스트 표시 애니메이션
     setTimeout(() => {
       toast.style.opacity = "1";
+      toast.style.transform = 'translate(-50%, 0)';
       console.log('토스트 표시됨');
     }, 10);
     
-    // 토스트 제거 (0.4초 후)
+    // 토스트 제거 (1.5초 후)
     setTimeout(() => {
       toast.style.opacity = "0";
+      toast.style.transform = 'translate(-50%, 20px)';
       console.log('토스트 숨김 처리');
       setTimeout(() => {
         if (document.body.contains(toast)) {
@@ -1059,8 +1079,8 @@ function App() {
         if (document.head.contains(styleElement)) {
           document.head.removeChild(styleElement);
         }
-      }, 150);
-    }, 400);
+      }, 300);
+    }, 1500);
   };
 
   return (
@@ -1137,6 +1157,7 @@ function App() {
               setFileManagerOpen={setFileManagerOpen}
               sidebarOpen={sidebarOpen}
               setMode={setMode}
+              currentMode={mode}
               key="chat-container-component"
             />
           </div>

@@ -5,7 +5,7 @@ import {
   FiZap, FiArrowRight, FiColumns, FiTerminal, FiCpu, FiSquare, FiUser,
   FiBarChart2, FiPieChart, FiList, FiClock, FiMessageSquare, FiMessageCircle,
   FiSave, FiChevronRight, FiChevronLeft, FiActivity, FiX, FiTrash2, FiChevronDown,
-  FiCornerDownRight
+  FiCornerDownRight, FiPlayCircle, FiDownload, FiChevronsDown, FiChevronsUp, FiMaximize, FiMinimize, FiRefreshCw, FiClipboard, FiCheck, FiRotateCw
 } from 'react-icons/fi';
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus as vs2015 } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -1533,63 +1533,91 @@ const SQLQueryPage = ({ setMode }) => {
     ? '자연어로 질문을 입력하세요. 예: "최근 주문 5건을 보여줘"' 
     : '자연어로 질문을 입력하세요. 예: "지난 달 주문 통계를 분석해줘"';
 
-  // 모드 전환 토글 컴포넌트 추가
+  // 모드 전환 토글 컴포넌트
   const ModeToggleSwitch = () => {
-    // 사용자 상호작용 시 토글 상태 변경
-    const handleToggleMode = (e) => {
-      // 이벤트 버블링 방지
+    // 현재 모드 (SQL 페이지에서는 항상 'sql'이 활성화)
+    const mode = 'sql'; 
+    
+    // 모드 전환 핸들러
+    const handleToggleMode = (newMode) => (e) => {
       e.preventDefault();
       e.stopPropagation();
       
-      console.log('SQLQueryPage ModeToggleSwitch: 챗봇 모드로 전환 시작');
-      console.log('SQLQueryPage ModeToggleSwitch: setMode props 값:', setMode);
+      // 같은 모드 클릭 시 무시
+      if (newMode === mode) return;
       
       try {
-        // 명시적으로 'chat' 모드로 전환
+        // 모드 전환 함수 호출
         if (typeof setMode === 'function') {
-          setMode('chat');
-          console.log('챗봇 모드 전환 함수 호출 완료');
-        } else {
-          console.error('setMode가 함수가 아닙니다:', setMode);
-        }
+          setMode(newMode);
+          console.log(`${newMode} 모드로 전환 함수 호출`);
         
-        // 사용자에게 시각적 피드백 제공
-        const button = e.currentTarget;
-        button.classList.add('scale-95', 'bg-blue-700');
-        setTimeout(() => {
-          button.classList.remove('scale-95', 'bg-blue-700');
-        }, 200);
+          // 버튼 효과
+          const button = e.currentTarget;
+          button.classList.add('scale-95');
+          setTimeout(() => {
+            button.classList.remove('scale-95');
+          }, 200);
+        }
       } catch (err) {
         console.error('모드 전환 중 오류 발생:', err);
-        alert('모드 전환 중 오류가 발생했습니다: ' + err.message);
       }
     };
-
-    useEffect(() => {
-      console.log('SQLQueryPage ModeToggleSwitch 마운트됨, setMode:', setMode);
-    }, [setMode]);
-
+    
     return (
       <div className="fixed right-6 top-1/2 transform -translate-y-1/2 z-20">
-        <div className="relative group">
+        <div className="bg-gray-800/90 backdrop-blur-md rounded-full p-2 shadow-lg border border-gray-700/50 flex flex-col gap-3">
+          {/* 배경 효과 - 활성화된 모드에 따라 움직임 */}
+          <div className="absolute inset-x-1.5 w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-600/20 filter blur-sm transition-all duration-300 ease-in-out pointer-events-none" 
+               style={{ 
+                 top: mode === 'chat' ? '0.4rem' : '2.9rem',
+                 opacity: 0.7
+               }}>
+          </div>
+          
+          {/* 챗봇 모드 버튼 */}
           <button 
-            onClick={handleToggleMode}
-            className="transition-all duration-300 w-14 h-14 bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-md hover:from-blue-600/70 hover:to-blue-800/70 rounded-full flex items-center justify-center shadow-lg border border-gray-700/50 hover:border-blue-500/50 hover:shadow-blue-500/20"
+            onClick={handleToggleMode('chat')}
+            className={`relative transition-all duration-300 w-8 h-8 rounded-full flex items-center justify-center ${
+              mode === 'chat' 
+                ? 'bg-gradient-to-br from-blue-500/80 to-indigo-600/80 text-white shadow-md shadow-blue-500/20' 
+                : 'bg-gray-800/80 text-gray-400 hover:text-gray-200 hover:bg-gray-700/60'
+            }`}
             title="챗봇 모드로 전환"
             data-testid="chat-mode-toggle"
           >
-            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-800/80 hover:bg-blue-600/30 backdrop-blur-sm">
-              <FiMessageSquare size={20} className="text-gray-300 group-hover:text-white transition-colors" />
-            </div>
+            {/* 활성화 효과 - 고리 애니메이션 */}
+            {mode === 'chat' && (
+              <>
+                <div className="absolute inset-0 rounded-full border border-blue-400/30 animate-ping opacity-30"></div>
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-blue-500/5 to-indigo-600/5 animate-pulse"></div>
+              </>
+            )}
+            
+            <FiMessageCircle size={14} className="transition-all duration-300" />
           </button>
           
-          {/* 모드 라벨 */}
-          <div className="absolute top-1/2 right-full transform -translate-y-1/2 mr-3 px-3 py-1.5 rounded-lg bg-gray-800/80 backdrop-blur-sm border border-gray-700/50 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-            <span className="text-xs font-medium whitespace-nowrap">챗봇 모드로 전환</span>
-          </div>
-          
-          {/* 장식 효과 */}
-          <div className="absolute -inset-0.5 rounded-full bg-blue-500/20 filter blur opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+          {/* SQL 모드 버튼 */}
+          <button 
+            onClick={handleToggleMode('sql')}
+            className={`relative transition-all duration-300 w-8 h-8 rounded-full flex items-center justify-center ${
+              mode === 'sql' 
+                ? 'bg-gradient-to-br from-indigo-500/80 to-purple-600/80 text-white shadow-md shadow-indigo-500/20' 
+                : 'bg-gray-800/80 text-gray-400 hover:text-gray-200 hover:bg-gray-700/60'
+            }`}
+            title="SQL 질의 모드로 전환"
+            data-testid="sql-mode-toggle"
+          >
+            {/* 활성화 효과 - 고리 애니메이션 */}
+            {mode === 'sql' && (
+              <>
+                <div className="absolute inset-0 rounded-full border border-indigo-400/30 animate-ping opacity-30"></div>
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-500/5 to-purple-600/5 animate-pulse"></div>
+              </>
+            )}
+            
+            <FiDatabase size={14} className="transition-all duration-300" />
+          </button>
         </div>
       </div>
     );
@@ -1790,35 +1818,23 @@ const SQLQueryPage = ({ setMode }) => {
         
         {/* 메인 영역 - 디자인 통일 */}
         <div className="flex-1 overflow-hidden flex flex-col">
-          {/* 예시 질문 영역 개선 - 드롭다운 메뉴 방식으로 변경 */}
-          <div className="bg-gray-900/40 border-b border-gray-800/50 py-2 px-4">
+          {/* 예시 질문 영역에서 카테고리 버튼들 제거 - 이 부분을 수정합니다 */}
+          <div className="bg-gray-900/40 px-4 py-2">
             {/* 드롭다운 메뉴 방식으로 변경 */}
             <div className="flex items-center gap-3 flex-wrap">
-              {exampleQuestions.map((category, catIdx) => (
-                <div key={catIdx} className="relative group">
-                  <button className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-gray-800/70 hover:bg-indigo-600/40 border border-gray-700/30 hover:border-indigo-500/40 rounded-md transition-colors">
-                    <FiHelpCircle size={12} className="text-indigo-400" />
-                    <span className="text-gray-300">{category.category}</span>
-                    <FiChevronDown size={14} className="text-gray-400 group-hover:text-indigo-300 transition-colors" />
-                  </button>
-                  
-                  {/* 드롭다운 메뉴 */}
-                  <div className="absolute left-0 top-full mt-1 z-20 bg-gray-800 rounded-md shadow-lg border border-gray-700/50 overflow-hidden w-64 max-h-0 group-hover:max-h-60 transition-all duration-300 opacity-0 group-hover:opacity-100 invisible group-hover:visible">
-                    <div className="p-1">
-                      {category.questions.map((q, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => handleExampleClick(q)}
-                          className="w-full text-left text-xs px-3 py-2 rounded-md hover:bg-indigo-600/40 text-gray-300 hover:text-white transition-colors flex items-center"
-                        >
-                          <FiArrowRight size={10} className="mr-2 text-indigo-400 flex-shrink-0" />
-                          <span className="line-clamp-2">{q}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+              {/* 선택된 질문만 남기고 표시 */}
+              {EXAMPLE_QUESTIONS.slice(0, 4).map((question, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleExampleClick(question)}
+                  className="text-xs px-3 py-1.5 bg-gray-800/70 hover:bg-indigo-600/40 border border-gray-700/30 hover:border-indigo-500/40 rounded-md text-gray-300 hover:text-white transition-colors flex items-center gap-1.5"
+                >
+                  <FiHelpCircle size={12} className="text-indigo-400" />
+                  <span className="line-clamp-1">
+                    {question.length > 25 ? question.substring(0, 22) + '...' : question}
+                  </span>
+                </button>
               ))}
               
               {/* 마지막으로 사용한 질문 표시 */}

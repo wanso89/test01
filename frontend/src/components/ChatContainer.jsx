@@ -777,7 +777,8 @@ function ChatContainer({
   fileManagerOpen,
   setFileManagerOpen,
   sidebarOpen,
-  setMode // onToggleMode 대신 setMode를 받습니다
+  setMode, // onToggleMode 대신 setMode를 받습니다
+  currentMode // 현재 모드 props 추가
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -1469,60 +1470,98 @@ function ChatContainer({
   // 모드 전환 토글 컴포넌트 추가
   const ModeToggleSwitch = () => {
     // 사용자 상호작용 시 토글 상태 변경
-    const handleToggleMode = (e) => {
+    const handleToggleMode = (newMode) => (e) => {
       // 이벤트 버블링 방지
       e.preventDefault();
       e.stopPropagation();
       
-      console.log('ModeToggleSwitch: SQL 모드로 전환 시작');
-      console.log('ModeToggleSwitch: setMode props 값:', setMode);
+      // 같은 모드를 다시 클릭한 경우 무시
+      if (mode === newMode) return;
+      
+      console.log(`ModeToggleSwitch: ${newMode} 모드로 전환 시작`);
       
       try {
-        // 명시적으로 'sql' 모드로 전환 - 사이드바 버튼과 동일한 방식으로 호출
+        // 해당 모드로 전환
         if (typeof setMode === 'function') {
-          setMode('sql');
-          console.log('SQL 모드 전환 함수 호출 완료');
+          setMode(newMode);
+          console.log(`${newMode} 모드 전환 함수 호출 완료`);
+          
+          // 버튼 효과
+          const button = e.currentTarget;
+          button.classList.add('scale-95');
+          setTimeout(() => {
+            button.classList.remove('scale-95');
+          }, 200);
+          
+          // 클릭 효과음 (향후 추가 가능)
+          // const audio = new Audio('/sounds/switch-click.mp3');
+          // audio.volume = 0.2;
+          // audio.play().catch(e => console.log('오디오 재생 실패:', e));
         } else {
           console.error('setMode가 함수가 아닙니다:', setMode);
         }
-        
-        // 사용자에게 시각적 피드백 제공
-        const button = e.currentTarget;
-        button.classList.add('scale-95', 'bg-indigo-700');
-        setTimeout(() => {
-          button.classList.remove('scale-95', 'bg-indigo-700');
-        }, 200);
       } catch (err) {
         console.error('모드 전환 중 오류 발생:', err);
-        alert('모드 전환 중 오류가 발생했습니다: ' + err.message);
       }
     };
 
-    useEffect(() => {
-      console.log('ModeToggleSwitch 마운트됨, setMode:', setMode);
-    }, [setMode]);
+    // props로 전달받은 현재 모드 사용 (fallback으로 window.currentAppMode도 확인)
+    const mode = currentMode || (typeof window !== 'undefined' && window.currentAppMode) || 'chat';
 
     return (
       <div className="fixed right-6 top-1/2 transform -translate-y-1/2 z-20">
-        <div className="relative group">
+        <div className="bg-gray-800/90 backdrop-blur-md rounded-full p-2 shadow-lg border border-gray-700/50 flex flex-col gap-3">
+          {/* 배경 효과 - 활성화된 모드에 따라 움직임 */}
+          <div className="absolute inset-x-1.5 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500/20 to-indigo-600/20 filter blur-sm transition-all duration-300 ease-in-out pointer-events-none" 
+               style={{ 
+                 top: mode === 'chat' ? '0.4rem' : '2.9rem',
+                 opacity: 0.7
+               }}>
+          </div>
+          
+          {/* 챗봇 모드 버튼 */}
           <button 
-            onClick={handleToggleMode}
-            className="transition-all duration-300 w-14 h-14 bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-md hover:from-indigo-600/70 hover:to-indigo-800/70 rounded-full flex items-center justify-center shadow-lg border border-gray-700/50 hover:border-indigo-500/50 hover:shadow-indigo-500/20"
+            onClick={handleToggleMode('chat')}
+            className={`relative transition-all duration-300 w-8 h-8 rounded-full flex items-center justify-center ${
+              mode === 'chat' 
+                ? 'bg-gradient-to-br from-blue-500/80 to-indigo-600/80 text-white shadow-md shadow-blue-500/20' 
+                : 'bg-gray-800/80 text-gray-400 hover:text-gray-200 hover:bg-gray-700/60'
+            }`}
+            title="챗봇 모드로 전환"
+            data-testid="chat-mode-toggle"
+          >
+            {/* 활성화 효과 - 고리 애니메이션 */}
+            {mode === 'chat' && (
+              <>
+                <div className="absolute inset-0 rounded-full border border-blue-400/30 animate-ping opacity-30"></div>
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-blue-500/5 to-indigo-600/5 animate-pulse"></div>
+              </>
+            )}
+            
+            <FiMessageCircle size={14} className="transition-all duration-300" />
+          </button>
+          
+          {/* SQL 모드 버튼 */}
+          <button 
+            onClick={handleToggleMode('sql')}
+            className={`relative transition-all duration-300 w-8 h-8 rounded-full flex items-center justify-center ${
+              mode === 'sql' 
+                ? 'bg-gradient-to-br from-indigo-500/80 to-purple-600/80 text-white shadow-md shadow-indigo-500/20' 
+                : 'bg-gray-800/80 text-gray-400 hover:text-gray-200 hover:bg-gray-700/60'
+            }`}
             title="SQL 질의 모드로 전환"
             data-testid="sql-mode-toggle"
           >
-            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gray-800/80 hover:bg-indigo-600/30 backdrop-blur-sm">
-              <FiDatabase size={20} className="text-gray-300 group-hover:text-white transition-colors" />
-            </div>
+            {/* 활성화 효과 - 고리 애니메이션 */}
+            {mode === 'sql' && (
+              <>
+                <div className="absolute inset-0 rounded-full border border-indigo-400/30 animate-ping opacity-30"></div>
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-500/5 to-purple-600/5 animate-pulse"></div>
+              </>
+            )}
+            
+            <FiDatabase size={14} className="transition-all duration-300" />
           </button>
-          
-          {/* 모드 라벨 */}
-          <div className="absolute top-1/2 right-full transform -translate-y-1/2 mr-3 px-3 py-1.5 rounded-lg bg-gray-800/80 backdrop-blur-sm border border-gray-700/50 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-            <span className="text-xs font-medium whitespace-nowrap">SQL 질의 모드로 전환</span>
-          </div>
-          
-          {/* 장식 효과 */}
-          <div className="absolute -inset-0.5 rounded-full bg-indigo-500/20 filter blur opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
         </div>
       </div>
     );
@@ -1615,9 +1654,9 @@ function ChatContainer({
       {/* 모드 전환 스위치 추가 */}
       <ModeToggleSwitch />
 
-      {/* 입력 영역 */}
-      <div className="bg-gray-900 relative z-10">
-        <div className="max-w-4xl mx-auto w-full">
+      {/* 입력 영역 - SQL 질의 화면과 스타일 통일 */}
+      <div className="px-4 py-3 border-t border-gray-800/50 bg-gray-900/70 backdrop-blur-sm">
+        <div className="max-w-4xl mx-auto">
           <ChatInput
             ref={chatInputRef}
             onSend={handleSubmit}
@@ -1636,7 +1675,7 @@ function ChatContainer({
           
           {/* 에러 표시 */}
           {error && (
-            <div className="mx-auto max-w-4xl mt-1 mb-2 text-red-500 text-sm px-4 animate-fade-in">
+            <div className="mt-1 text-red-500 text-sm animate-fade-in">
               <div className="flex items-center bg-red-950/30 p-2 rounded-lg">
                 <FiAlertCircle className="mr-2 flex-shrink-0" size={14} />
                 <span>{error}</span>
