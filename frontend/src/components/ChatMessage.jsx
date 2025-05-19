@@ -1419,7 +1419,34 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     if (!content) return '';
     
     // 원본 콘텐츠 보존
-    let processedContent = content;
+    let processedContent = String(content);
+    
+    // 비정상 태그 패턴 감지 및 제거
+    const detectMalformedTags = (text) => {
+      // 정상적이지 않은 태그 패턴 예: <<tag>, <tag<, <tag</tag>, 등
+      const malformedTagPattern = /<<\/?[a-zA-Z][^>]*>|<[a-zA-Z][^>]*<|<[^>]*<\/[^>]*>/g;
+      
+      const malformedTags = text.match(malformedTagPattern);
+      if (malformedTags && malformedTags.length > 0) {
+        console.log('비정상 태그 감지:', malformedTags);
+        // 비정상 태그 제거
+        return text.replace(malformedTagPattern, '');
+      }
+      return text;
+    };
+    
+    // 비정상 태그 수정
+    processedContent = detectMalformedTags(processedContent);
+    
+    // 마크다운 코드 블록 탐지 및 보호
+    const codeBlockPattern = /```(\w*)\n([\s\S]*?)```/g;
+    const codeBlocks = [];
+    
+    processedContent = processedContent.replace(codeBlockPattern, (match, language, code) => {
+      const placeholder = `CODE_BLOCK_${codeBlocks.length}`;
+      codeBlocks.push({placeholder, language, code});
+      return placeholder;
+    });
     
     // 마크다운 테이블 형식이 있는지 먼저 확인
     const hasMarkdownTable = /\|[\s-]+\|/.test(processedContent);
@@ -1427,13 +1454,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     // 테이블 변환 - 마크다운 테이블 형식으로 변환
     if (!hasMarkdownTable && /<table>|<tr>|<td>|<th>/.test(processedContent)) {
       try {
-        // 테이블 태그 균형 확인 로그
-        const tableOpenCount = (processedContent.match(/<table>/g) || []).length;
-        const tableCloseCount = (processedContent.match(/<\/table>/g) || []).length;
-        
-        console.log(`테이블 태그 균형: 열림(${tableOpenCount}) 닫힘(${tableCloseCount})`);
-        
-        // 테이블 추출 및 변환 (멀티라인 지원)
+        // HTML 테이블을 마크다운으로 변환
         const tablePattern = /<table>([\s\S]*?)<\/table>/g;
         let matches;
         let lastIndex = 0;
@@ -1442,62 +1463,46 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
         while ((matches = tablePattern.exec(processedContent)) !== null) {
           // 테이블 앞 부분 추가
           result += processedContent.substring(lastIndex, matches.index);
-          
-          // 테이블 콘텐츠 추출
-          const tableContent = matches[1];
           lastIndex = matches.index + matches[0].length;
           
-          // 테이블 헤더와 바디 추출
-          let tableRows = [];
-          let headerProcessed = false;
+          const tableContent = matches[1];
+          // thead, tbody 태그 제거
+          const cleanedContent = tableContent.replace(/<thead>|<\/thead>|<tbody>|<\/tbody>/g, '');
           
-          // thead와 tbody 태그가 있는 경우 분리 처리
-          const theadMatch = /<thead>([\s\S]*?)<\/thead>/.exec(tableContent);
-          const tbodyMatch = /<tbody>([\s\S]*?)<\/tbody>/.exec(tableContent);
-          
-          if (theadMatch) {
-            // thead에서 행 추출
-            const headerRowMatch = /<tr>([\s\S]*?)<\/tr>/.exec(theadMatch[1]);
-            if (headerRowMatch) {
-              const headerCells = headerRowMatch[1].match(/<th>([\s\S]*?)<\/th>/g) || [];
-              if (headerCells.length > 0) {
-                const headerValues = headerCells.map(cell => 
-                  cell.replace(/<th>([\s\S]*?)<\/th>/, '$1').trim()
-                );
-                tableRows.push(`| ${headerValues.join(' | ')} |`);
-                tableRows.push(`| ${headerValues.map(() => '---').join(' | ')} |`);
-                headerProcessed = true;
-              }
-            }
+          // 행(row) 추출
+          const rows = cleanedContent.match(/<tr>([\s\S]*?)<\/tr>/g);
+          if (!rows) {
+            // 추출 실패 시 원본 유지
+            result += matches[0];
+            continue;
           }
           
-          // tbody 처리 또는 직접 tr 추출
-          const rowsContent = tbodyMatch ? tbodyMatch[1] : tableContent;
-          const rowPattern = /<tr>([\s\S]*?)<\/tr>/g;
-          let rowMatch;
+          const tableRows = [];
+          let headerProcessed = false;
           
-          while ((rowMatch = rowPattern.exec(rowsContent)) !== null) {
-            const rowContent = rowMatch[1];
-            const thCells = rowContent.match(/<th>([\s\S]*?)<\/th>/g) || [];
-            const tdCells = rowContent.match(/<td>([\s\S]*?)<\/td>/g) || [];
+          // 각 행 처리
+          for (const row of rows) {
+            // 헤더(th) 및 데이터(td) 셀 추출
+            const headerCells = row.match(/<th>([\s\S]*?)<\/th>/g);
+            const cells = row.match(/<td>([\s\S]*?)<\/td>/g);
             
-            // 첫 번째 행이 th 셀을 가지고 있고, 헤더가 아직 처리되지 않은 경우
-            if (thCells.length > 0 && !headerProcessed) {
-              const headerValues = thCells.map(cell => 
-                cell.replace(/<th>([\s\S]*?)<\/th>/, '$1').trim()
-              );
-              tableRows.push(`| ${headerValues.join(' | ')} |`);
-              tableRows.push(`| ${headerValues.map(() => '---').join(' | ')} |`);
-              headerProcessed = true;
-            } 
-            // td 셀 처리
-            else if (tdCells.length > 0) {
-              const cellValues = tdCells.map(cell => 
-                cell.replace(/<td>([\s\S]*?)<\/td>/, '$1').trim()
-              );
+            // 헤더 행 처리
+            if (headerCells && headerCells.length > 0) {
+              const cellValues = headerCells.map(cell => 
+                cell.replace(/<th>([\s\S]*?)<\/th>/g, '$1').trim());
               
-              // 첫 번째 행이고 아직 헤더가 없는 경우, 헤더로 처리
-              if (tableRows.length === 0) {
+              tableRows.push(`| ${cellValues.join(' | ')} |`);
+              // 헤더와 본문 분리용 구분선 추가
+              tableRows.push(`| ${cellValues.map(() => '---').join(' | ')} |`);
+              headerProcessed = true;
+            }
+            // 데이터 행 처리
+            else if (cells && cells.length > 0) {
+              const cellValues = cells.map(cell => 
+                cell.replace(/<td>([\s\S]*?)<\/td>/g, '$1').trim());
+              
+              // 헤더 행이 없었다면 첫 번째 데이터 행을 헤더로 사용
+              if (!headerProcessed && tableRows.length === 0) {
                 tableRows.push(`| ${cellValues.join(' | ')} |`);
                 tableRows.push(`| ${cellValues.map(() => '---').join(' | ')} |`);
                 headerProcessed = true;
@@ -1507,7 +1512,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
             }
           }
           
-          // 마크다운 테이블 생성
+          // 마크다운 테이블 추가
           if (tableRows.length > 0) {
             result += '\n' + tableRows.join('\n') + '\n';
           } else {
@@ -1516,7 +1521,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
           }
         }
         
-        // 테이블 다음 부분 추가
+        // 테이블 이후 부분 추가
         result += processedContent.substring(lastIndex);
         processedContent = result;
       } catch (error) {
@@ -1546,12 +1551,32 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     // 색상 태그 처리 (font color)
     processedContent = processedContent.replace(/<font color="([\s\S]*?)">([\s\S]*?)<\/font>/g, '**$2**');
     
+    // 중복 마크다운 패턴 제거 (예: ****text**** -> **text**)
+    processedContent = processedContent
+      .replace(/\*{4,}([\s\S]*?)\*{4,}/g, '**$1**')
+      .replace(/_{4,}([\s\S]*?)_{4,}/g, '__$1__');
+    
+    // 마크다운 헤더 중복 방지 (###, ##, # 등)
+    processedContent = processedContent
+      .replace(/^(#{1,6})\s*\1+\s*/gm, '$1 ');
+    
     // 남은 모든 HTML 태그 제거
     const remainingTags = processedContent.match(/<[^>]+>/g);
     if (remainingTags) {
       console.log('남은 HTML 태그:', remainingTags);
       processedContent = processedContent.replace(/<[^>]+>/g, '');
     }
+    
+    // 마크다운 코드 블록 복원
+    codeBlocks.forEach(({placeholder, language, code}) => {
+      processedContent = processedContent.replace(
+        placeholder, 
+        '```' + language + '\n' + code + '```'
+      );
+    });
+    
+    // 연속된 줄바꿈 정리 (3개 이상 -> 2개)
+    processedContent = processedContent.replace(/\n{3,}/g, '\n\n');
     
     return processedContent;
   };
@@ -1618,6 +1643,36 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
                 >
                   {children}
                 </code>
+              );
+            },
+            // 표 처리 개선
+            table({ node, ...props }) {
+              return (
+                <div className="overflow-x-auto my-4">
+                  <table className="min-w-full table-auto border-collapse" {...props} />
+                </div>
+              );
+            },
+            // 모든 링크 새 탭에서 열기
+            a({ node, href, children, ...props }) {
+              return (
+                <a 
+                  href={href} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:text-blue-300 hover:underline"
+                  {...props}
+                >
+                  {children}
+                </a>
+              );
+            },
+            // pre 태그 개선 - 코드 블록 스타일
+            pre({ node, children, ...props }) {
+              return (
+                <pre className="overflow-x-auto bg-gray-900 rounded-md p-4 text-sm" {...props}>
+                  {children}
+                </pre>
               );
             }
           }}
@@ -1713,7 +1768,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
                 }`}
               >
                 {/* 메시지 내용 */}
-                <div className="prose dark:prose-invert max-w-none marker:text-indigo-400" ref={contentRef}>
+                <div className="break-words overflow-hidden max-w-full" ref={contentRef}>
                   {!isUser && showTypeWriter ? (
                     <TypeWriter 
                       text={message.content} 

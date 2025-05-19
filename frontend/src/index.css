@@ -63,16 +63,23 @@ body {
   pre {
     @apply p-4 rounded-lg bg-zinc-800 my-3 overflow-x-auto shadow-md border border-zinc-700/50;
     font-family: 'Söhne Mono', Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    max-width: 100%;
+    scrollbar-width: thin;
+    scrollbar-color: #4b5563 #1f2937;
   }
 
   /* 인라인 코드 스타일 */
   code:not(pre code) {
     @apply px-1.5 py-0.5 rounded-md bg-zinc-800 text-sm font-mono text-blue-400;
+    word-break: break-word;
   }
 
   /* 링크 스타일 */
   a {
     @apply text-blue-400 hover:text-blue-300 transition-colors;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
   }
 
   /* 헤딩 스타일 */
@@ -94,7 +101,9 @@ body {
   
   /* 테이블 스타일 */
   table {
-    @apply w-full my-3 text-sm border-collapse rounded-lg overflow-hidden shadow-sm;
+    @apply w-full my-3 text-sm border-collapse rounded-lg overflow-hidden shadow-sm table-auto;
+    max-width: 100%;
+    display: table;
   }
   
   thead {
@@ -103,10 +112,12 @@ body {
   
   th {
     @apply p-2 text-left font-medium border border-zinc-700;
+    word-break: break-word;
   }
   
   td {
     @apply p-2 border border-zinc-700;
+    word-break: break-word;
   }
   
   /* 마크다운 스타일 */
@@ -409,16 +420,27 @@ body {
   }
 
   .prose p {
-    @apply my-1.5; /* 단락 간격 축소 */
-    line-height: 1.5; /* 줄 간격 좀더 좁게 */
+    @apply my-2 leading-relaxed;
+    max-width: 100%;
+    overflow-wrap: break-word;
   }
 
   .prose code {
-    @apply text-xs; /* 코드 폰트 사이즈 축소 */
+    @apply font-mono text-sm;
+    max-width: 100%;
   }
 
   .prose pre code {
-    @apply text-[11px] leading-relaxed; /* 코드 블록 폰트 사이즈 축소 */
+    @apply text-xs sm:text-sm;
+    white-space: pre-wrap;
+  }
+
+  .prose img {
+    @apply max-w-full h-auto rounded-md my-4;
+  }
+
+  .prose blockquote {
+    @apply pl-4 border-l-4 border-indigo-500 italic my-4;
   }
 
   /* 앱 컨테이너 */
@@ -826,5 +848,45 @@ body {
   
   .animate-highlight-pulse {
     animation: highlight-pulse 2s ease-in-out infinite;
+  }
+
+  /* 텍스트 줄바꿈 스타일 */
+  .break-words {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    hyphens: auto;
+  }
+  
+  /* 특정 마크다운 요소 스타일 */
+  .markdown-content h1, .markdown-content h2, .markdown-content h3 {
+    @apply mt-6 mb-4 font-semibold text-white;
+    word-break: break-word;
+  }
+  
+  .markdown-content ul, .markdown-content ol {
+    @apply pl-5 my-3;
+    overflow-wrap: break-word;
+  }
+  
+  /* 코드 블록 줄바꿈 처리 */
+  .markdown-content pre {
+    @apply whitespace-pre-wrap break-words;
+    max-width: 100%;
+  }
+  
+  /* 마크다운 표 반응형 처리 */
+  .markdown-table-wrapper {
+    @apply overflow-x-auto max-w-full my-4;
+    scrollbar-width: thin;
+  }
+  
+  .markdown-table {
+    @apply min-w-full border border-zinc-700 table-auto;
+  }
+  
+  /* 반응형 이미지 처리 */
+  .markdown-image {
+    @apply max-w-full h-auto rounded-md my-4;
   }
 }
