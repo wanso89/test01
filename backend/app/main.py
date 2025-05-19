@@ -5,6 +5,9 @@ import time
 import hashlib
 import json
 import traceback
+
+# CUDA 메모리 관리 환경 변수 설정
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -43,7 +46,7 @@ traceback.print_exc()
 # RERANKER_MODEL_NAME = r"/home/root/ko-reranker"
 LLM_MODEL_NAME = r"/home/root/Gukbap-Qwen2.5-7B"
 EMBEDDING_MODEL_NAME = r"/home/root/kpf-sbert-v1.1"
-RERANKER_MODEL_NAME = r"/home/root/ko-reranker"
+RERANKER_MODEL_NAME = r"/home/root/bge-reranker-large"
 ES_HOST = "http://172.10.2.70:9200"
 STATIC_DIR = "app/static"
 IMAGE_DIR = os.path.join(STATIC_DIR, "document_images")
@@ -170,9 +173,9 @@ def get_embedding_function():
                     self.embeddings_model = HuggingFaceEmbeddings(
                         model_name=model_name,
                         model_kwargs={"device": "cuda" if torch.cuda.is_available() else "cpu"},
-                        encode_kwargs={"normalize_embeddings": True},
+                        encode_kwargs={"normalize_embeddings": True, "batch_size": 8},  # 배치 크기 제한
                         cache_folder="./.cache",  # 명시적 캐시 폴더 설정
-                        multi_process=True  # 임베딩 병렬 처리 활성화
+                        multi_process=False  # 임베딩 병렬 처리 비활성화
                     )
                     print(f"임베딩 모델 로드 성공: {model_name}")
                 except Exception as e:
@@ -205,8 +208,19 @@ def get_embedding_function():
                             print(f"경고: texts[{i}]가 문자열이 아님 - 타입: {type(text)}")
                             texts[i] = str(text)
                     
-                    # 병렬 처리 임베딩 생성 (효율성 향상)
-                    embeddings = self.embeddings_model.embed_documents(texts)
+                    # 메모리 효율적인 임베딩 생성 (배치 처리로 변경)
+                    import numpy as np
+                    batch_size = 8  # 작은 배치 크기로 설정
+                    
+                    # 배치 단위로 처리
+                    embeddings = []
+                    for i in range(0, len(texts), batch_size):
+                        batch_texts = texts[i:i+batch_size]
+                        if torch.cuda.is_available():
+                            # 메모리 정리
+                            torch.cuda.empty_cache()
+                        batch_embeddings = self.embeddings_model.embed_documents(batch_texts)
+                        embeddings.extend(batch_embeddings)
                 except Exception as e:
                     print(f"임베딩 생성 오류: {e}")
                     traceback.print_exc()
