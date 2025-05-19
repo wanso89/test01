@@ -2,7 +2,7 @@ import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 // FiExternalLink 아이콘 추가
-import { FiLoader, FiArrowUp, FiList, FiX, FiExternalLink, FiTrash2, FiHardDrive, FiFile, FiFolder, FiSearch, FiMessageSquare, FiBookmark, FiUploadCloud, FiPlus, FiCornerDownRight, FiCommand, FiMessageCircle, FiDatabase } from "react-icons/fi"; 
+import { FiLoader, FiArrowUp, FiList, FiX, FiExternalLink, FiTrash2, FiHardDrive, FiFile, FiFolder, FiSearch, FiMessageSquare, FiBookmark, FiUploadCloud, FiPlus, FiCornerDownRight, FiCommand, FiMessageCircle, FiDatabase, FiBarChart2 } from "react-icons/fi"; 
 import { FiAlertCircle, FiFileText, FiHelpCircle } from "react-icons/fi";
 
 // 로딩 인디케이터 컴포넌트 추가
@@ -1413,23 +1413,23 @@ function ChatContainer({
       <>
         {/* 메시지 목록 출력 */}
         {messagesToRender.map((message, index) => {
-          const prevMessage = index > 0 ? messagesToRender[index - 1] : null;
-          const nextMessage = index < messagesToRender.length - 1 ? messagesToRender[index + 1] : null;
-          
-          // 고유한 key 생성 (timestamp + index 조합)
-          const messageKey = `${message.timestamp || Date.now()}-${index}`;
-          
-          return (
-            <ChatMessage
-              key={messageKey}
-              message={message}
-              searchTerm={searchTerm}
-              isSearchMode={!!searchTerm}
-              prevMessage={prevMessage}
-              nextMessage={nextMessage}
-              onAskFollowUp={handleAskFollowUp}
-            />
-          );
+      const prevMessage = index > 0 ? messagesToRender[index - 1] : null;
+      const nextMessage = index < messagesToRender.length - 1 ? messagesToRender[index + 1] : null;
+      
+      // 고유한 key 생성 (timestamp + index 조합)
+      const messageKey = `${message.timestamp || Date.now()}-${index}`;
+      
+      return (
+        <ChatMessage
+          key={messageKey}
+          message={message}
+          searchTerm={searchTerm}
+          isSearchMode={!!searchTerm}
+          prevMessage={prevMessage}
+          nextMessage={nextMessage}
+          onAskFollowUp={handleAskFollowUp}
+        />
+      );
         })}
         
         {/* 사용자 메시지가 없을 때만 워터마크 표시 */}
@@ -1485,13 +1485,13 @@ function ChatContainer({
         if (typeof setMode === 'function') {
           setMode(newMode);
           console.log(`${newMode} 모드 전환 함수 호출 완료`);
-          
+        
           // 버튼 효과
-          const button = e.currentTarget;
+        const button = e.currentTarget;
           button.classList.add('scale-95');
-          setTimeout(() => {
+        setTimeout(() => {
             button.classList.remove('scale-95');
-          }, 200);
+        }, 200);
           
           // 클릭 효과음 (향후 추가 가능)
           // const audio = new Audio('/sounds/switch-click.mp3');
@@ -1514,7 +1514,7 @@ function ChatContainer({
           {/* 배경 효과 - 활성화된 모드에 따라 움직임 */}
           <div className="absolute inset-x-1.5 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500/20 to-indigo-600/20 filter blur-sm transition-all duration-300 ease-in-out pointer-events-none" 
                style={{ 
-                 top: mode === 'chat' ? '0.4rem' : '2.9rem',
+                 top: mode === 'chat' ? '0.4rem' : mode === 'sql' ? '2.9rem' : '5.4rem',
                  opacity: 0.7
                }}>
           </div>
@@ -1561,6 +1561,28 @@ function ChatContainer({
             )}
             
             <FiDatabase size={14} className="transition-all duration-300" />
+          </button>
+          
+          {/* 대시보드 모드 버튼 */}
+          <button 
+            onClick={handleToggleMode('dashboard')}
+            className={`relative transition-all duration-300 w-8 h-8 rounded-full flex items-center justify-center ${
+              mode === 'dashboard' 
+                ? 'bg-gradient-to-br from-emerald-500/80 to-teal-600/80 text-white shadow-md shadow-emerald-500/20' 
+                : 'bg-gray-800/80 text-gray-400 hover:text-gray-200 hover:bg-gray-700/60'
+            }`}
+            title="대시보드 모드로 전환"
+            data-testid="dashboard-mode-toggle"
+          >
+            {/* 활성화 효과 - 고리 애니메이션 */}
+            {mode === 'dashboard' && (
+              <>
+                <div className="absolute inset-0 rounded-full border border-emerald-400/30 animate-ping opacity-30"></div>
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-emerald-500/5 to-teal-600/5 animate-pulse"></div>
+              </>
+            )}
+            
+            <FiBarChart2 size={14} className="transition-all duration-300" />
           </button>
         </div>
       </div>

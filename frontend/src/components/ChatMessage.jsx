@@ -673,33 +673,35 @@ const SourcePreviewModal = ({ isOpen, onClose, source, content, image, isLoading
   };
   
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-      <div className="bg-gray-900 rounded-xl max-w-3xl w-full max-h-[85vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in transition-all duration-300">
+      <div className="bg-gray-900/90 backdrop-blur-md rounded-xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-gray-700/30 overflow-hidden animate-slide-up">
         {/* 헤더 */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
-          <div className="flex items-center space-x-2">
-            <FiFile className="text-indigo-400" />
-            <h3 className="font-medium text-gray-200">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-700/50 bg-gray-800/50 backdrop-blur-sm">
+          <div className="flex items-center space-x-3">
+            <span className="p-1.5 bg-indigo-500/20 backdrop-blur-sm rounded-full">
+              <FiFile className="text-indigo-400" size={16} />
+            </span>
+            <h3 className="font-medium text-gray-200 truncate">
               {source?.title || source?.display_name || (source?.path && source.path.split('/').pop().replace(/^[^_]*_/, ''))}
             </h3>
             {source?.page && (
-              <span className="text-xs text-gray-400 bg-gray-800 px-2 py-0.5 rounded">
+              <span className="text-xs text-gray-300 bg-gray-700/60 backdrop-blur-sm px-2.5 py-1 rounded-full ml-1">
                 페이지 {source.page}
               </span>
             )}
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1">
             <button
               onClick={handleCopyContent}
-              className="p-2 rounded-full text-gray-400 hover:text-gray-200 hover:bg-gray-700"
+              className="p-2 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-gray-700/60 transition-all backdrop-blur-sm"
               title="내용 복사"
               disabled={!content || isLoading || isErrorMessage(content)}
             >
-              {copySuccess ? <FiCheck /> : <FiCopy />}
+              {copySuccess ? <FiCheck className="text-green-400" /> : <FiCopy />}
             </button>
             <button
               onClick={onClose}
-              className="p-2 rounded-full text-gray-400 hover:text-gray-200 hover:bg-gray-700"
+              className="p-2 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-gray-700/60 transition-all backdrop-blur-sm"
             >
               <FiX />
             </button>
@@ -707,19 +709,19 @@ const SourcePreviewModal = ({ isOpen, onClose, source, content, image, isLoading
         </div>
         
         {/* 본문 */}
-        <div className="flex-1 overflow-auto p-4">
+        <div className="flex-1 overflow-auto p-5 bg-gray-900/70 backdrop-blur-sm">
           {renderContent()}
         </div>
         
         {/* 키워드 표시 영역 */}
         {keywords && keywords.length > 0 && !isErrorMessage(content) && (
-          <div className="px-4 py-3 border-t border-gray-700">
-            <p className="text-xs text-gray-400 mb-2">관련 키워드:</p>
+          <div className="px-5 py-3 border-t border-gray-700/50 bg-gray-800/30 backdrop-blur-sm">
+            <p className="text-xs text-gray-400 mb-2 font-medium">관련 키워드:</p>
             <div className="flex flex-wrap gap-2">
               {keywords.map((keyword, idx) => (
                 <span 
                   key={idx}
-                  className="text-xs rounded-full px-2 py-1 bg-indigo-500/20 text-indigo-300"
+                  className="text-xs rounded-full px-2.5 py-1 bg-indigo-500/20 text-indigo-300 backdrop-blur-sm transition-all hover:bg-indigo-500/30"
                 >
                   {keyword}
                 </span>

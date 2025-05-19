@@ -1600,24 +1600,24 @@ const SQLQueryPage = ({ setMode }) => {
           console.log(`${newMode} 모드로 전환 함수 호출`);
         
           // 버튼 효과
-          const button = e.currentTarget;
+        const button = e.currentTarget;
           button.classList.add('scale-95');
-          setTimeout(() => {
+        setTimeout(() => {
             button.classList.remove('scale-95');
-          }, 200);
+        }, 200);
         }
       } catch (err) {
         console.error('모드 전환 중 오류 발생:', err);
       }
     };
-    
+
     return (
       <div className="fixed right-6 top-1/2 transform -translate-y-1/2 z-20">
         <div className="bg-gray-800/90 backdrop-blur-md rounded-full p-2 shadow-lg border border-gray-700/50 flex flex-col gap-3">
           {/* 배경 효과 - 활성화된 모드에 따라 움직임 */}
           <div className="absolute inset-x-1.5 w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-600/20 filter blur-sm transition-all duration-300 ease-in-out pointer-events-none" 
                style={{ 
-                 top: mode === 'chat' ? '0.4rem' : '2.9rem',
+                 top: mode === 'chat' ? '0.4rem' : mode === 'sql' ? '2.9rem' : '5.4rem',
                  opacity: 0.7
                }}>
           </div>
@@ -1664,6 +1664,28 @@ const SQLQueryPage = ({ setMode }) => {
             )}
             
             <FiDatabase size={14} className="transition-all duration-300" />
+          </button>
+          
+          {/* 대시보드 모드 버튼 추가 */}
+          <button 
+            onClick={handleToggleMode('dashboard')}
+            className={`relative transition-all duration-300 w-8 h-8 rounded-full flex items-center justify-center ${
+              mode === 'dashboard' 
+                ? 'bg-gradient-to-br from-emerald-500/80 to-teal-600/80 text-white shadow-md shadow-emerald-500/20' 
+                : 'bg-gray-800/80 text-gray-400 hover:text-gray-200 hover:bg-gray-700/60'
+            }`}
+            title="대시보드 모드로 전환"
+            data-testid="dashboard-mode-toggle"
+          >
+            {/* 활성화 효과 - 고리 애니메이션 */}
+            {mode === 'dashboard' && (
+              <>
+                <div className="absolute inset-0 rounded-full border border-emerald-400/30 animate-ping opacity-30"></div>
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-emerald-500/5 to-teal-600/5 animate-pulse"></div>
+              </>
+            )}
+            
+            <FiBarChart2 size={14} className="transition-all duration-300" />
           </button>
         </div>
       </div>
@@ -1871,17 +1893,17 @@ const SQLQueryPage = ({ setMode }) => {
             <div className="flex items-center gap-3 flex-wrap">
               {/* 선택된 질문만 남기고 표시 */}
               {EXAMPLE_QUESTIONS.slice(0, 4).map((question, idx) => (
-                <button
-                  key={idx}
-                  type="button"
+                        <button
+                          key={idx}
+                          type="button"
                   onClick={() => handleExampleClick(question)}
                   className="text-xs px-3 py-1.5 bg-gray-800/70 hover:bg-indigo-600/40 border border-gray-700/30 hover:border-indigo-500/40 rounded-md text-gray-300 hover:text-white transition-colors flex items-center gap-1.5"
-                >
+                        >
                   <FiHelpCircle size={12} className="text-indigo-400" />
                   <span className="line-clamp-1">
                     {question.length > 25 ? question.substring(0, 22) + '...' : question}
                   </span>
-                </button>
+                        </button>
               ))}
               
               {/* 마지막으로 사용한 질문 표시 */}

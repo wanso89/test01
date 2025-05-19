@@ -8,13 +8,16 @@ import traceback
 
 # CUDA 메모리 관리 환경 변수 설정
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body, Depends, Request, Query, BackgroundTasks, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
-from datetime import datetime
+from pydantic import BaseModel, Field, validator, root_validator
+from typing import List, Dict, Any, Optional, Union
+from datetime import datetime, timedelta
+import logging
+import random
+from enum import Enum
 from elasticsearch import Elasticsearch
 from app.utils.indexing_utils import process_and_index_file, ES_INDEX_NAME, check_file_exists, format_file_size
 from fastapi.responses import FileResponse, StreamingResponse
@@ -2761,3 +2764,7 @@ if __name__ == "__main__":
     import uvicorn
     print("Qwen2.5-7B 모델로 서버 시작 중...")
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+# 기타 라우터 등록
+from app.stats.dashboard_api import router as dashboard_router
+app.include_router(dashboard_router, prefix="", tags=["dashboard"])

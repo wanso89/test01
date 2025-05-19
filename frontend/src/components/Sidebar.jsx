@@ -35,7 +35,11 @@ import {
   FiSettings,
   FiTool,
   FiXCircle,
-  FiZap
+  FiZap,
+  FiTable,
+  FiUsers,
+  FiActivity,
+  FiPieChart
 } from "react-icons/fi";
 import { BsSun, BsMoon } from "react-icons/bs";
 import { LOGO_IMAGE, createLogoIcon } from "../assets/3ssoft-logo.js";
@@ -106,7 +110,10 @@ function Sidebar({
   isDarkMode,
   onToggleMode,
   currentMode = 'chat', // 현재 선택된 모드 prop 추가
-  onDeleteAllConversations // 전체 대화 삭제 추가
+  onDeleteAllConversations, // 전체 대화 삭제 추가
+  recentQueries = [], // SQL 모드에서 사용할 최근 쿼리 목록
+  dbSchema = {}, // SQL 모드에서 사용할 DB 스키마 정보
+  dashboardStats = {} // 대시보드 모드에서 사용할 통계 정보
 }) {
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
@@ -245,37 +252,174 @@ function Sidebar({
     );
   };
 
-  return (
-    <div className="flex flex-col h-full overflow-hidden bg-gray-900">
-      {/* 브랜딩 헤더 - 로고만 표시 */}
-      <div className="h-16 py-2 px-4 flex items-center justify-center border-b border-gray-800">
-        <Logo />
-      </div>
-
-      {/* 새 대화 버튼 & 전체 삭제 버튼 */}
-      <div className="px-4 py-2.5 border-b border-gray-800/50">
-        <div className="flex justify-between items-center">
-          <button
-            onClick={() => setShowDeleteAllModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-red-400 hover:text-red-300 bg-transparent hover:bg-red-950/50 rounded-md transition-all duration-200 text-sm"
-            title="모든 대화 삭제"
-          >
-            <FiTrash size={15} />
-            <span>전체 삭제</span>
-          </button>
+  // SQL 모드 사이드바 컨텐츠
+  const renderSqlSidebar = () => {
+    return (
+      <div className="flex-1 overflow-y-auto overflow-x-hidden py-2 custom-scrollbar">
+        {/* 최근 SQL 쿼리 목록 */}
+        <div className="px-4 py-2">
+          <div className="flex items-center text-xs text-gray-500 font-medium mb-2">
+            <FiClock size={12} className="mr-1.5" />
+            <span>최근 쿼리</span>
+          </div>
           
-          <button
-            onClick={onNewConversation}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-gray-300 hover:text-white bg-transparent hover:bg-gray-800/70 rounded-md transition-all duration-200 text-sm"
-            title="새 대화 시작하기"
-          >
-            <FiPlus size={15} className="text-gray-400" />
-            <span>새 대화</span>
-          </button>
+          {recentQueries.length === 0 ? (
+            <div className="px-2 py-3 text-center text-gray-500 text-xs">
+              최근 실행한 쿼리가 없습니다
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {recentQueries.slice(0, 5).map((query, idx) => (
+                <div 
+                  key={idx}
+                  className="bg-gray-800/40 hover:bg-gray-800/70 p-2 rounded-lg cursor-pointer transition-colors text-sm text-gray-300"
+                  onClick={() => {/* 클릭 시 해당 쿼리를 SQL 입력창에 넣는 함수 */}}
+                >
+                  <div className="flex items-start">
+                    <div className="p-1.5 bg-indigo-900/30 rounded-md mr-2">
+                      <FiDatabase size={14} className="text-indigo-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-gray-300 truncate">
+                        {query.question || "SQL 쿼리"}
+                      </p>
+                      <p className="text-[10px] text-gray-500 mt-1 line-clamp-2 font-mono">
+                        {query.sql || "SELECT * FROM ..."}
+                      </p>
+                      {query.timestamp && (
+                        <p className="text-[9px] text-gray-600 mt-1">
+                          {formatDate(query.timestamp)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        {/* DB 스키마 정보 */}
+        <div className="px-4 py-2 mt-2 border-t border-gray-800/50">
+          <div className="flex items-center text-xs text-gray-500 font-medium mb-2">
+            <FiDatabase size={12} className="mr-1.5" />
+            <span>데이터베이스 스키마</span>
+          </div>
+          
+          {!dbSchema || Object.keys(dbSchema).length === 0 ? (
+            <div className="px-2 py-3 text-center text-gray-500 text-xs">
+              스키마 정보가 없습니다
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {Object.entries(dbSchema).map(([tableName, columns], idx) => (
+                <div key={idx} className="bg-gray-800/40 rounded-lg overflow-hidden">
+                  <div
+                    className="px-3 py-2 bg-gray-800/60 flex items-center justify-between cursor-pointer hover:bg-gray-800/80"
+                    onClick={() => {/* 테이블 펼침/접기 토글 */}}
+                  >
+                    <div className="flex items-center">
+                      <FiTable size={12} className="text-indigo-400 mr-1.5" />
+                      <span className="text-xs font-medium text-gray-300">{tableName}</span>
+                    </div>
+                    <span className="text-[10px] text-gray-500 py-0.5 px-1.5 bg-gray-700/50 rounded-full">
+                      {Array.isArray(columns) ? columns.length : 0} 컬럼
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
+    );
+  };
 
-      {/* 대화 목록 스크롤 영역 */}
+  // 대시보드 모드 사이드바 컨텐츠
+  const renderDashboardSidebar = () => {
+    return (
+      <div className="flex-1 overflow-y-auto overflow-x-hidden py-2 custom-scrollbar">
+        {/* 대시보드 메뉴 목록 */}
+        <div className="px-4 py-2">
+          <div className="flex items-center text-xs text-gray-500 font-medium mb-2">
+            <FiPieChart size={12} className="mr-1.5" />
+            <span>대시보드 메뉴</span>
+          </div>
+          
+          <div className="space-y-1.5 mt-2">
+            {/* 메뉴 아이템들 */}
+            <div className="bg-indigo-600/20 hover:bg-indigo-600/30 p-2.5 rounded-lg cursor-pointer transition-colors text-sm text-gray-300 flex items-center">
+              <div className="p-1.5 bg-indigo-900/30 rounded-md mr-2.5">
+                <FiPieChart size={14} className="text-indigo-400" />
+              </div>
+              <span>개요</span>
+            </div>
+            
+            <div className="bg-gray-800/40 hover:bg-gray-800/70 p-2.5 rounded-lg cursor-pointer transition-colors text-sm text-gray-300 flex items-center">
+              <div className="p-1.5 bg-gray-800/50 rounded-md mr-2.5">
+                <FiMessageCircle size={14} className="text-gray-400" />
+              </div>
+              <span>대화 분석</span>
+            </div>
+            
+            <div className="bg-gray-800/40 hover:bg-gray-800/70 p-2.5 rounded-lg cursor-pointer transition-colors text-sm text-gray-300 flex items-center">
+              <div className="p-1.5 bg-gray-800/50 rounded-md mr-2.5">
+                <FiDatabase size={14} className="text-gray-400" />
+              </div>
+              <span>데이터 소스</span>
+            </div>
+            
+            <div className="bg-gray-800/40 hover:bg-gray-800/70 p-2.5 rounded-lg cursor-pointer transition-colors text-sm text-gray-300 flex items-center">
+              <div className="p-1.5 bg-gray-800/50 rounded-md mr-2.5">
+                <FiUsers size={14} className="text-gray-400" />
+              </div>
+              <span>사용자 활동</span>
+            </div>
+            
+            <div className="bg-gray-800/40 hover:bg-gray-800/70 p-2.5 rounded-lg cursor-pointer transition-colors text-sm text-gray-300 flex items-center">
+              <div className="p-1.5 bg-gray-800/50 rounded-md mr-2.5">
+                <FiSettings size={14} className="text-gray-400" />
+              </div>
+              <span>시스템 상태</span>
+            </div>
+          </div>
+        </div>
+        
+        {/* 통계 요약 */}
+        <div className="px-4 py-2 mt-2 border-t border-gray-800/50">
+          <div className="flex items-center text-xs text-gray-500 font-medium mb-2">
+            <FiActivity size={12} className="mr-1.5" />
+            <span>요약 통계</span>
+          </div>
+          
+          <div className="bg-gray-800/40 rounded-lg p-3">
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="flex flex-col">
+                <span className="text-gray-500">총 쿼리</span>
+                <span className="text-gray-300 font-medium">{dashboardStats.totalQueries || 0}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-gray-500">총 채팅</span>
+                <span className="text-gray-300 font-medium">{dashboardStats.totalChats || 0}</span>
+              </div>
+              <div className="flex flex-col mt-2">
+                <span className="text-gray-500">활성 사용자</span>
+                <span className="text-gray-300 font-medium">{dashboardStats.activeUsers || 0}</span>
+              </div>
+              <div className="flex flex-col mt-2">
+                <span className="text-gray-500">평균 응답시간</span>
+                <span className="text-gray-300 font-medium">{dashboardStats.avgResponseTime || 0}초</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // 채팅 모드 사이드바 (기존 대화 목록)
+  const renderChatSidebar = () => {
+    return (
       <div className="flex-1 overflow-y-auto overflow-x-hidden py-2 custom-scrollbar">
         {/* 대화 목록이 비어있을 때 */}
         {conversations.length === 0 ? (
@@ -352,6 +496,91 @@ function Sidebar({
           </div>
         )}
       </div>
+    );
+  };
+
+  // 현재 모드에 따라 적절한 액션 버튼 렌더링
+  const renderActionButtons = () => {
+    switch (currentMode) {
+      case 'chat':
+        return (
+          <div className="space-y-2 px-2">
+            <button
+              className="w-full flex items-center justify-center py-2.5 pl-3 pr-2 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white transition-all duration-200 shadow-md hover:shadow-lg"
+              onClick={onNewConversation}
+            >
+              <div className="flex items-center gap-2">
+                <span className="p-1 bg-white/20 rounded-full">
+                  <FiPlus className="flex-shrink-0" size={14} />
+                </span>
+                <span className="font-medium">새 대화</span>
+              </div>
+            </button>
+            
+            <button
+              className="w-full flex items-center justify-center py-2 border border-gray-700/50 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 text-gray-300 transition-all duration-200"
+              onClick={() => setShowDeleteAllModal(true)}
+            >
+              <div className="flex items-center gap-2">
+                <FiTrash2 className="flex-shrink-0 text-gray-400" size={14} />
+                <span className="text-sm">모든 대화 삭제</span>
+              </div>
+            </button>
+          </div>
+        );
+      case 'sql':
+        return (
+          <div className="px-2">
+            <button
+              className="w-full flex items-center justify-center py-2.5 pl-3 pr-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white transition-all duration-200 shadow-md hover:shadow-lg"
+              onClick={() => {/* SQL 쿼리 새로 작성 */}}
+            >
+              <div className="flex items-center gap-2">
+                <span className="p-1 bg-white/20 rounded-full">
+                  <FiDatabase className="flex-shrink-0" size={14} />
+                </span>
+                <span className="font-medium">새 쿼리 작성</span>
+              </div>
+            </button>
+          </div>
+        );
+      case 'dashboard':
+        return (
+          <div className="px-2">
+            <button
+              className="w-full flex items-center justify-center py-2.5 pl-3 pr-2 rounded-lg bg-gradient-to-r from-cyan-600 to-cyan-700 hover:from-cyan-700 hover:to-cyan-800 text-white transition-all duration-200 shadow-md hover:shadow-lg"
+              onClick={() => {/* 보고서 내보내기 */}}
+            >
+              <div className="flex items-center gap-2">
+                <span className="p-1 bg-white/20 rounded-full">
+                  <FiPieChart className="flex-shrink-0" size={14} />
+                </span>
+                <span className="font-medium">보고서 내보내기</span>
+              </div>
+            </button>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden bg-gray-900">
+      {/* 브랜딩 헤더 - 로고만 표시 */}
+      <div className="h-16 py-2 px-4 flex items-center justify-center border-b border-gray-800">
+        <Logo />
+      </div>
+
+      {/* 액션 버튼 영역 */}
+      <div className="px-4 py-2.5 border-b border-gray-800/50">
+        {renderActionButtons()}
+      </div>
+
+      {/* 모드별 사이드바 콘텐츠 */}
+      {currentMode === 'chat' && renderChatSidebar()}
+      {currentMode === 'sql' && renderSqlSidebar()}
+      {currentMode === 'dashboard' && renderDashboardSidebar()}
 
       {/* 전체 대화 삭제 확인 모달 */}
       {showDeleteAllModal && (
@@ -396,6 +625,23 @@ function Sidebar({
           </div>
         </div>
       )}
+      {/* 하단 정보 영역 */}
+      <div className="mt-auto border-t border-gray-800 p-3">
+        <div className="flex flex-col space-y-2">
+          <h3 className="text-xs font-medium text-gray-500 px-2 mb-1">정보</h3>
+          
+          {/* 정보 표시 영역 */}
+          <div className="text-xs text-gray-500 px-2">
+            <p className="flex items-center space-x-1 mb-1">
+              <FiInfo size={12} className="text-gray-400" />
+              <span>RAG 챗봇 v1.2</span>
+            </p>
+            <p className="text-xs text-gray-600">
+              <span className="text-xs">© 2023 3S소프트</span>
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -538,7 +784,7 @@ function ConversationItem({ conversation, isActive, onClick, onRename, onDelete,
                   className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 flex items-center"
                 >
                   <FiStar size={14} className={`mr-2 ${conversation.pinned ? "fill-current text-yellow-400" : "text-gray-400"}`} />
-                  {conversation.pinned ? "고정 해제" : "대화 고정"}
+                  <span>{conversation.pinned ? "핀 해제" : "핀 고정"}</span>
                 </button>
                 <button
                   onClick={(e) => {
@@ -549,7 +795,7 @@ function ConversationItem({ conversation, isActive, onClick, onRename, onDelete,
                   className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 flex items-center"
                 >
                   <FiEdit2 size={14} className="mr-2 text-gray-400" />
-                  이름 변경
+                  <span>이름 변경</span>
                 </button>
                 <button
                   onClick={(e) => {
@@ -560,7 +806,7 @@ function ConversationItem({ conversation, isActive, onClick, onRename, onDelete,
                   className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 flex items-center"
                 >
                   <FiTrash2 size={14} className="mr-2 text-gray-400" />
-                  대화 삭제
+                  <span>대화 삭제</span>
                 </button>
               </div>
             )}
@@ -571,4 +817,5 @@ function ConversationItem({ conversation, isActive, onClick, onRename, onDelete,
   );
 }
 
+// default export 구문 추가
 export default Sidebar;

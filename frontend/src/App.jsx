@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from "react";
 import Sidebar from "./components/Sidebar";
 import ChatContainer from "./components/ChatContainer";
 import SQLQueryPage from "./components/SQLQueryPage";
+import Dashboard from "./components/dashboard/Dashboard";
 import {
   FiChevronLeft,
   FiChevronRight,
@@ -14,8 +15,12 @@ import {
   FiMenu,
   FiAlignLeft,
   FiDatabase,
-  FiAlertCircle
+  FiAlertCircle,
+  FiBarChart2
 } from "react-icons/fi";
+
+// API 기본 URL 상수 정의
+const API_BASE_URL = 'http://172.10.2.70:8000';
 
 const SIDEBAR_WIDTH = 320;
 const SIDEBAR_MIN = 280;
@@ -120,10 +125,23 @@ function App() {
   
   // SQL 쿼리 페이지 표시 여부 상태 추가
   const [showSQLPage, setShowSQLPage] = useState(false);
-  // 모드 상태 추가 (chat 또는 sql)
+  // 모드 상태 추가 (chat, sql 또는 dashboard)
   const [mode, setMode] = useState('chat');
   // 파일 매니저 상태 추가
   const [fileManagerOpen, setFileManagerOpen] = useState(false);
+
+  // 대시보드 관련 상태
+  const [dashboardStats, setDashboardStats] = useState({
+    totalQueries: 0,
+    totalChats: 0,
+    activeUsers: 0,
+    averageQueriesPerDay: 0,
+    queryCountByDate: []
+  });
+  
+  // SQL 모드 관련 상태
+  const [recentQueries, setRecentQueries] = useState([]);
+  const [dbSchema, setDbSchema] = useState({});
 
   console.log('===============================================');
   console.log('앱 컴포넌트 초기화');
@@ -134,17 +152,21 @@ function App() {
   useEffect(() => {
     // 전역 함수로 등록
     window.setAppMode = (newMode) => {
-      if (newMode === 'sql' || newMode === 'chat') {
+      if (newMode === 'sql' || newMode === 'chat' || newMode === 'dashboard') {
         console.log('콘솔에서 모드 변경:', newMode);
         setMode(newMode);
         return true;
       }
-      console.error('유효하지 않은 모드:', newMode, '(sql 또는 chat만 가능)');
+      console.error('유효하지 않은 모드:', newMode, '(chat, sql 또는 dashboard만 가능)');
       return false;
     };
 
     window.toggleAppMode = () => {
-      const newMode = mode === 'chat' ? 'sql' : 'chat';
+      const modes = ['chat', 'sql', 'dashboard'];
+      const currentIndex = modes.indexOf(mode);
+      const nextIndex = (currentIndex + 1) % modes.length;
+      const newMode = modes[nextIndex];
+      
       console.log('콘솔에서 모드 토글:', mode, '->', newMode);
       setMode(newMode);
       return newMode;
@@ -161,7 +183,7 @@ function App() {
     };
     
     console.log('디버깅 함수가 콘솔에 등록되었습니다. 사용법:');
-    console.log('window.setAppMode("chat" 또는 "sql") - 모드 직접 설정');
+    console.log('window.setAppMode("chat", "sql" 또는 "dashboard") - 모드 직접 설정');
     console.log('window.toggleAppMode() - 모드 전환');
     console.log('window.debugAppState() - 현재 앱 상태 출력');
     
@@ -186,6 +208,8 @@ function App() {
       showModeChangeToast('SQL 질의 모드로 전환했습니다');
     } else if (mode === 'chat') {
       showModeChangeToast('챗봇 모드로 전환했습니다');
+    } else if (mode === 'dashboard') {
+      showModeChangeToast('대시보드 모드로 전환했습니다');
     }
   }, [mode]);
 
@@ -521,7 +545,7 @@ function App() {
   const handleNewConversation = (topic, category, forceFirst = false) => {
     try {
       console.log('새 대화 시작...', topic, category);
-      
+    
       // 초기 제목 설정
       const initialTitle = topic || `대화 ${conversations.length + 1}`;
       
@@ -529,13 +553,13 @@ function App() {
       const newId = `conv_${Date.now()}`;
       
       // 새 대화 객체 생성 (구조 개선 - 메타데이터 추가)
-      const newConversation = {
+    const newConversation = {
         id: newId,
         title: initialTitle,
-        messages: [
+      messages: [
           // 시스템 시작 메시지 추가하여 챗봇이 먼저 인사하도록 함
-          {
-            role: "assistant",
+        {
+          role: "assistant",
             content: "안녕하세요! 무엇을 도와드릴까요?",
             sources: [],
             timestamp: Date.now(),
@@ -543,14 +567,14 @@ function App() {
         ],
         timestamp: Date.now(),
         category: category || defaultCategory,
-        pinned: false,
+      pinned: false,
         metadata: {
           messageCount: 1,
           firstMessageTimestamp: Date.now(),
           lastActivity: Date.now()
         }
       };
-      
+    
       // 새 대화 추가 (맨 앞 또는 맨 뒤)
       if (forceFirst) {
         // 가장 최근 대화로 추가 (맨 앞)
@@ -979,6 +1003,172 @@ function App() {
     return; // 함수 실행 중단
   };
 
+  // 대시보드 통계 데이터 가져오기
+  const fetchDashboardStats = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/dashboard/stats`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          startDate: '2023-01-01',
+          endDate: '2023-12-31',
+          timeRange: 'month'
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.stats) {
+          setDashboardStats(data.stats);
+        }
+      } else {
+        console.error('대시보드 통계 데이터를 불러오는데 실패했습니다.');
+        
+        // 목데이터 설정 (API 응답 실패 시)
+        setDashboardStats({
+          totalQueries: 1284,
+          totalChats: 3562,
+          activeUsers: 215,
+          averageQueriesPerDay: 42.8,
+          queryCountByDate: [
+            { date: '1월', value: 130 },
+            { date: '2월', value: 245 },
+            { date: '3월', value: 375 },
+            { date: '4월', value: 480 },
+            { date: '5월', value: 520 },
+            { date: '6월', value: 620 }
+          ]
+        });
+      }
+    } catch (error) {
+      console.error('대시보드 통계 데이터 가져오기 오류:', error);
+      
+      // 목데이터 설정 (오류 발생 시)
+      setDashboardStats({
+        totalQueries: 1284,
+        totalChats: 3562,
+        activeUsers: 215,
+        averageQueriesPerDay: 42.8,
+        queryCountByDate: [
+          { date: '1월', value: 130 },
+          { date: '2월', value: 245 },
+          { date: '3월', value: 375 },
+          { date: '4월', value: 480 },
+          { date: '5월', value: 520 },
+          { date: '6월', value: 620 }
+        ]
+      });
+    }
+  }, []);
+  
+  // 최근 SQL 쿼리 가져오기
+  const fetchRecentQueries = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/sql/recent-queries`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.queries) {
+          setRecentQueries(data.queries);
+        }
+      } else {
+        console.error('최근 쿼리 데이터를 불러오는데 실패했습니다.');
+        
+        // 목데이터 설정
+        setRecentQueries([
+          {
+            id: 1,
+            question: "지난 달 매출이 가장 높은 상품은?",
+            sql: "SELECT product_name, SUM(amount) as total FROM sales WHERE date >= '2023-05-01' GROUP BY product_name ORDER BY total DESC LIMIT 1",
+            timestamp: Date.now() - 1000 * 60 * 30 // 30분 전
+          },
+          {
+            id: 2,
+            question: "현재 재고가 10개 미만인 상품 목록",
+            sql: "SELECT product_name, stock FROM inventory WHERE stock < 10 ORDER BY stock ASC",
+            timestamp: Date.now() - 1000 * 60 * 60 * 2 // 2시간 전
+          },
+          {
+            id: 3,
+            question: "각 지역별 고객 수 통계",
+            sql: "SELECT region, COUNT(*) as customer_count FROM customers GROUP BY region ORDER BY customer_count DESC",
+            timestamp: Date.now() - 1000 * 60 * 60 * 24 // 어제
+          }
+        ]);
+      }
+    } catch (error) {
+      console.error('최근 쿼리 데이터 가져오기 오류:', error);
+      
+      // 목데이터 설정
+      setRecentQueries([
+        {
+          id: 1,
+          question: "지난 달 매출이 가장 높은 상품은?",
+          sql: "SELECT product_name, SUM(amount) as total FROM sales WHERE date >= '2023-05-01' GROUP BY product_name ORDER BY total DESC LIMIT 1",
+          timestamp: Date.now() - 1000 * 60 * 30 // 30분 전
+        },
+        {
+          id: 2,
+          question: "현재 재고가 10개 미만인 상품 목록",
+          sql: "SELECT product_name, stock FROM inventory WHERE stock < 10 ORDER BY stock ASC",
+          timestamp: Date.now() - 1000 * 60 * 60 * 2 // 2시간 전
+        },
+        {
+          id: 3,
+          question: "각 지역별 고객 수 통계",
+          sql: "SELECT region, COUNT(*) as customer_count FROM customers GROUP BY region ORDER BY customer_count DESC",
+          timestamp: Date.now() - 1000 * 60 * 60 * 24 // 어제
+        }
+      ]);
+    }
+  }, []);
+  
+  // DB 스키마 정보 가져오기
+  const fetchDbSchema = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/sql/schema`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.schema) {
+          setDbSchema(data.schema);
+        }
+      } else {
+        console.error('DB 스키마 정보를 불러오는데 실패했습니다.');
+        
+        // 목데이터 설정
+        setDbSchema({
+          'customers': ['id', 'name', 'email', 'phone', 'region', 'created_at'],
+          'products': ['id', 'product_name', 'category', 'price', 'description'],
+          'sales': ['id', 'customer_id', 'product_id', 'date', 'amount', 'quantity'],
+          'inventory': ['id', 'product_id', 'stock', 'updated_at']
+        });
+      }
+    } catch (error) {
+      console.error('DB 스키마 정보 가져오기 오류:', error);
+      
+      // 목데이터 설정
+      setDbSchema({
+        'customers': ['id', 'name', 'email', 'phone', 'region', 'created_at'],
+        'products': ['id', 'product_name', 'category', 'price', 'description'],
+        'sales': ['id', 'customer_id', 'product_id', 'date', 'amount', 'quantity'],
+        'inventory': ['id', 'product_id', 'stock', 'updated_at']
+      });
+    }
+  }, []);
+
+  // 모드가 변경될 때 필요한 데이터 로딩
+  useEffect(() => {
+    if (mode === 'dashboard') {
+      fetchDashboardStats();
+    } else if (mode === 'sql') {
+      fetchRecentQueries();
+      fetchDbSchema();
+    }
+  }, [mode, fetchDashboardStats, fetchRecentQueries, fetchDbSchema]);
+
   return (
     <div className="flex flex-col md:flex-row h-screen bg-gray-900 text-gray-100 overflow-hidden relative">
       {/* 임베딩 처리 오버레이 */}
@@ -1008,6 +1198,9 @@ function App() {
           onToggleMode={setMode}
           currentMode={mode}
           onDeleteAllConversations={deleteAllConversations}
+          recentQueries={recentQueries || []}
+          dbSchema={dbSchema || {}}
+          dashboardStats={dashboardStats || {}}
         />
         <div
           className="absolute top-0 -right-3 h-full w-3 cursor-ew-resize z-10"
@@ -1015,7 +1208,7 @@ function App() {
         ></div>
       </div>
 
-      {/* 채팅 컨테이너 또는 SQL 쿼리 페이지 */}
+      {/* 채팅 컨테이너, SQL 쿼리 페이지 또는 대시보드 */}
       <div className="flex-grow relative overflow-hidden">
         {console.log('렌더링 시점의 mode 값:', mode)}
         {mode === 'sql' ? (
@@ -1025,6 +1218,15 @@ function App() {
             <SQLQueryPage 
               setMode={setMode} 
               key="sql-page-component" 
+            />
+          </div>
+        ) : mode === 'dashboard' ? (
+          // 대시보드 렌더링
+          <div className="w-full h-full">
+            {console.log('대시보드 렌더링 중...')}
+            <Dashboard 
+              setMode={setMode} 
+              key="dashboard-component" 
             />
           </div>
         ) : (
