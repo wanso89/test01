@@ -677,18 +677,9 @@ function Sidebar({
       {/* 하단 정보 영역 */}
       <div className="mt-auto border-t border-gray-800 p-3">
         <div className="flex flex-col space-y-2">
-          <h3 className="text-xs font-medium text-gray-500 px-2 mb-1">정보</h3>
+          <h3 className="text-xs font-medium text-gray-500 px-2 mb-1">ㅋㅋ테스트중</h3>
           
-          {/* 정보 표시 영역 */}
-          <div className="text-xs text-gray-500 px-2">
-            <p className="flex items-center space-x-1 mb-1">
-              <FiInfo size={12} className="text-gray-400" />
-              <span>RAG 챗봇 v1.2</span>
-            </p>
-            <p className="text-xs text-gray-600">
-              <span className="text-xs">© 2023 3S소프트</span>
-            </p>
-          </div>
+          
         </div>
       </div>
     </div>

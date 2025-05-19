@@ -546,8 +546,8 @@ function App() {
     try {
       console.log('새 대화 시작...', topic, category);
     
-      // 초기 제목 설정
-      const initialTitle = topic || `대화 ${conversations.length + 1}`;
+      // 초기 제목 설정 (forceFirst가 true이면 항상 "대화 1"로 설정)
+      const initialTitle = topic || (forceFirst ? "제목 없음" : `대화 ${conversations.length + 1}`);
       
       // 고유 ID 생성
       const newId = `conv_${Date.now()}`;

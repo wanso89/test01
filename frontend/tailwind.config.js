@@ -296,6 +296,7 @@ export default {
               '&:hover': {
                 opacity: '0.8',
               },
+
             },
             code: {
               color: theme('colors.gray.800'),
@@ -376,3 +377,4 @@ export default {
     require('@tailwindcss/typography'),
   ],
 }
+
