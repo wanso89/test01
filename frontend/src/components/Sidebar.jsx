@@ -504,60 +504,109 @@ function Sidebar({
     switch (currentMode) {
       case 'chat':
         return (
-          <div className="space-y-2 px-2">
-            <button
-              className="w-full flex items-center justify-center py-2.5 pl-3 pr-2 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white transition-all duration-200 shadow-md hover:shadow-lg"
+          <div className="space-y-0.5">
+            {/* 새 대화 버튼 - 카드형 디자인으로 변경 */}
+            <div 
+              className="group flex items-center p-3 rounded-xl bg-gradient-to-br from-indigo-500/10 to-indigo-700/20 border border-indigo-500/25 hover:border-indigo-500/40 cursor-pointer transition-all duration-200"
               onClick={onNewConversation}
             >
-              <div className="flex items-center gap-2">
-                <span className="p-1 bg-white/20 rounded-full">
-                  <FiPlus className="flex-shrink-0" size={14} />
-                </span>
-                <span className="font-medium">새 대화</span>
+              <div className="w-10 h-10 flex items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 shadow-md group-hover:shadow-indigo-500/20 group-hover:scale-105 transition-all duration-300">
+                <FiPlus className="text-white" size={18} />
               </div>
-            </button>
+              <div className="ml-3 flex-1">
+                <h3 className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">새 대화</h3>
+                <p className="text-xs text-gray-400 group-hover:text-gray-300 transition-colors">새로운 대화를 시작합니다</p>
+              </div>
+              <FiChevronRight className="text-gray-400 group-hover:text-indigo-300 group-hover:translate-x-1 transition-all duration-300" size={18} />
+            </div>
             
-            <button
-              className="w-full flex items-center justify-center py-2 border border-gray-700/50 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 text-gray-300 transition-all duration-200"
+            {/* 모든 대화 삭제 버튼 - 카드형 디자인으로 변경 */}
+            <div 
+              className="group flex items-center p-3 mt-2 rounded-xl bg-gradient-to-br from-gray-800/50 to-gray-900/60 border border-gray-700/25 hover:border-red-500/20 cursor-pointer transition-all duration-200"
               onClick={() => setShowDeleteAllModal(true)}
             >
-              <div className="flex items-center gap-2">
-                <FiTrash2 className="flex-shrink-0 text-gray-400" size={14} />
-                <span className="text-sm">모든 대화 삭제</span>
+              <div className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-800 border border-gray-700 group-hover:bg-red-500/10 group-hover:border-red-500/30 transition-all duration-300">
+                <FiTrash2 className="text-gray-400 group-hover:text-red-400 transition-colors" size={16} />
               </div>
-            </button>
+              <div className="ml-3 flex-1">
+                <h3 className="text-sm font-medium text-gray-300 group-hover:text-gray-200 transition-colors">대화 관리</h3>
+                <p className="text-xs text-gray-500 group-hover:text-red-400 transition-colors">모든 대화 내역 삭제</p>
+              </div>
+            </div>
           </div>
         );
       case 'sql':
         return (
-          <div className="px-2">
-            <button
-              className="w-full flex items-center justify-center py-2.5 pl-3 pr-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white transition-all duration-200 shadow-md hover:shadow-lg"
+          <div className="space-y-0.5">
+            {/* 새 쿼리 작성 버튼 - 카드형 디자인으로 변경 */}
+            <div 
+              className="group flex items-center p-3 rounded-xl bg-gradient-to-br from-blue-500/10 to-blue-700/20 border border-blue-500/25 hover:border-blue-500/40 cursor-pointer transition-all duration-200"
               onClick={() => {/* SQL 쿼리 새로 작성 */}}
             >
-              <div className="flex items-center gap-2">
-                <span className="p-1 bg-white/20 rounded-full">
-                  <FiDatabase className="flex-shrink-0" size={14} />
-                </span>
-                <span className="font-medium">새 쿼리 작성</span>
+              <div className="w-10 h-10 flex items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 shadow-md group-hover:shadow-blue-500/20 group-hover:scale-105 transition-all duration-300">
+                <FiDatabase className="text-white" size={16} />
               </div>
-            </button>
+              <div className="ml-3 flex-1">
+                <h3 className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">새 쿼리 작성</h3>
+                <p className="text-xs text-gray-400 group-hover:text-gray-300 transition-colors">데이터베이스 쿼리 작성</p>
+              </div>
+              <div className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-900/20 group-hover:bg-blue-800/30 transition-all">
+                <FiCode className="text-blue-400 group-hover:text-blue-300" size={14} />
+              </div>
+            </div>
+            
+            {/* 최근 쿼리 바로가기 - 새로운 요소 추가 */}
+            <div className="mt-2 group flex items-center p-2 rounded-xl bg-gradient-to-br from-gray-800/50 to-gray-900/60 border border-gray-700/30 hover:border-blue-500/20 cursor-pointer transition-all duration-200">
+              <div className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-800 border border-gray-700 group-hover:bg-blue-500/10 group-hover:border-blue-500/20 transition-all">
+                <FiClock className="text-gray-400 group-hover:text-blue-400 transition-colors" size={14} />
+              </div>
+              <div className="ml-2 flex-1">
+                <h3 className="text-xs font-medium text-gray-400 group-hover:text-gray-300 transition-colors">최근 실행 쿼리 보기</h3>
+              </div>
+            </div>
           </div>
         );
       case 'dashboard':
         return (
-          <div className="px-2">
-            <button
-              className="w-full flex items-center justify-center py-2.5 pl-3 pr-2 rounded-lg bg-gradient-to-r from-cyan-600 to-cyan-700 hover:from-cyan-700 hover:to-cyan-800 text-white transition-all duration-200 shadow-md hover:shadow-lg"
+          <div className="space-y-0.5">
+            {/* 보고서 내보내기 버튼 - 카드형 디자인으로 변경 */}
+            <div 
+              className="group flex items-center p-3 rounded-xl bg-gradient-to-br from-cyan-500/10 to-emerald-500/20 border border-cyan-500/25 hover:border-emerald-500/30 cursor-pointer transition-all duration-200"
               onClick={() => {/* 보고서 내보내기 */}}
             >
-              <div className="flex items-center gap-2">
-                <span className="p-1 bg-white/20 rounded-full">
-                  <FiPieChart className="flex-shrink-0" size={14} />
-                </span>
-                <span className="font-medium">보고서 내보내기</span>
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-cyan-500 to-emerald-500 blur-md opacity-30 group-hover:opacity-50 transition-opacity"></div>
+                <div className="relative w-10 h-10 flex items-center justify-center rounded-full bg-gradient-to-br from-cyan-600 to-emerald-700 shadow-md group-hover:shadow-cyan-500/20 group-hover:scale-105 transition-all duration-300">
+                  <FiPieChart className="text-white" size={16} />
+                </div>
               </div>
-            </button>
+              <div className="ml-3 flex-1">
+                <div className="flex items-center">
+                  <h3 className="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">데이터 리포트</h3>
+                  <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded-full bg-emerald-900/30 text-emerald-400 border border-emerald-800/30">PDF</span>
+                </div>
+                <p className="text-xs text-gray-400 group-hover:text-gray-300 transition-colors">대시보드 보고서 생성 및 내보내기</p>
+              </div>
+              <div className="flex items-center px-2 py-1 bg-gradient-to-r from-cyan-800/20 to-emerald-800/20 rounded-lg group-hover:from-cyan-800/30 group-hover:to-emerald-800/30 transition-colors">
+                <FiExternalLink className="text-cyan-400 group-hover:text-cyan-300" size={14} />
+              </div>
+            </div>
+            
+            {/* 기간 선택 필터 - 새로운 요소 추가 */}
+            <div className="mt-2 flex items-center justify-between p-2 rounded-xl bg-gray-800/50 border border-gray-700/30">
+              <span className="text-xs text-gray-400">기간 선택:</span>
+              <div className="flex items-center space-x-1">
+                <button className="px-2 py-1 rounded-md bg-gray-700/50 hover:bg-gray-700 text-xs text-gray-300 transition-colors">
+                  오늘
+                </button>
+                <button className="px-2 py-1 rounded-md bg-cyan-900/20 text-cyan-400 text-xs">
+                  이번 주
+                </button>
+                <button className="px-2 py-1 rounded-md bg-gray-700/50 hover:bg-gray-700 text-xs text-gray-300 transition-colors">
+                  이번 달
+                </button>
+              </div>
+            </div>
           </div>
         );
       default:
