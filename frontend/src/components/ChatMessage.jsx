@@ -1438,6 +1438,39 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     // 비정상 태그 수정
     processedContent = detectMalformedTags(processedContent);
     
+    // 한자(중국어) 글자 탐지 및 제거 (한글은 유지)
+    const detectChineseChars = (text) => {
+      // CJK 유니코드 범위 중 한자 범위만 포함 (한글 제외)
+      // \u4e00-\u9fff: 중국어/일본어 한자
+      // \u3400-\u4dbf: CJK 통합 확장 A
+      // \uf900-\ufaff: CJK 호환 한자
+      const chineseCharPattern = /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+/g;
+      
+      return text.replace(chineseCharPattern, (match) => {
+        console.log('중국어 한자 감지 및 제거:', match);
+        return ''; // 한자를 제거하거나 빈 문자열로 대체
+      });
+    };
+    
+    // 한자 제거 처리
+    processedContent = detectChineseChars(processedContent);
+    
+    // ID 속성이 있는 span 태그 특별 처리 (이전 이미지의 주요 문제 패턴)
+    processedContent = processedContent.replace(/<span\s+id=["']([^"']*)["']>(.*?)<\/span>/g, (match, id, content) => {
+      console.log(`ID가 있는 span 태그 처리: id=${id}, content=${content}`);
+      return content; // ID와 span 태그를 제거하고 내용만 유지
+    });
+    
+    // ID를 포함한 모든 태그 속성 제거 (안전한 approach)
+    processedContent = processedContent.replace(/<([a-zA-Z][a-zA-Z0-9]*)\s+[^>]*>/g, (match, tagName) => {
+      // 허용된 태그만 남기고 모든 속성 제거
+      const allowedTags = ['b', 'i', 'strong', 'em', 'u', 'code', 'pre', 'ul', 'ol', 'li', 'p', 'br', 'hr'];
+      if (allowedTags.includes(tagName.toLowerCase())) {
+        return `<${tagName}>`;
+      }
+      return ''; // 허용되지 않은 태그는 제거
+    });
+    
     // 마크다운 코드 블록 탐지 및 보호
     const codeBlockPattern = /```(\w*)\n([\s\S]*?)```/g;
     const codeBlocks = [];
@@ -1560,12 +1593,8 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     processedContent = processedContent
       .replace(/^(#{1,6})\s*\1+\s*/gm, '$1 ');
     
-    // 남은 모든 HTML 태그 제거
-    const remainingTags = processedContent.match(/<[^>]+>/g);
-    if (remainingTags) {
-      console.log('남은 HTML 태그:', remainingTags);
-      processedContent = processedContent.replace(/<[^>]+>/g, '');
-    }
+    // 남은 모든 HTML 태그 제거 - 더 강력한 정규식 사용
+    processedContent = processedContent.replace(/<[^>]*>?/gm, '');
     
     // 마크다운 코드 블록 복원
     codeBlocks.forEach(({placeholder, language, code}) => {
@@ -1587,18 +1616,35 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     const addHeadingIds = (content) => {
       return content.replace(/^(#{1,3})\s+(.+)$/gm, (match, hashes, text) => {
         const id = text.toLowerCase().replace(/[^\w\s가-힣]/g, '').replace(/\s+/g, '-');
-        return `${hashes} <span id="${id}">${text}</span>`;
+        return `${hashes} ${text}`;  // ID 속성 제거, 단순 텍스트로 변환
       });
     };
     
-    // 콘텐츠 전처리
-    const processedContent = escapeHtmlTags(message.content);
+    // 응답 텍스트가 비정상적인 패턴을 가지고 있는지 확인
+    const hasAbnormalPatterns = (text) => {
+      if (!text) return false;
+      
+      // 비정상 패턴 목록
+      const abnormalPatterns = [
+        /<span\s+id=/i,                // ID가 있는 span 태그
+        /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/,  // 중국어 한자
+        /<(\/?)([a-z]+)[^>]*>/i        // HTML 태그
+      ];
+      
+      return abnormalPatterns.some(pattern => pattern.test(text));
+    };
     
-    // 헤딩이 있는 경우 ID 추가
-    const contentWithIds = headings.length > 0 ? addHeadingIds(processedContent) : processedContent;
+    // 콘텐츠 전처리
+    let processedContent = message.content;
+    
+    // 비정상 패턴이 있는 경우에만 escapeHtmlTags 함수 적용 (성능 최적화)
+    if (hasAbnormalPatterns(processedContent)) {
+      console.log("비정상 패턴 감지, HTML 태그 이스케이프 처리 적용");
+      processedContent = escapeHtmlTags(processedContent);
+    }
     
     return (
-      <div className="prose prose-sm dark:prose-invert max-w-none">
+      <div className="prose prose-sm dark:prose-invert max-w-none overflow-hidden">
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkMath]}
           rehypePlugins={[rehypeHighlight, rehypeKatex]}
@@ -1674,14 +1720,18 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
                   {children}
                 </pre>
               );
-            }
+            },
+            // 헤딩 태그 처리 개선 (ID 속성 없이)
+            h1: ({ node, children, ...props }) => <h1 {...props}>{children}</h1>,
+            h2: ({ node, children, ...props }) => <h2 {...props}>{children}</h2>,
+            h3: ({ node, children, ...props }) => <h3 {...props}>{children}</h3>
           }}
         >
-          {contentWithIds}
+          {processedContent}
         </ReactMarkdown>
       </div>
     );
-  }, [message.content, headings, copied]);
+  }, [message.content, copied]);
 
   // 메시지 그룹핑 로직
   const isLastInGroup = !nextMessage || nextMessage.role !== message.role;
