@@ -168,17 +168,33 @@ async def extract_text_from_pdf_with_ocr(pdf_path: str, min_confidence: float = 
         ocr_processing_logger.info(f"[PDF OCR START] 파일 처리 시작: {pdf_path}")
         logger.info(f"PDF에서 텍스트 직접 추출 시도: {pdf_path}")
         loop = asyncio.get_event_loop()
-        extracted_text = await loop.run_in_executor(None, lambda: pdfminer_extract_text(pdf_path))
+        extracted_text_raw = await loop.run_in_executor(None, lambda: pdfminer_extract_text(pdf_path))
         
-        # 충분한 텍스트가 추출되었는지 확인 (최소 30자)
-        if extracted_text and len(re.sub(r'\\s+', '', extracted_text)) >= 30:
-            logger.info(f"PDF에서 텍스트 직접 추출 성공: {len(extracted_text)} 글자")
-            ocr_processing_logger.info(f"[PDF OCR SUCCESS] 직접 텍스트 추출 성공 (PDFMiner): {pdf_path}, 글자수: {len(extracted_text)}")
-            return extracted_text
+        # 추출된 텍스트에서 실제 유효 문자 수 확인
+        meaningful_text_threshold = 10  # 실제 의미있는 문자의 최소 개수
+        valid_text_for_skip_ocr = False
+        if extracted_text_raw:
+            # 공백, 줄바꿈, form feed 등 제외하고 실제 문자만 카운트
+            # 정규표현식을 사용하여 한글, 영어 알파벳, 숫자만 카운트
+            meaningful_chars = re.sub(r'[^a-zA-Z0-9가-힣]', '', extracted_text_raw)
+            num_meaningful_chars = len(meaningful_chars)
+            
+            total_chars_no_whitespace = len(re.sub(r'\\s+', '', extracted_text_raw))
+
+            logger.info(f"PDFMiner 추출: 총 문자(공백제거): {total_chars_no_whitespace}, 유효 문자(a-zA-Z0-9가-힣): {num_meaningful_chars}")
+            ocr_processing_logger.info(f"[PDF OCR INFO] PDFMiner 추출 결과 - 총 문자(공백제거): {total_chars_no_whitespace}, 유효 문자: {num_meaningful_chars} (임계값: {meaningful_text_threshold})")
+
+            if total_chars_no_whitespace >= 30 and num_meaningful_chars >= meaningful_text_threshold:
+                valid_text_for_skip_ocr = True
+        
+        if valid_text_for_skip_ocr:
+            logger.info(f"PDF에서 텍스트 직접 추출 성공 (유효 문자 충분): {len(extracted_text_raw)} 글자")
+            ocr_processing_logger.info(f"[PDF OCR SUCCESS] 직접 텍스트 추출 성공 (PDFMiner): {pdf_path}, 글자수: {len(extracted_text_raw)}")
+            return extracted_text_raw
             
         # 2. 직접 추출이 불충분한 경우, OCR 적용
-        logger.info(f"직접 추출 불충분. OCR 적용 중: {pdf_path}")
-        ocr_processing_logger.info(f"[PDF OCR INFO] 직접 추출 불충분, 이미지 변환 및 OCR 진행: {pdf_path}")
+        logger.info(f"직접 추출 불충분 (또는 유효 문자 부족). PaddleOCR 적용 중: {pdf_path}")
+        ocr_processing_logger.info(f"[PDF OCR INFO] 직접 추출 불충분/유효문자 부족, 이미지 변환 및 PaddleOCR 진행: {pdf_path}")
         
         # PDF를 이미지로 변환
         def convert_pdf_to_images():

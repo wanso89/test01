@@ -14,6 +14,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, AreaChart, Area
 } from 'recharts';
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 // SQL 언어 등록
 SyntaxHighlighter.registerLanguage('sql', sql);
@@ -1170,6 +1172,111 @@ const EXAMPLE_QUESTIONS = [
   "최근 30일 내에 등록된 문의사항 개수는 몇 개인가요?",
   "가상머신 사용량이 90% 이상인 사용자 리스트를 보여주세요"
 ];
+
+// LLM 응답에서 반복적인 Markdown 섹션을 제거하는 함수
+const deduplicateMarkdownSections = (markdownText) => {
+  if (!markdownText || typeof markdownText !== 'string') {
+    return "";
+  }
+
+  // 섹션을 구분하는 주요 패턴: "## "으로 시작하는 Markdown 헤더 (H2)
+  // 또는 ```markdown\n## 답변 패턴 등을 고려할 수 있으나,
+  // 현재 제공된 예시에서는 "## 답변"이 주요 반복 단서이므로 이를 기준으로 함.
+  // 좀 더 일반적인 헤더(H1-H3)를 고려: /^(#{1,3}\s+.+?)(?=\n#{1,3}\s+|$)/gms
+  // 여기서는 사용자의 예시를 기반으로 "## 답변"을 포함하는 더 넓은 패턴을 사용.
+  // 응답 시작부터 첫 "## 답변" 앞까지, 그리고 각 "## 답변" 블록으로 나눔.
+  
+  const sections = [];
+  const uniqueNormalizedSections = new Set();
+  let result = "";
+
+  // 정규 표현식으로 "## 답변" 또는 유사한 헤더로 시작하는 블록을 찾음
+  // (?:^|\n)##\s+.*?(?=\n##\s+|\n```markdown\n##\s+|$)
+  // 위 정규식은 복잡하므로, 단순화된 접근으로 문자열 분할을 사용.
+  // "## 답변"이라는 문자열이 내용에 포함될 수 있으므로 주의해야 함.
+  // 여기서는 제공된 예시의 반복 구조 ` ```markdown ## 답변 ... ``` ` 및 `## 답변 ...` 에 초점.
+
+  // 더 안정적인 방법: 응답을 줄 단위로 처리하거나,
+  // 명확한 구분자(예: \n---\n과 같은 LLM이 잘 사용하지 않는 구분자)를 가정.
+  // 여기서는 "## 답변"을 기준으로 단순화된 중복 제거를 시도.
+  // 실제로는 LLM 응답 포맷에 따라 정교한 파싱이 필요할 수 있음.
+
+  // 임시 해결책: 가장 지배적인 반복 패턴인 "## 답변"으로 시작하는 주요 내용 블록의 중복을 제거.
+  // 이를 위해, 전체 텍스트를 "## 답변"으로 분리하고, 각 조각의 유사성을 비교.
+  const separator = "## 답변";
+  const parts = markdownText.split(new RegExp(`(\\n${separator}\\s|${separator}\\s)`, 'g'));
+  
+  let currentSection = "";
+  if (parts.length > 0) {
+    currentSection = parts[0]; // 첫 부분은 ## 답변 이전 내용일 수 있음.
+  }
+
+  for (let i = 1; i < parts.length; i++) {
+    // 분리자로 인해 생긴 빈 문자열이나, 분리자 자체를 건너뛰기 위한 로직.
+    // 분리 패턴에 따라 parts[i]가 분리자일수도 있고, 내용일 수도 있음.
+    // 여기서는 split 결과가 [내용, 분리자, 내용, 분리자, ...] 형태임을 가정
+    if (parts[i].trim() === "" || parts[i].includes(separator)) {
+        // 현재까지 구성된 currentSection을 하나의 섹션으로 처리
+        const normalizedSection = currentSection.trim().replace(/\s+/g, ' ');
+        if (normalizedSection !== "" && !uniqueNormalizedSections.has(normalizedSection)) {
+            uniqueNormalizedSections.add(normalizedSection);
+            result += currentSection;
+        }
+        currentSection = ""; // 다음 섹션을 위해 초기화
+
+        if (parts[i].includes(separator)) { // 현재 부분이 분리자라면 추가
+            currentSection += parts[i]; 
+        }
+
+    } else { // 분리자가 아닌 내용 부분
+        currentSection += parts[i];
+    }
+  }
+
+  // 마지막 남은 섹션 처리
+  const normalizedLastSection = currentSection.trim().replace(/\s+/g, ' ');
+  if (normalizedLastSection !== "" && !uniqueNormalizedSections.has(normalizedLastSection)) {
+      result += currentSection;
+  } else if (result === "" && currentSection.trim() !== "") {
+    // 중복이지만 결과가 비어있으면 (즉, 모든 내용이 중복이면) 첫번째 것은 표시
+    result += currentSection;
+  }
+  
+  // 만약 분할 및 재조립 로직이 복잡하여 문제가 생긴다면,
+  // 가장 간단하게는 전체 응답에서 첫번째 "## 답변" 블록과 두번째 "## 답변" 블록의 내용을 비교하여
+  // 동일하면 두번째 이후를 제거하는 방식을 고려할 수 있습니다.
+  // 아래는 더 견고하지만 복잡한 접근 대신, "매우 유사한 긴 문단"을 찾아 제거하는 방식.
+
+  // 사용자 제공 예시의 반복은 주로 전체 내용의 복제에 가까움.
+  // 따라서, 전체 응답에서 매우 유사한(또는 동일한) 긴 문단/섹션이 연속으로 나타나는지 확인.
+  // 아래는 임시적이고 단순화된 접근입니다. 실제 LLM 응답 패턴에 따라 고도화 필요.
+  // 이 코드는 개념 증명이며, 실제 환경에서는 LLM 응답 구조에 맞춰 더욱 정교하게 다듬어야 합니다.
+
+  // 더 간단한 접근: 특정 마커 ("## 답변")를 기준으로 내용을 분리하고, Set으로 중복 제거
+  const uniqueContents = new Set();
+  let finalContent = "";
+  const contentBlocks = markdownText.split(/(?=^##\s+답변)/m); // "## 답변" 헤더로 시작하는 부분으로 분리
+
+  for (const block of contentBlocks) {
+    const trimmedBlock = block.trim();
+    if (trimmedBlock === "") continue;
+
+    // 블록 내용을 정규화 (공백, 줄바꿈 등)
+    const normalizedBlock = trimmedBlock.replace(/\s+/g, ' ').toLowerCase();
+    
+    if (!uniqueContents.has(normalizedBlock)) {
+      uniqueContents.add(normalizedBlock);
+      finalContent += block; // 원본 블록 추가 (포맷 유지)
+    }
+  }
+  
+  // 만약 분리된 블록이 없다면 (즉, "## 답변" 헤더가 없다면) 원본 텍스트 반환
+  if (contentBlocks.length <= 1 && markdownText.trim() !== "") {
+      return markdownText;
+  }
+
+  return finalContent.trim() === "" ? markdownText : finalContent; // 최종 결과가 비어있으면 원본 반환
+};
 
 const SQLQueryPage = ({ setMode }) => {
   const [question, setQuestion] = useState('');

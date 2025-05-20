@@ -5,6 +5,7 @@ import time
 import hashlib
 import json
 import traceback
+import difflib  # 유사도 비교를 위한 표준 라이브러리
 
 # CUDA 메모리 관리 환경 변수 설정
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
@@ -2549,11 +2550,9 @@ async def process_sql_and_llm(request: SQLAndLLMRequest = Body(...)):
         
         print(f"[SQL+LLM] LLM 모델로 향상된 응답 생성 시작 - 질문: '{request.question}'")
         
-        # LLM으로 SQL 결과 설명 생성
+        explanation = "" 
         try:
-            # 설명 프롬프트 생성
             explanation_prompt = f"""# SQL 쿼리 결과 분석 및 응답 생성
-
 ## 질문
 {request.question}
 
@@ -2579,30 +2578,41 @@ async def process_sql_and_llm(request: SQLAndLLMRequest = Body(...)):
 
             print(f"[SQL+LLM] 향상된 프롬프트 길이: {len(explanation_prompt)} 문자")
             
-            # LLM을 사용하여 설명 생성 (동기적으로 호출)
-            explanation = generate_text_with_local_llm(
+            # LLM으로부터 원본 응답 받기
+            raw_explanation = generate_text_with_local_llm(
                 prompt=explanation_prompt,
-                model=llm_model,
+                model=llm_model, 
                 tokenizer=tokenizer,
-                temperature=0.0,  # 낮은 온도로 사실적 응답 생성
-                max_new_tokens=1024  # 충분한 응답 길이
+                temperature=0.0,
+                max_new_tokens=1024 
             )
             
-            print(f"[SQL+LLM] 생성된 응답 길이: {len(explanation)} 문자")
-            print(f"[SQL+LLM] 응답 미리보기: {explanation[:75]}...")
+            print(f"[SQL+LLM] LLM 생성 원본 응답 길이: {len(raw_explanation)} 문자")
+            print(f"[SQL+LLM] LLM 생성 원본 미리보기 (첫 200자): {raw_explanation[:200]}...")
+
+            # 개선된 중복 제거 로직 적용
+            explanation = deduplicate_markdown_sections_py(raw_explanation)
             
-            # 응답이 비어있거나 오류 메시지가 포함된 경우
-            if not explanation or len(explanation) < 10 or "오류" in explanation:
+            print(f"[SQL+LLM] 중복 제거 후 응답 길이: {len(explanation)} 문자")
+            print(f"[SQL+LLM] 중복 제거 후 미리보기 (첫 200자): {explanation[:200]}...")
+            
+            # 응답이 비었거나 너무 짧은 경우 등의 후처리
+            if not explanation.strip() or len(explanation.strip()) < 10 or "오류" in explanation:
+                # is_empty 변수는 이전에 results_markdown 생성 시 설정되었다고 가정
+                is_empty = "조건에 맞는 데이터가 없습니다." in results_markdown 
                 if is_empty:
                     explanation = "조건에 맞는 데이터가 없습니다. 검색 조건을 변경해 보시거나, 다른 질문을 시도해보세요."
-                else:
+                elif "오류" in raw_explanation and not explanation.strip(): # 원본에 오류가 있었고, 중복제거로 비었다면
+                     explanation = raw_explanation # 원본 오류 메시지 사용
+                else: # 그 외의 이유로 설명이 부적절한 경우
                     explanation = "SQL 쿼리 결과를 기반으로 한 설명입니다. 위 테이블에서 자세한 정보를 확인하세요."
         except Exception as llm_error:
-            print(f"[SQL+LLM] LLM 응답 생성 중 오류: {str(llm_error)}")
+            print(f"[SQL+LLM] LLM 응답 생성 또는 후처리 중 오류: {str(llm_error)}")
+            # import traceback # 함수 상단 또는 main.py 상단에 이미 있어야 함
             traceback.print_exc()
             explanation = f"응답 생성 중 오류가 발생했습니다: {str(llm_error)}"
         
-        print(f"[SQL+LLM] 최종 응답: '{explanation[:75]}...'")
+        print(f"[SQL+LLM] 최종 응답 (API 반환 직전, 첫 75자): '{explanation[:75]}...'")
         
         return {
             "status": "success",
@@ -2811,3 +2821,69 @@ if __name__ == "__main__":
 # 기타 라우터 등록
 from app.stats.dashboard_api import router as dashboard_router
 app.include_router(dashboard_router, prefix="", tags=["dashboard"])
+
+# 개선된 중복 제거 함수 (Python 버전) - 마크다운 섹션 기반 구조적 중복 제거
+def deduplicate_markdown_sections_py(markdown_text: str) -> str:
+    if not markdown_text or not isinstance(markdown_text, str):
+        return ""
+    
+    # 1. 마크다운 헤더(##, ### 등)로 섹션 분리
+    section_pattern = re.compile(r'(^|\n)(#+ [^\n]+)(?=\n)', re.MULTILINE)
+    sections = []
+    last_idx = 0
+    for match in section_pattern.finditer(markdown_text):
+        start = match.start(2)
+        if last_idx < start:
+            # 헤더 없는 앞부분 블록
+            block = markdown_text[last_idx:match.start(1)].strip()
+            if block:
+                sections.append((None, block))
+        header = match.group(2).strip()
+        last_idx = start
+        # 다음 헤더 전까지가 본문
+    # 마지막 헤더 이후 블록
+    if last_idx < len(markdown_text):
+        block = markdown_text[last_idx:].strip()
+        if block:
+            # 헤더 추출
+            header_match = re.match(r'^(#+ [^\n]+)\n', block)
+            if header_match:
+                header = header_match.group(1).strip()
+                body = block[len(header):].strip()
+                sections.append((header, body))
+            else:
+                sections.append((None, block))
+
+    # 2. 블록별로 중복(유사) 여부 판단
+    def is_similar(a, b, threshold=0.8):
+        # difflib의 SequenceMatcher로 유사도 측정
+        return difflib.SequenceMatcher(None, a, b).ratio() >= threshold
+
+    unique_blocks = []
+    seen_bodies = []
+    for header, body in sections:
+        # 질문 섹션은 무조건 스킵
+        if header and ("질문" in header or "question" in header.lower()):
+            continue
+        # 본문 정규화
+        norm_body = re.sub(r'\s+', ' ', body.strip().lower())
+        # 이미 유사한 본문이 있는지 확인
+        is_dup = False
+        for prev_body in seen_bodies:
+            if is_similar(norm_body, prev_body):
+                is_dup = True
+                break
+        if not is_dup:
+            seen_bodies.append(norm_body)
+            unique_blocks.append((header, body))
+
+    # 3. 최종 조합 (헤더 없는 블록은 그대로, 헤더 있는 블록은 헤더+본문)
+    result_lines = []
+    for header, body in unique_blocks:
+        if header:
+            result_lines.append(header)
+        result_lines.append(body)
+    result = '\n\n'.join(result_lines)
+    # 연속 빈 줄 정리
+    result = re.sub(r'\n{3,}', '\n\n', result)
+    return result.strip()
