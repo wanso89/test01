@@ -1074,6 +1074,20 @@ function ChatContainer({
         history
       });
       
+      // 어시스턴트 응답을 위한 빈 메시지 생성 (스트리밍으로 채워질 예정)
+      const assistantMessage = {
+        role: "assistant",
+        content: "", // 스트리밍으로 채워질 빈 내용
+        sources: [], // 나중에 업데이트될 소스 배열
+        cited_sources: [], // 나중에 업데이트될 인용 소스 배열
+        timestamp: new Date().getTime(),
+      };
+      
+      // 메시지 목록에 어시스턴트 응답 추가 (빈 상태로 시작)
+      const finalMessages = [...updatedMessages, assistantMessage];
+      onUpdateMessages(finalMessages);
+      
+      // POST 요청 설정
       const response = await fetch("http://172.10.2.70:8000/api/chat", {
         method: "POST",
         headers: {
@@ -1086,195 +1100,144 @@ function ChatContainer({
         }),
       });
       
-      // 응답 데이터 로깅 추가
-      const responseText = await response.text();
-      console.log('원본 응답 텍스트:', responseText);
-      
-      let data;
-      try {
-        data = JSON.parse(responseText);
-        console.log('파싱된 응답 데이터:', data);
-      } catch (parseError) {
-        console.error('JSON 파싱 오류:', parseError);
-        throw new Error(`서버 응답을 처리할 수 없습니다: ${responseText.substring(0, 100)}...`);
-      }
-      
       if (!response.ok) {
-        // 오류 메시지를 올바르게 문자열로 변환
-        const errorMessage = typeof data === 'object' ? 
-          (data.detail || data.message || JSON.stringify(data)) : 
-          String(data);
-        throw new Error(errorMessage);
+        throw new Error(`서버 오류: ${response.status} ${response.statusText}`);
       }
       
-      // 응답 데이터 처리 확인 로깅
-      console.log('사용할 응답 키:', {
-        bot_response: data.bot_response,
-        answer: data.answer,
-        sourceType: Array.isArray(data.sources) ? 'array' : typeof data.sources,
-        sourcesLength: Array.isArray(data.sources) ? data.sources.length : 0,
-        citedSourcesType: Array.isArray(data.cited_sources) ? 'array' : typeof data.cited_sources,
-        citedSourcesLength: Array.isArray(data.cited_sources) ? data.cited_sources.length : 0
-      });
-      
-      // 응답 데이터 처리
-      const assistantMessage = {
-        role: "assistant",
-        content: data.bot_response || data.answer || "응답을 불러오지 못했습니다.",
-        sources: Array.isArray(data.sources) ? data.sources : [],
-        cited_sources: Array.isArray(data.cited_sources) ? data.cited_sources : [],
-        timestamp: new Date().getTime(),
-      };
-      
-      console.log('생성된 어시스턴트 메시지:', assistantMessage);
-      
-      // "응답을 받아왔습니다" 같은 오류 메시지인 경우 처리
-      const errorMessages = ["응답을 받아왔습니다", "정보 없음"];
-      if (errorMessages.some(errMsg => assistantMessage.content.trim() === errMsg)) {
-        console.warn('API에서 오류 응답이 반환되었습니다:', assistantMessage.content);
-        assistantMessage.content = "죄송합니다. 질문에 대한 응답을 생성하는 중 오류가 발생했습니다. 다시 질문해 주시거나 다른 방식으로 질문해 주세요.";
+      // 응답이 스트림인지 확인
+      const contentType = response.headers.get('Content-Type') || '';
+      if (!contentType.includes('text/event-stream')) {
+        console.warn('서버가 스트리밍 응답을 반환하지 않음:', contentType);
+        // 일반 JSON 응답 처리
+        const data = await response.json();
+        
+        // 응답 데이터 처리
+        const updatedAssistantMessage = {
+          ...assistantMessage,
+          content: data.bot_response || data.answer || "응답을 불러오지 못했습니다.",
+          sources: Array.isArray(data.sources) ? data.sources : [],
+          cited_sources: Array.isArray(data.cited_sources) ? data.cited_sources : []
+        };
+        
+        // 메시지 목록 업데이트
+        const updatedFinalMessages = [...updatedMessages, updatedAssistantMessage];
+        onUpdateMessages(updatedFinalMessages);
+        
+        // 로딩 상태 비활성화
+        setTimeout(() => {
+          setLoading(false);
+        }, 300);
+        return;
       }
       
-      // HTML 태그가 그대로 표시되는 경우 전처리
-      if (/<p align=|<table>|<tr>|<td>|<th>|<br|<thead|<tbody/.test(assistantMessage.content)) {
-        console.warn('HTML 태그가 포함된 응답이 감지되었습니다. 전처리를 시도합니다.');
+      // 스트리밍 응답 처리를 위한 reader 설정
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedText = "";
+      let currentSources = [];
+      let currentCitedSources = [];
+      
+      // 스트리밍 응답 처리
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          console.log('스트림 종료');
+          break;
+        }
         
-        // 테이블 변환 - 마크다운 테이블 형식으로 더 정확하게 변환
-        let processedContent = assistantMessage.content;
+        // 디코딩된 텍스트 처리
+        const chunk = decoder.decode(value, { stream: true });
+        console.log('수신된 청크:', chunk);
         
-        if (/<table>/.test(processedContent)) {
+        // SSE 형식 처리 (data: {...} 형식)
+        const lines = chunk.split('\n\n');
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          
+          // data: 접두사 제거 및 JSON 파싱
           try {
-            // 테이블 태그 균형 확인
-            const tableOpenCount = (processedContent.match(/<table>/g) || []).length;
-            const tableCloseCount = (processedContent.match(/<\/table>/g) || []).length;
-            
-            console.log(`테이블 태그 균형: 열림(${tableOpenCount}) 닫힘(${tableCloseCount})`);
-            
-            // 테이블 추출 및 변환 (멀티라인 지원)
-            const tablePattern = /<table>([\s\S]*?)<\/table>/g;
-            let tableMatch;
-            let newContent = processedContent;
-            
-            while ((tableMatch = tablePattern.exec(processedContent)) !== null) {
-              const fullTable = tableMatch[0];
-              const tableContent = tableMatch[1];
+            // "data: " 접두사 확인 및 제거
+            const dataPrefix = "data: ";
+            if (line.startsWith(dataPrefix)) {
+              const jsonStr = line.substring(dataPrefix.length);
+              const eventData = JSON.parse(jsonStr);
               
-              // 마크다운 테이블 생성을 위한 준비
-              let mdTableRows = [];
-              
-              // <thead>, <tbody> 태그 제거 (내용은 유지)
-              const cleanedContent = tableContent.replace(/<thead>|<\/thead>|<tbody>|<\/tbody>/g, '');
-              
-              // 행(row) 추출
-              const rowPattern = /<tr>([\s\S]*?)<\/tr>/g;
-              let rowMatch;
-              let rowIndex = 0;
-              
-              while ((rowMatch = rowPattern.exec(cleanedContent)) !== null) {
-                const rowContent = rowMatch[1];
+              // 토큰 처리
+              if (eventData.token) {
+                // 토큰을 누적 텍스트에 추가
+                accumulatedText += eventData.token;
                 
-                // 헤더 셀(<th>) 또는 데이터 셀(<td>) 추출
-                const headerPattern = /<th>([\s\S]*?)<\/th>/g;
-                const cellPattern = /<td>([\s\S]*?)<\/td>/g;
+                // 메시지 업데이트
+                const updatedAssistantMessage = {
+                  ...assistantMessage,
+                  content: accumulatedText,
+                  sources: currentSources,
+                  cited_sources: currentCitedSources
+                };
                 
-                let headers = [];
-                let headerMatch;
-                while ((headerMatch = headerPattern.exec(rowContent)) !== null) {
-                  headers.push(headerMatch[1].trim());
-                }
-                
-                let cells = [];
-                let cellMatch;
-                while ((cellMatch = cellPattern.exec(rowContent)) !== null) {
-                  cells.push(cellMatch[1].trim());
-                }
-                
-                // 헤더 행 처리
-                if (headers.length > 0) {
-                  let mdRow = '| ' + headers.join(' | ') + ' |';
-                  mdTableRows.push(mdRow);
-                  
-                  // 헤더 행 다음에 구분선 추가
-                  let separator = '| ' + Array(headers.length).fill('---').join(' | ') + ' |';
-                  mdTableRows.push(separator);
-                }
-                // 데이터 행 처리
-                else if (cells.length > 0) {
-                  let mdRow = '| ' + cells.join(' | ') + ' |';
-                  
-                  // 첫 행이고 헤더가 없다면, 헤더로 처리
-                  if (rowIndex === 0 && mdTableRows.length === 0) {
-                    mdTableRows.push(mdRow);
-                    let separator = '| ' + Array(cells.length).fill('---').join(' | ') + ' |';
-                    mdTableRows.push(separator);
-                  } else {
-                    mdTableRows.push(mdRow);
-                  }
-                }
-                
-                rowIndex++;
+                // 메시지 목록 업데이트
+                const updatedFinalMessages = [...updatedMessages, updatedAssistantMessage];
+                onUpdateMessages(updatedFinalMessages);
               }
               
-              // 마크다운 테이블 생성
-              const mdTable = mdTableRows.length > 0 ? '\n' + mdTableRows.join('\n') + '\n' : '';
+              // 출처 정보 처리 (sources 이벤트)
+              if (eventData.event === 'sources' && eventData.sources) {
+                console.log('출처 정보 수신:', eventData.sources.length, '개 항목');
+                currentSources = eventData.sources || [];
+                currentCitedSources = eventData.cited_sources || [];
+                
+                // 메시지에 출처 정보 업데이트
+                const updatedAssistantMessage = {
+                  ...assistantMessage,
+                  content: accumulatedText,
+                  sources: currentSources,
+                  cited_sources: currentCitedSources
+                };
+                
+                // 메시지 목록 업데이트
+                const updatedFinalMessages = [...updatedMessages, updatedAssistantMessage];
+                onUpdateMessages(updatedFinalMessages);
+              }
               
-              // 원본 HTML 테이블을 마크다운 테이블로 대체
-              newContent = newContent.replace(fullTable, mdTable);
+              // 스트림 종료 이벤트 처리
+              if (eventData.event === 'eos') {
+                console.log('스트림 종료 이벤트:', eventData.message);
+                // 종료 처리는 reader.read()의 done으로 처리됨
+              }
+              
+              // 오류 처리
+              if (eventData.error) {
+                console.error('스트리밍 오류:', eventData.error);
+                throw new Error(eventData.error);
+              }
+            } else {
+              console.warn('예상치 못한 형식의 라인:', line);
             }
-            
-            processedContent = newContent;
-          } catch (error) {
-            console.error("테이블 변환 중 오류 발생:", error);
-            // 오류 발생 시 폴백: 간단한 정규식 방식으로 변환 시도
-            processedContent = processedContent
-              .replace(/<table>/g, '\n')
-              .replace(/<\/table>/g, '\n')
-              .replace(/<tr>/g, '| ')
-              .replace(/<\/tr>/g, ' |')
-              .replace(/<th>(.*?)<\/th>/g, ' $1 | ')
-              .replace(/<td>(.*?)<\/td>/g, ' $1 | ');
+          } catch (parseError) {
+            console.error('SSE 데이터 파싱 오류:', parseError, line);
+            // 파싱 오류는 건너뛰고 계속 진행
           }
         }
-        
-        // 기타 HTML 태그 처리
-        // 닫히지 않은 br 태그 처리
-        processedContent = processedContent.replace(/<br\s*\/?>/g, '\n');
-        
-        // p 태그 변환
-        processedContent = processedContent.replace(/<p.*?>(.*?)<\/p>/g, '\n$1\n');
-        
-        // 일반적인 태그 처리
-        processedContent = processedContent
-          .replace(/<b>(.*?)<\/b>/g, '**$1**')
-          .replace(/<i>(.*?)<\/i>/g, '*$1*')
-          .replace(/<strong>(.*?)<\/strong>/g, '**$1**')
-          .replace(/<em>(.*?)<\/em>/g, '*$1*')
-          .replace(/<ul>/g, '\n')
-          .replace(/<\/ul>/g, '\n')
-          .replace(/<li>(.*?)<\/li>/g, '- $1\n')
-          .replace(/<ol>/g, '\n')
-          .replace(/<\/ol>/g, '\n')
-          .replace(/<br>/g, '\n')
-          .replace(/<font color="(.*?)">(.*?)<\/font>/g, '**$2**');
-          
-        // 남은 HTML 태그 제거
-        const remainingTags = processedContent.match(/<[^>]+>/g);
-        if (remainingTags) {
-          console.log('남은 HTML 태그:', remainingTags);
-          processedContent = processedContent.replace(/<[^>]+>/g, '');
-        }
-        
-        assistantMessage.content = processedContent;
       }
       
-      // sources가 비어 있으면 콘솔에 로그 추가
-      if (!assistantMessage.sources || assistantMessage.sources.length === 0) {
-        console.warn('응답에 sources가 없거나 비어 있습니다:', data);
+      // 스트리밍 완료 후 최종 메시지 업데이트
+      if (accumulatedText) {
+        const finalAssistantMessage = {
+          ...assistantMessage,
+          content: accumulatedText,
+          sources: currentSources,
+          cited_sources: currentCitedSources,
+          timestamp: new Date().getTime(),
+        };
+        
+        const finalMessages = [...updatedMessages, finalAssistantMessage];
+        onUpdateMessages(finalMessages);
       }
       
-      // 메시지 목록에 어시스턴트 응답 추가
-      const finalMessages = [...updatedMessages, assistantMessage];
-      onUpdateMessages(finalMessages);
+      // 스트리밍 완료 후 로딩 상태 비활성화
+      setTimeout(() => {
+        setLoading(false);
+      }, 300);
       
     } catch (err) {
       console.error("채팅 요청 오류:", err);
@@ -1293,11 +1256,13 @@ function ChatContainer({
         sources: [], // 빈 sources 배열 추가
       };
       onUpdateMessages([...updatedMessages, errorMessage]);
-    } finally {
-      // 로딩 상태 비활성화 - 약간의 지연 추가 (UI가 부드럽게 전환되도록)
+      
+      // 오류 발생 시에도 로딩 상태 비활성화
       setTimeout(() => {
         setLoading(false);
       }, 300);
+    } finally {
+      // 사용자 입력 초기화
       setUserInput("");
     }
   };
@@ -1341,7 +1306,7 @@ function ChatContainer({
               문서 기반 질의응답 챗봇
             </h2>
             <p className="text-base text-gray-400 mb-6 max-w-lg leading-relaxed">
-              업로드한 문서에 관련된 질문을 해보세요. 정확한 정보와 함께 답변해 드립니다.
+              업로드한 문서에 관련된 질문을 해보세요. <br />정확한 정보와 함께 답변해 드립니다.
             </p>
           </div>
           

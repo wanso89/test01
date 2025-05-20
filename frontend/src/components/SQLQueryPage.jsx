@@ -1831,7 +1831,7 @@ const SQLQueryPage = ({ setMode }) => {
               SQL 질의 어시스턴트
             </h2>
             <p className="text-base text-gray-400 mb-6 max-w-lg leading-relaxed">
-              자연어로 질문하면 SQL 쿼리를 만들어 데이터를 검색해 드립니다. 아래 입력창에 원하시는 질문을 입력해 보세요.
+              자연어로 질문하면 SQL 쿼리를 만들어 데이터를 검색해 드립니다. <br />아래 입력창에 원하시는 질문을 입력해 보세요.
             </p>
           </div>
           

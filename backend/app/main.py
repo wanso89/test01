@@ -11,7 +11,7 @@ import difflib  # 유사도 비교를 위한 표준 라이브러리
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body, Depends, Request, Query, BackgroundTasks, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, validator, root_validator
 from typing import List, Dict, Any, Optional, Union
@@ -37,29 +37,37 @@ from app.utils.file_manager import delete_indexed_file, find_file_by_name
 # 모델 임포트
 import torch
 from torch.cuda.amp import autocast
-from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig, TextIteratorStreamer
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.schema import Document
 from sentence_transformers import CrossEncoder
 import traceback
+from threading import Thread
 
 # 로깅 설정
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("app.log"),
-        logging.StreamHandler()
-    ]
-)
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-traceback.print_exc()
+# 파일 핸들러
+if not any(isinstance(h, logging.FileHandler) for h in logger.handlers):
+    fh = logging.FileHandler("app.log")
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+
+# 스트림 핸들러
+if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
+    sh = logging.StreamHandler()
+    sh.setFormatter(formatter)
+    logger.addHandler(sh)
+
+# traceback.print_exc() # 애플리케이션 시작 시 불필요한 traceback 제거
 
 # 설정 상수
 # LLM_MODEL_NAME = r"/home/root/ko-gemma-v1"
 # EMBEDDING_MODEL_NAME = r"/home/root/KURE-v1"
 # RERANKER_MODEL_NAME = r"/home/root/ko-reranker"
+#LLM_MODEL_NAME = r"/home/root/Qwen3-8B"
 LLM_MODEL_NAME = r"/home/root/Gukbap-Qwen2.5-7B"
 EMBEDDING_MODEL_NAME = r"/home/root/kpf-sbert-v1.1"
 RERANKER_MODEL_NAME = r"/home/root/bge-reranker-large"
@@ -611,157 +619,82 @@ class EnhancedLocalReranker:
 
 # LLM 답변 생성 함수
 async def generate_llm_response(
-    llm_model: Any,
-    tokenizer: Any,
+    tokenizer_for_template_application: Any,
     question: str,
     top_docs: List[Document],
     temperature: float = 0.2,
     conversation_history=None,
-) -> str:
-    if not llm_model or not tokenizer:
-        return "LLM 모델 또는 토크나이저가 로드되지 않았습니다."
-    if not top_docs:
-        return "관련 문서를 찾지 못해 답변을 생성할 수 없습니다."
-
-    # 대화 기록이 없으면 빈 리스트로 초기화
-    if conversation_history is None:
-        conversation_history = []
-
-    # 문서 컨텍스트 준비 - 최적화: 상위 7개 문서 사용 (기존 5개에서 증가)
-    context_parts = []
-    for i, doc in enumerate(top_docs[:7]):  # 상위 7개 문서 사용 (증가)
-        source = os.path.basename(doc.metadata.get("source", "unknown"))
-        page = doc.metadata.get("page", "N/A")
-        context_parts.append(
-            f"[문서 {i+1}] (출처: {source}, 페이지: {page})\n{doc.page_content.strip()}"
-        )
-
-    combined_context = "\n\n".join(context_parts)
-
-    # 이전 대화 기록을 ChatML 포맷으로 변환
+) -> dict:  # 반환 타입을 str에서 dict로 변경
+    logger.debug("Generating final prompt for LLM.")
+    # 1. 대화 기록과 현재 질문, 검색된 문서를 바탕으로 프롬프트 구성
+    context_str = "\\n\\n".join([f"문서 {i+1}: {doc.page_content}" for i, doc in enumerate(top_docs)])
+    
+    # Qwen ChatML 형식에 맞게 프롬프트 생성
+    # 실제 tokenizer.apply_chat_template 사용을 권장하며, 아래는 그 예시입니다.
+    # messages 구성 (conversation_history가 None일 경우 빈 리스트로 초기화)
     messages = []
-    
-    # 시스템 메시지 추가
-    system_message = {
-        "role": "system", 
-        "content": "당신은 사용자 질문에 대해 주어진 참고 문서를 기반으로 답변하는 AI 어시스턴트입니다. "
-                  "답변은 반드시 제공된 참고 문서 내용에 근거해야 합니다. "
-                  "문서에 질문과 관련된 정보가 없다면, \"제공된 문서에서 관련 정보를 찾을 수 없습니다.\"라고 명확히 답변하세요. "
-                  "답변은 명확하고 간결하게 작성해주세요. "
-                  "HTML 태그는 <b>, <ul>, <li>만 사용할 수 있습니다. "
-                  f"참고 문서:\n{combined_context}"
-    }
-    messages.append(system_message)
-    
-    # 대화 기록 포맷팅 - 최적화: 최근 3개 턴으로 제한
     if conversation_history:
-        # 대화 기록의 최대 길이 제한 (최근 3개 턴)
-        recent_history = (
-            conversation_history[-3:]
-            if len(conversation_history) > 3
-            else conversation_history
-        )
-        
-        for msg in recent_history:
-            messages.append({
-                "role": msg["role"],  # "user" 또는 "assistant"
-                "content": msg["content"]
-            })
+        for entry in conversation_history:
+            # role과 content 키가 있는지 확인
+            if isinstance(entry, dict) and "role" in entry and "content" in entry:
+                messages.append({"role": entry["role"], "content": entry["content"]})
+            else:
+                logger.warning(f"Invalid entry in conversation_history: {entry}")
+
+    # 시스템 메시지 추가
+    system_message = f"""You are a helpful AI assistant. Answer the questions based on the provided documents.
+If the information is not in the documents, say that you cannot answer.
+Provided documents:
+{context_str}"""
+    messages.insert(0, {"role": "system", "content": system_message})
     
-    # 현재 질문 추가
+    # 사용자 질문 추가
     messages.append({"role": "user", "content": question})
-    
-    # ChatML 포맷으로 변환
-    prompt = tokenizer.apply_chat_template(
-        messages,
-        tokenize=False,
-        add_generation_prompt=True
-    )
 
     try:
-        # 메모리 최적화를 위한 캐시 정리
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-
-        with torch.no_grad(), torch.cuda.amp.autocast(enabled=True):  # Mixed precision 활성화
-            # 입력 인코딩 및 CUDA 장치로 이동
-            inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=4096)
-            inputs = {k: v.to(llm_model.device) for k, v in inputs.items()}
-
-            # 생성 파라미터 최적화 - Qwen2.5에 맞게 조정
-            outputs = await asyncio.wait_for(
-                asyncio.to_thread(
-                    llm_model.generate,
-                    **inputs,
-                    max_new_tokens=1024,  # 토큰 수 감소 (512 → 300): 대부분의 응답에 충분하며 생성 속도 향상
-                    repetition_penalty=1.15,  # 약간 감소 (1.2 → 1.15): 처리 속도 향상
-                    temperature=0.0,  # 완전 결정적 생성 (0.01 → 0.0): 가장 빠른 추론 속도
-                    do_sample=False,  # 결정적인 디코딩 유지
-                    top_p=1.0,  # 결정적 생성에 최적화 (0.95 → 1.0)
-                    top_k=1,    # 결정적 생성에 최적화 (40 → 1)
-                    pad_token_id=tokenizer.eos_token_id,
-                    num_beams=1,  # 빔 서치 없이 유지
-                    use_cache=True,  # KV 캐시 활성화 - 큰 속도 향상
-                ),
-                timeout=30.0,  # 타임아웃 감소 (60초 → 30초): 빠른 실패 처리
-            )
-
-            # 효율적인 텍스트 디코딩 (skip_special_tokens=True)
-            generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-            
-            # ChatML 응답 처리 - assistant 응답 추출
-            assistant_response = ""
-            
-            # Qwen 모델의 ChatML 응답 처리 개선
-            # 1. "<|im_start|>assistant" 또는 "assistant" 태그 이후의 응답만 추출
-            if "<|im_start|>assistant" in generated_text:
-                assistant_part = generated_text.split("<|im_start|>assistant")[-1].strip()
-                # "<|im_end|>" 이전의 부분 추출
-                if "<|im_end|>" in assistant_part:
-                    assistant_response = assistant_part.split("<|im_end|>")[0].strip()
-                else:
-                    assistant_response = assistant_part
-            elif "assistant\n" in generated_text:
-                # "assistant\n" 다음 부분을 추출
-                assistant_part = generated_text.split("assistant\n")[-1].strip()
-                # 다음 role이 나오는 부분까지만 추출
-                for role in ["user\n", "system\n", "\nassistant", "\nuser", "\nsystem"]:
-                    if role in assistant_part:
-                        assistant_response = assistant_part.split(role)[0].strip()
-                        break
-                else:
-                    assistant_response = assistant_part
-            else:
-                # 포맷이 예상대로 나오지 않을 경우 prompt 제거 시도
-                try:
-                    assistant_response = generated_text.replace(prompt, "").strip()
-                    
-                    # 여전히 role 태그가 포함되어 있다면 깨끗이 제거
-                    for prefix in ["system\n", "user\n", "assistant\n"]:
-                        if assistant_response.startswith(prefix):
-                            assistant_response = assistant_response[len(prefix):].strip()
-                except Exception as e:
-                    print(f"응답 정제 중 오류: {e}")
-                    assistant_response = generated_text
-            
-            # 불필요한 태그들이 여전히 있다면 제거
-            if assistant_response.startswith("assistant"):
-                assistant_response = assistant_response[len("assistant"):].strip()
-            if assistant_response.startswith("\n"):
-                assistant_response = assistant_response[1:].strip()
-                
-            # 빈 응답 처리
-            if not assistant_response.strip():
-                assistant_response = "죄송합니다, 답변을 생성하는 데 문제가 발생했습니다. 다시 질문해 주세요."
-                
-            return assistant_response
-    except asyncio.TimeoutError:
-        print(f"LLM 답변 생성 시간 초과 (질문: {question[:50]}...)")
-        return "답변 생성 시간이 초과되었습니다. 더 짧은 질문으로 다시 시도해 주세요."
+        # tokenizer_for_template_application (원래 tokenizer)를 사용하여 프롬프트 템플릿 적용
+        final_prompt_text = tokenizer_for_template_application.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True # assistant 응답을 유도
+        )
     except Exception as e:
-        print(f"LLM 답변 생성 중 오류 발생: {e}")
-        traceback.print_exc()
-        return "답변 생성 중 오류가 발생했습니다. 다시 시도해 주세요."
+        logger.error(f"Error applying chat template: {e}")
+        # 템플릿 적용 실패 시 기본 폴백 프롬프트 (매우 단순화된 버전)
+        final_prompt_text = f"System: {system_message}\\nUser: {question}\\nAssistant:"
+
+    logger.debug(f"Generated final_prompt_text (first 100 chars): {final_prompt_text[:100]}")
+    
+    # 문서 출처 정보 추출
+    source_metadata = []
+    for i, doc in enumerate(top_docs):
+        # 소스 정보 URL 인코딩
+        source_path = doc.metadata.get("source", "unknown")
+        page_num = doc.metadata.get("page", 1)
+        chunk_id = doc.metadata.get("chunk_id", i)
+
+        # 파일명에서 UUID 제거 (UUID_파일명.확장자 형식 가정)
+        clean_filename = os.path.basename(source_path)
+        # UUID_ 패턴 감지 (UUID는 일반적으로 8-4-4-4-12 형식의 16진수 문자)
+        if '_' in clean_filename:
+            uuid_parts = clean_filename.split('_', 1)
+            if len(uuid_parts) > 1 and len(uuid_parts[0]) >= 8:  # UUID로 추정되는 부분이 있으면 제거
+                clean_filename = uuid_parts[1]
+
+        source_metadata.append({
+            "path": source_path,
+            "display_name": clean_filename,  # 화면 표시용 정제된 파일명 추가
+            "page": page_num,
+            "chunk_id": chunk_id,
+            "score": doc.metadata.get("relevance_score", 0),
+        })
+    
+    # 프롬프트 텍스트와 소스 메타데이터를 함께 반환
+    return {
+        "prompt_text": final_prompt_text,
+        "source_metadata": source_metadata,
+        "top_docs": top_docs  # 문서 전체 내용도 함께 반환 (인용 감지용)
+    }
 
 
 # 검색 및 결합 함수
@@ -948,7 +881,11 @@ async def search_and_combine(
         # LLM으로 답변 생성
         llm_start = time.time()
         answer = await generate_llm_response(
-            llm_model, tokenizer, query, final_docs, 0.2, conversation_history
+            tokenizer,
+            query,
+            final_docs,
+            0.2,
+            conversation_history
         )
         
         # 응답이 None인 경우 대체 응답 사용 (방어 코드)
@@ -2125,45 +2062,260 @@ async def upload_files(
 # 질문-응답 엔드포인트
 @app.post("/api/chat")
 async def chat(request: QuestionRequest = Body(...)):
-    try:
-        result = await search_and_combine(
-            es_client,
-            embedding_function,
-            reranker_model,
-            llm_model,
-            tokenizer,
-            query=request.question,
-            category=request.category,
-            conversation_history=request.history,
+    logger.info(f"Received chat request: '{request.question}', Category: '{request.category}', History items: {len(request.history) if request.history else 0}")
+    request_start_time = time.time()
+
+    # 의존성 주입 또는 전역 변수를 통해 모델/클라이언트 가져오기
+    # 이 예제에서는 전역 변수(es_client, embedding_function, reranker_model, llm_model, tokenizer)를 사용한다고 가정합니다.
+    # 실제 프로덕션 코드에서는 FastAPI의 Depends 시스템을 사용하는 것이 좋습니다.
+    # FastAPI 애플리케이션 시작 시 (예: @app.on_event("startup")) 이 변수들이 초기화되어야 합니다.
+    global es_client, embedding_function, reranker_model, llm_model, tokenizer
+
+    if not all([es_client, embedding_function, reranker_model, llm_model, tokenizer]):
+        logger.error("Critical components (ES, models, tokenizer) not initialized.")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"message": "챗봇 시스템이 준비되지 않았습니다. 관리자에게 문의하세요."}
         )
 
-        # 방어적 프로그래밍: 필수 키 존재 확인 및 기본값 설정
-        if 'sources' not in result:
-            result['sources'] = []
-        if 'cited_sources' not in result:
-            result['cited_sources'] = []
-        if 'answer' not in result:
-            result['answer'] = "답변 생성 중 오류가 발생했습니다."
+    try:
+        # 1. Elasticsearch에서 문서 검색, 검색 결과 개선, 리랭킹
+        search_pipeline_start_time = time.time()
 
-        # 응답 데이터 로깅 추가 - 특히 출처 정보 확인
-        print(f"API 응답 데이터 - 출처 정보: sources={len(result.get('sources', []))}, cited_sources={len(result.get('cited_sources', []))}")
-        if result.get('cited_sources'):
-            print(f"인용된 출처 샘플: {result['cited_sources'][0]}")
-        elif result.get('sources'):
-            print(f"전체 출처 샘플: {result['sources'][0]}")
+        # 1a. Elasticsearch Retriever를 사용하여 초기 문서 검색
+        retriever = ElasticsearchRetriever(
+            es_client=es_client,
+            embedding_function=embedding_function,
+            category=request.category,
+            k=10 # 초기 검색 문서 수 (search_and_combine 함수 참고)
+        )
+        retrieved_docs_initial = await asyncio.to_thread(retriever.get_relevant_documents, request.question)
+        logger.info(f"Initial document retrieval completed in {time.time() - search_pipeline_start_time:.4f} seconds. Found {len(retrieved_docs_initial)} docs.")
 
-        return {
-            "bot_response": result["answer"],
-            "sources": result["sources"],
-            "cited_sources": result["cited_sources"],  # 인용된 출처 정보 추가
-            "questionContext": request.question,
+        if not retrieved_docs_initial:
+            logger.info("No relevant documents found for the query from initial retrieval.")
+            async def empty_response_stream():
+                yield f"data: {json.dumps({'token': '관련 문서를 찾을 수 없습니다. 다른 질문을 시도해 주세요.'})}\n\n"
+                yield f"data: {json.dumps({'event': 'eos'})}\n\n"
+            return StreamingResponse(empty_response_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+        # 1b. EnhancedSearchPipeline을 사용하여 검색 결과 개선 (TypeError 수정)
+        enhance_start_time = time.time()
+        enhancer = EnhancedSearchPipeline() # 인자 없이 초기화
+        # process 메소드는 (query, docs)를 인자로 받음
+        _query_info, enhanced_docs = await asyncio.to_thread(enhancer.process, request.question, retrieved_docs_initial)
+        logger.info(f"Search enhancement completed in {time.time() - enhance_start_time:.4f} seconds.")
+        
+        # 개선된 문서가 있으면 사용, 없으면 초기 검색 결과 사용
+        docs_for_reranking = enhanced_docs if enhanced_docs else retrieved_docs_initial
+
+        # 1c. Reranking
+        rerank_start_time = time.time()
+        local_reranker = EnhancedLocalReranker(reranker_model=reranker_model)
+        reranked_docs = await asyncio.to_thread(local_reranker.rerank, request.question, docs_for_reranking)
+        logger.info(f"Document reranking completed in {time.time() - rerank_start_time:.4f} seconds. Reranked to {len(reranked_docs)} docs.")
+        
+        # 실제 LLM에 전달할 문서 수 제한 (예: 상위 5-10개)
+        # 너무 많은 문서는 컨텍스트 길이 초과 또는 노이즈 증가 유발 가능
+        # 이 값은 실험을 통해 최적화 필요
+        NUM_DOCS_FOR_LLM = 7 # 예시 값
+        top_docs = reranked_docs[:NUM_DOCS_FOR_LLM]
+        logger.info(f"Using top {len(top_docs)} docs for LLM context.")
+
+        # 2. LLM에 전달할 최종 프롬프트 생성
+        prompt_generation_start_time = time.time()
+        prompt_data = await generate_llm_response(
+            tokenizer,
+            request.question,
+            top_docs,
+            0.1,
+            request.history
+        )
+        final_prompt_text = prompt_data["prompt_text"]
+        source_metadata = prompt_data["source_metadata"]
+        top_docs_content = prompt_data["top_docs"]
+        logger.info(f"Prompt generation completed in {time.time() - prompt_generation_start_time:.4f} seconds.")
+        # logger.debug(f"Final prompt for LLM (first 200 chars): {final_prompt_text[:200]}")
+
+        # 3. TextIteratorStreamer 및 StreamingResponse 설정
+        # streamer는 현재 토큰나이저를 사용
+        streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
+
+        # 모델 추론을 위한 입력 준비 (토큰화)
+        # 주의: final_prompt_text가 이미 ChatML 템플릿이 적용된 완전한 문자열이어야 함
+        # (즉, tokenizer.apply_chat_template의 결과물)
+        try:
+            inputs = tokenizer(final_prompt_text, return_tensors="pt", padding=False, truncation=False).to(llm_model.device)
+        except Exception as e:
+            logger.error(f"Error tokenizing final prompt: {e}. Prompt (first 100 chars): {final_prompt_text[:100]}")
+            raise # 토큰화 실패는 심각한 문제이므로 예외를 다시 발생시켜 처리 중단
+
+        # LLM 생성 파라미터 설정
+        # 실제 모델 및 사용 사례에 맞게 이 값들을 조정해야 합니다.
+        generation_temperature = 0.1 # 예시: 약간의 창의성 허용, 너무 높으면 일관성 저하
+        generation_max_new_tokens = 2048 # 답변 최대 길이
+
+        generation_kwargs = dict(
+            **inputs,
+            max_new_tokens=generation_max_new_tokens,
+            temperature=generation_temperature,
+            pad_token_id=tokenizer.eos_token_id, # 매우 중요
+            #eos_token_id=tokenizer.eos_token_id, # 필요시 명시 (Qwen은 여러 eos_token_id를 가질 수 있음)
+            streamer=streamer,
+        )
+        # temperature > 0 이면 do_sample=True가 기본이나, 명시적으로 설정 가능
+        if generation_temperature > 0.0:
+             generation_kwargs["do_sample"] = True
+        else: # temperature가 0이면 greedy decoding
+             generation_kwargs["do_sample"] = False
+        
+        # Qwen 모델은 <|im_end|>를 eos_token으로 사용할 수 있음.
+        # 또는 tokenizer.eos_token_id가 이를 가리키도록 설정되어 있어야 함.
+        # eos_token_ids = [tokenizer.eos_token_id]
+        # if tokenizer.im_end_id: # Qwen의 특수 토큰 ID 확인
+        #    eos_token_ids.append(tokenizer.im_end_id)
+        # generation_kwargs["eos_token_id"] = eos_token_ids # 리스트로 전달 가능
+
+        logger.info(f"Starting LLM generation with params: temp={generation_temperature}, max_tokens={generation_max_new_tokens}")
+        llm_generation_start_time = time.time()
+
+        # 별도 스레드에서 모델 생성 실행 (GPU 작업은 GIL의 영향을 덜 받지만, I/O 바운드 작업처럼 처리)
+        # autocast 컨텍스트는 generate 함수 내부에서 처리되거나, 스레드 타겟 함수를 래핑하여 적용 가능
+        # 현재 llm_model.generate가 autocast를 내부적으로 처리한다고 가정
+        thread = Thread(target=llm_model.generate, kwargs=generation_kwargs)
+        thread.start()
+
+        # 인용 감지 및 소스 처리를 위한 변수
+        accumulated_text = ""
+        cited_sources = []
+
+        # 비동기 제너레이터 정의
+        async def stream_generator():
+            nonlocal accumulated_text, cited_sources
+            # logger.debug("Stream generator started.")
+            generated_text_count = 0
+            try:
+                for new_text in streamer:
+                    if new_text:
+                        generated_text_count += len(new_text)
+                        accumulated_text += new_text
+                        # logger.debug(f"Streaming token: {new_text}")
+                        yield f"data: {json.dumps({'token': new_text})}\n\n" # SSE 형식
+                    await asyncio.sleep(0.001) # 다른 비동기 작업 실행 기회 부여
+                
+                # 스트림 종료 시 인용 소스 처리
+                if accumulated_text:
+                    # 응답 정제 (불필요한 시스템 메시지 등 제거)
+                    def clean_response(resp):
+                        if not resp:
+                            return "죄송합니다. 응답을 생성하는 중 오류가 발생했습니다."
+                            
+                        # 1. 시스템 메시지 제거
+                        if resp.startswith("system\n"):
+                            parts = resp.split("user\n")
+                            if len(parts) > 1:
+                                resp = parts[1]
+                                parts = resp.split("assistant\n")
+                                if len(parts) > 1:
+                                    resp = parts[1].strip()
+                                    return resp
+                        
+                        # 2. assistant 접두사 제거
+                        if "assistant\n" in resp:
+                            parts = resp.split("assistant\n")
+                            if len(parts) > 1:
+                                resp = parts[-1].strip()
+                                return resp
+                        
+                        # 3. 그 외의 경우
+                        # 불필요한 태그 제거
+                        for tag in ["system\n", "user\n", "assistant\n", "system:", "user:", "assistant:", "system", "user", "assistant"]:
+                            if resp.startswith(tag):
+                                resp = resp[len(tag):].strip()
+                                
+                        return resp.strip()
+                    
+                    # 응답 정제 적용
+                    cleaned_text = clean_response(accumulated_text)
+                    
+                    # 인용 소스 감지
+                    def extract_keywords(text, min_length=3, max_keywords=20):
+                        if text is None or not isinstance(text, str):
+                            return []
+                        words = re.findall(r'\b[가-힣a-zA-Z0-9]+\b', text)
+                        filtered_words = [w for w in words if len(w) >= min_length]
+                        unique_words = list(set(filtered_words))[:max_keywords]
+                        return unique_words
+                    
+                    # 응답에서 키워드 추출
+                    answer_keywords = extract_keywords(cleaned_text)
+                    
+                    # 인용 소스 감지
+                    for i, meta in enumerate(source_metadata):
+                        cited = False
+                        source_text = top_docs_content[i].page_content if i < len(top_docs_content) else ""
+                        
+                        # 1. 연속된 텍스트 일치 여부 확인 (최소 30자)
+                        if len(source_text) > 50:
+                            for j in range(0, len(source_text) - 30, 10):
+                                snippet = source_text[j:j+30]
+                                if snippet in cleaned_text:
+                                    cited = True
+                                    break
+                        
+                        # 2. 키워드 기반 매칭
+                        if not cited and source_text:
+                            source_keywords = extract_keywords(source_text)
+                            if source_keywords:
+                                matches = [k for k in source_keywords if k in cleaned_text]
+                                match_ratio = len(matches) / len(source_keywords)
+                                if match_ratio > 0.3:
+                                    cited = True
+                        
+                        # 인용된 소스만 추가
+                        if cited:
+                            meta["is_cited"] = True
+                            cited_sources.append(meta)
+                        else:
+                            meta["is_cited"] = False
+                
+                # 스트림 종료 알림 (모든 토큰 생성 완료) - 출처 정보 포함
+                logger.info(f"LLM generation stream finished. Total chars: {generated_text_count}. Time: {time.time() - llm_generation_start_time:.4f}s")
+                
+                # 최종 메시지에 출처 정보 포함
+                yield f"data: {json.dumps({'event': 'sources', 'sources': source_metadata, 'cited_sources': cited_sources})}\n\n"
+                
+                # 스트림 종료 이벤트
+                yield f"data: {json.dumps({'event': 'eos', 'message': 'Stream ended successfully.'})}\n\n"
+
+            except Exception as e:
+                logger.error(f"Error during LLM streaming: {e}", exc_info=True)
+                yield f"data: {json.dumps({'error': '스트리밍 중 오류가 발생했습니다.', 'details': str(e)})}\n\n"
+            finally:
+                if thread.is_alive():
+                    thread.join(timeout=5.0) # 스레드 종료 대기 (타임아웃 설정)
+                    if thread.is_alive():
+                        logger.warning("LLM generation thread did not terminate gracefully.")
+                # logger.debug("Stream generator finished.")
+                total_request_time = time.time() - request_start_time
+                logger.info(f"Total chat request processing time: {total_request_time:.4f} seconds.")
+        
+        # StreamingResponse 반환
+        headers = {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache", # 클라이언트 및 프록시 캐싱 방지
+            "Connection": "keep-alive",  # 연결 유지
+            "X-Accel-Buffering": "no",   # Nginx 등 리버스 프록시 버퍼링 비활성화
         }
+        return StreamingResponse(stream_generator(), media_type="text/event-stream", headers=headers)
 
+    except HTTPException: # FastAPI의 HTTPException은 그대로 전달
+        raise
     except Exception as e:
-        print(f"챗봇 응답 생성 중 오류 발생: {e}")
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"챗봇 응답 생성 중 오류 발생: {str(e)}"
+        logger.error(f"Unhandled error in chat endpoint: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"message": "챗봇 응답 처리 중 심각한 오류가 발생했습니다.", "error_details": str(e)}
         )
 
 
