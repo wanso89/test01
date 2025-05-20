@@ -65,12 +65,13 @@ if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
 
 # 설정 상수
 # LLM_MODEL_NAME = r"/home/root/ko-gemma-v1"
-# EMBEDDING_MODEL_NAME = r"/home/root/KURE-v1"
+#EMBEDDING_MODEL_NAME = r"/home/root/KURE-v1"
 # RERANKER_MODEL_NAME = r"/home/root/ko-reranker"
 #LLM_MODEL_NAME = r"/home/root/Qwen3-8B"
 LLM_MODEL_NAME = r"/home/root/Gukbap-Qwen2.5-7B"
 EMBEDDING_MODEL_NAME = r"/home/root/kpf-sbert-v1.1"
-RERANKER_MODEL_NAME = r"/home/root/bge-reranker-large"
+#RERANKER_MODEL_NAME = r"/home/root/bge-reranker-large"
+RERANKER_MODEL_NAME = r"/home/root/bge-reranker-v2-m3"
 ES_HOST = "http://172.10.2.70:9200"
 STATIC_DIR = "app/static"
 IMAGE_DIR = os.path.join(STATIC_DIR, "document_images")
@@ -757,7 +758,39 @@ async def search_and_combine(
         # 캐시된 결과에 성능 메트릭 추가
         cached_result["from_cache"] = True
         cached_result["processing_time"]["cache_hit"] = round(time.time() - start_time, 3)
-        return cached_result
+        
+        # 캐시된 결과를 스트리밍 방식으로 반환
+        async def cached_response_stream():
+            # 캐시된 텍스트 응답을 작은 청크로 나누어 스트리밍
+            answer_text = cached_result.get("answer", "")
+            sources = cached_result.get("sources", [])
+            cited_sources = cached_result.get("cited_sources", [])
+            
+            # 텍스트를 토큰 단위로 스트리밍 (여기서는 간단히 문자 단위로 나눔)
+            chunk_size = 4  # 4자씩 스트리밍 (실제 토큰 크기와 유사하게)
+            for i in range(0, len(answer_text), chunk_size):
+                chunk = answer_text[i:i+chunk_size]
+                yield f"data: {json.dumps({'token': chunk})}\n\n"
+                await asyncio.sleep(0.01)  # 실제 스트리밍 효과를 위한 짧은 지연
+            
+            # 소스 정보 전송
+            yield f"data: {json.dumps({'event': 'sources', 'sources': sources, 'cited_sources': cited_sources})}\n\n"
+            
+            # 캐시 사용 정보 전송 (클라이언트에서 캐시 사용 여부 표시 가능)
+            yield f"data: {json.dumps({'event': 'cache_info', 'from_cache': True})}\n\n"
+            
+            # 스트림 종료 이벤트
+            yield f"data: {json.dumps({'event': 'eos', 'message': 'Stream ended (from cache).'})}\n\n"
+        
+        # 캐시된 응답을 스트리밍 형태로 반환
+        return StreamingResponse(
+            cached_response_stream(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+        )
+        
+        # 기존 코드 (한 번에 반환)
+        # return cached_result
 
     # 검색 개선 파이프라인 초기화
     search_pipeline = EnhancedSearchPipeline()
@@ -2287,6 +2320,37 @@ async def chat(request: QuestionRequest = Body(...)):
                 
                 # 스트림 종료 이벤트
                 yield f"data: {json.dumps({'event': 'eos', 'message': 'Stream ended successfully.'})}\n\n"
+                
+                # 스트리밍 응답 완료 후 캐싱 처리
+                try:
+                    # Redis 캐싱을 위한 데이터 준비
+                    from app.utils.cache_utils import RedisCache, CacheKeys, CACHE_TTL_CHAT
+                    
+                    # 캐시 키 생성 (질문 + 카테고리 기반)
+                    cache_key = RedisCache.generate_key(
+                        CacheKeys.CHAT, 
+                        {"query": request.question, "category": request.category}
+                    )
+                    
+                    # 캐싱할 최종 결과 데이터 구성
+                    final_result = {
+                        "answer": cleaned_text,
+                        "sources": source_metadata,
+                        "cited_sources": cited_sources,
+                        "processing_time": {
+                            "total": round(time.time() - request_start_time, 2),
+                            "llm_generation": round(time.time() - llm_generation_start_time, 2)
+                        }
+                    }
+                    
+                    # 결과 캐싱
+                    cache_success = RedisCache.set(cache_key, final_result, CACHE_TTL_CHAT)
+                    if cache_success:
+                        logger.info(f"스트리밍 응답 캐싱 완료: {cache_key}")
+                    else:
+                        logger.warning(f"스트리밍 응답 캐싱 실패: {cache_key}")
+                except Exception as cache_error:
+                    logger.error(f"스트리밍 응답 캐싱 중 오류 발생: {cache_error}")
 
             except Exception as e:
                 logger.error(f"Error during LLM streaming: {e}", exc_info=True)
