@@ -2653,23 +2653,22 @@ async def process_sql_query(request: SQLQueryRequest = Body(...)):
 
 @app.post("/api/sql-and-llm")
 async def process_sql_and_llm(request: SQLAndLLMRequest = Body(...)):
-    """자연어 질문을 SQL로 변환 실행하고, LLM으로 설명을 추가합니다."""
+    """자연어 질문을 SQL로 변환 실행하고, LLM으로 설명을 추가합니다. 스트리밍 방식으로 응답합니다."""
     try:
         # SQLCoder 유틸 사용
         from app.utils.sqlcoder_utils import generate_sql_from_question, run_sql_query
-        from app.utils.llm_utils import generate_text_with_local_llm
         
         # SQL 생성 및 실행
         sql_query = generate_sql_from_question(request.question)
         
         # 쿼리가 오류를 포함하고 있는 경우
         if sql_query.startswith("-- SQL 생성 중 오류 발생"):
-            return {
+            return JSONResponse(content={
                 "status": "error",
                 "sql": sql_query,
                 "results": "❌ SQL 생성에 실패했습니다",
                 "explanation": f"SQL 생성 중 오류가 발생했습니다: {sql_query}"
-            }
+            })
         
         # SQL 쿼리 실행 (run_sql_query가 SQL 및 마크다운 형식 결과 반환)
         sql_result = run_sql_query(sql_query)
@@ -2686,12 +2685,12 @@ async def process_sql_and_llm(request: SQLAndLLMRequest = Body(...)):
             # SQL 오류가 복잡한 경우 단순화된 메시지 생성
             explanation = f"SQL 쿼리 실행 중 오류가 발생했습니다. 쿼리 문법이나 존재하지 않는 테이블/컬럼을 참조했을 수 있습니다."
             
-            return {
+            return JSONResponse(content={
                 "status": "error",
                 "sql": sql_query,
                 "results": results_markdown,
                 "explanation": explanation
-            }
+            })
         elif isinstance(sql_result, str) and "레코드를 찾을 수 없습니다" in sql_result:
             # 결과가 없는 경우
             results_markdown = "⚠️ 조건에 맞는 데이터가 없습니다."
@@ -2702,9 +2701,9 @@ async def process_sql_and_llm(request: SQLAndLLMRequest = Body(...)):
         
         print(f"[SQL+LLM] LLM 모델로 향상된 응답 생성 시작 - 질문: '{request.question}'")
         
-        explanation = "" 
-        try:
-            explanation_prompt = f"""# SQL 쿼리 결과 분석 및 응답 생성
+        # LLM을 통한 설명 생성을 스트리밍 방식으로 변경
+        # 프롬프트 구성
+        explanation_prompt = f"""# SQL 쿼리 결과 분석 및 응답 생성
 ## 질문
 {request.question}
 
@@ -2728,60 +2727,101 @@ async def process_sql_and_llm(request: SQLAndLLMRequest = Body(...)):
 7. 결과가 비어있다면 그 이유와 가능한 원인을 설명하세요.
 """
 
-            print(f"[SQL+LLM] 향상된 프롬프트 길이: {len(explanation_prompt)} 문자")
-            
-            # LLM으로부터 원본 응답 받기
-            raw_explanation = generate_text_with_local_llm(
-                prompt=explanation_prompt,
-                model=llm_model, 
-                tokenizer=tokenizer,
-                temperature=0.0,
-                max_new_tokens=1024 
-            )
-            
-            print(f"[SQL+LLM] LLM 생성 원본 응답 길이: {len(raw_explanation)} 문자")
-            print(f"[SQL+LLM] LLM 생성 원본 미리보기 (첫 200자): {raw_explanation[:200]}...")
-
-            # 개선된 중복 제거 로직 적용
-            explanation = deduplicate_markdown_sections_py(raw_explanation)
-            
-            print(f"[SQL+LLM] 중복 제거 후 응답 길이: {len(explanation)} 문자")
-            print(f"[SQL+LLM] 중복 제거 후 미리보기 (첫 200자): {explanation[:200]}...")
-            
-            # 응답이 비었거나 너무 짧은 경우 등의 후처리
-            if not explanation.strip() or len(explanation.strip()) < 10 or "오류" in explanation:
-                # is_empty 변수는 이전에 results_markdown 생성 시 설정되었다고 가정
-                is_empty = "조건에 맞는 데이터가 없습니다." in results_markdown 
-                if is_empty:
-                    explanation = "조건에 맞는 데이터가 없습니다. 검색 조건을 변경해 보시거나, 다른 질문을 시도해보세요."
-                elif "오류" in raw_explanation and not explanation.strip(): # 원본에 오류가 있었고, 중복제거로 비었다면
-                     explanation = raw_explanation # 원본 오류 메시지 사용
-                else: # 그 외의 이유로 설명이 부적절한 경우
-                    explanation = "SQL 쿼리 결과를 기반으로 한 설명입니다. 위 테이블에서 자세한 정보를 확인하세요."
-        except Exception as llm_error:
-            print(f"[SQL+LLM] LLM 응답 생성 또는 후처리 중 오류: {str(llm_error)}")
-            # import traceback # 함수 상단 또는 main.py 상단에 이미 있어야 함
-            traceback.print_exc()
-            explanation = f"응답 생성 중 오류가 발생했습니다: {str(llm_error)}"
+        print(f"[SQL+LLM] 향상된 프롬프트 길이: {len(explanation_prompt)} 문자")
         
-        print(f"[SQL+LLM] 최종 응답 (API 반환 직전, 첫 75자): '{explanation[:75]}...'")
+        # TextIteratorStreamer 설정
+        streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
         
-        return {
-            "status": "success",
-            "sql": sql_query,
-            "results": results_markdown,
-            "explanation": explanation
+        # 모델 입력 준비
+        try:
+            inputs = tokenizer(explanation_prompt, return_tensors="pt", padding=False, truncation=False).to(llm_model.device)
+        except Exception as e:
+            print(f"[SQL+LLM] 프롬프트 토큰화 오류: {e}")
+            return JSONResponse(content={
+                "status": "error",
+                "sql": sql_query,
+                "results": results_markdown,
+                "explanation": f"설명 생성을 위한 프롬프트 처리 중 오류 발생: {str(e)}"
+            })
+        
+        # 생성 파라미터 설정
+        generation_kwargs = dict(
+            **inputs,
+            max_new_tokens=1024,
+            temperature=0.1,
+            pad_token_id=tokenizer.eos_token_id,
+            streamer=streamer,
+            do_sample=False  # 결정적 생성
+        )
+        
+        # 별도 스레드에서 모델 생성 실행
+        thread = Thread(target=llm_model.generate, kwargs=generation_kwargs)
+        thread.start()
+        
+        # 스트리밍 응답을 위한 변수
+        accumulated_text = ""
+        
+        # 비동기 제너레이터 정의
+        async def stream_generator():
+            nonlocal accumulated_text
+            
+            # 먼저 SQL 및 결과 정보 전송
+            yield f"data: {json.dumps({'event': 'sql', 'sql': sql_query, 'results': results_markdown})}\n\n"
+            
+            # LLM 응답 스트리밍
+            for new_text in streamer:
+                if new_text:
+                    accumulated_text += new_text
+                    yield f"data: {json.dumps({'token': new_text})}\n\n"
+                await asyncio.sleep(0.001)  # 다른 비동기 작업 실행 기회 부여
+            
+            # 중복 제거 로직 적용
+            try:
+                cleaned_text = deduplicate_markdown_sections_py(accumulated_text)
+                
+                # 응답이 비었거나 너무 짧은 경우 등의 후처리
+                if not cleaned_text.strip() or len(cleaned_text.strip()) < 10 or "오류" in cleaned_text:
+                    if is_empty:
+                        cleaned_text = "조건에 맞는 데이터가 없습니다. 검색 조건을 변경해 보시거나, 다른 질문을 시도해보세요."
+                    elif "오류" in accumulated_text and not cleaned_text.strip():
+                        cleaned_text = accumulated_text  # 원본 오류 메시지 사용
+                    else:
+                        cleaned_text = "SQL 쿼리 결과를 기반으로 한 설명입니다. 위 테이블에서 자세한 정보를 확인하세요."
+                
+                # 최종 정리된 응답 전송 (필요시)
+                if cleaned_text != accumulated_text:
+                    yield f"data: {json.dumps({'event': 'cleaned_explanation', 'explanation': cleaned_text})}\n\n"
+            except Exception as clean_error:
+                print(f"[SQL+LLM] 응답 정리 중 오류: {clean_error}")
+                # 오류 시 원본 텍스트 사용
+            
+            # 스트림 종료 알림
+            yield f"data: {json.dumps({'event': 'eos'})}\n\n"
+            
+            # 스레드 종료 대기
+            if thread.is_alive():
+                thread.join(timeout=5.0)
+                if thread.is_alive():
+                    print("[SQL+LLM] 생성 스레드가 정상적으로 종료되지 않았습니다.")
+        
+        # StreamingResponse 반환
+        headers = {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
         }
+        return StreamingResponse(stream_generator(), media_type="text/event-stream", headers=headers)
         
     except Exception as e:
         print(f"SQL+LLM 처리 중 오류 발생: {str(e)}")
         traceback.print_exc()
-        return {
+        return JSONResponse(content={
             "status": "error",
             "sql": "-- SQL 생성 실패",
             "results": "❌ 오류 발생",
             "explanation": f"처리 중 오류가 발생했습니다: {str(e)}"
-        }
+        })
 
 # 소스 미리보기에 필요한 유틸리티 함수
 def extract_keywords_from_text(text, max_keywords=12):

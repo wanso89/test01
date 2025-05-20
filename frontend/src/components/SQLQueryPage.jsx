@@ -1503,7 +1503,7 @@ const SQLQueryPage = ({ setMode }) => {
     }
   };
   
-  // SQL + LLM 쿼리 제출 함수 개선
+  // SQL + LLM 쿼리 제출 함수 개선 - 스트리밍 방식으로 변경
   const submitSqlLlmQuery = async (questionText) => {
     const queryText = questionText || question;
     if (!queryText.trim() || isLoading) return;
@@ -1520,11 +1520,22 @@ const SQLQueryPage = ({ setMode }) => {
       setIsLoading(true);
       setErrorMessage('');
       
+      // 빈 응답 메시지 먼저 추가 (스트리밍용)
+      const newAssistantMessage = {
+        type: 'assistant',
+        content: '',
+        sql: '',
+        result: '',
+        timestamp: new Date().toISOString()
+      };
+      
+      setChatMessages(prev => [...prev, newAssistantMessage]);
+      
       // 타임아웃 설정 추가
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 90000); // 90초 타임아웃 (LLM은 더 길게)
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 120초 타임아웃 (LLM은 더 길게)
       
-      // SQL + LLM 응답 생성 API 호출
+      // SQL + LLM 응답 스트리밍 API 호출
       const response = await fetch('/api/sql-and-llm', {
         method: 'POST',
         headers: {
@@ -1537,66 +1548,138 @@ const SQLQueryPage = ({ setMode }) => {
       clearTimeout(timeoutId); // 타임아웃 해제
       
       if (!response.ok) {
-        throw new Error('API 요청 실패');
+        throw new Error(`API 요청 실패: ${response.status}`);
       }
       
-      const result = await response.json();
+      // 스트리밍 응답 처리를 위한 변수들
+      let sql = '';
+      let results = '';
+      let explanation = '';
+      let isStreamStarted = false;
       
-      // 필드 이름 매핑 - 백엔드 응답 필드와 프론트엔드 기대 필드 매핑
-      const sql = result.sql || result.sql_query || "";
-      const results = result.results || result.sql_result || "";
-      const explanation = result.explanation || result.bot_response || "";
+      // 스트리밍 응답 처리
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      
+      // 로딩 상태 즉시 해제 (스트리밍 시작되면)
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 300);
+      
+      let done = false;
+      let buffer = '';
+      
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        if (readerDone) {
+          done = true;
+          break;
+        }
+        
+        // 새 청크를 버퍼에 추가
+        buffer += decoder.decode(value, { stream: true });
+        
+        // 버퍼에서 완전한 SSE 메시지 추출
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || ''; // 마지막 불완전한 청크는 버퍼에 유지
+        
+        for (const line of lines) {
+          if (line.trim() === '') continue;
+          
+          if (line.startsWith('data: ')) {
+            try {
+              const eventData = line.substring(6); // 'data: ' 이후의 문자열
+              const parsedData = JSON.parse(eventData);
+              
+              if (parsedData.event === 'sql') {
+                // SQL 쿼리와 결과 처리
+                sql = parsedData.sql || '';
+                results = parsedData.results || '';
+                
+                // 메시지 업데이트
+                setChatMessages(prev => {
+                  const updated = [...prev];
+                  const lastIndex = updated.length - 1;
+                  updated[lastIndex] = {
+                    ...updated[lastIndex],
+                    sql: sql,
+                    result: results
+                  };
+                  return updated;
+                });
+                
+                isStreamStarted = true;
+              } else if (parsedData.token) {
+                // 토큰 스트리밍 처리
+                explanation += parsedData.token;
+                
+                // 메시지 업데이트 (토큰 추가)
+                setChatMessages(prev => {
+                  const updated = [...prev];
+                  const lastIndex = updated.length - 1;
+                  updated[lastIndex] = {
+                    ...updated[lastIndex],
+                    content: explanation
+                  };
+                  return updated;
+                });
+                
+                isStreamStarted = true;
+              } else if (parsedData.event === 'cleaned_explanation') {
+                // 정제된 최종 설명 처리 (필요시)
+                explanation = parsedData.explanation;
+                
+                // 메시지 최종 업데이트
+                setChatMessages(prev => {
+                  const updated = [...prev];
+                  const lastIndex = updated.length - 1;
+                  updated[lastIndex] = {
+                    ...updated[lastIndex],
+                    content: explanation
+                  };
+                  return updated;
+                });
+              } else if (parsedData.event === 'eos') {
+                // 스트림 종료 처리
+                done = true;
+              }
+            } catch (e) {
+              console.error('스트리밍 데이터 파싱 오류:', e, line);
+            }
+          }
+        }
+        
+        // 스크롤 조정
+        scrollToBottom();
+      }
       
       // 히스토리에 추가
       if (sql) {
         addToHistory(queryText, sql, results);
       }
       
-      // 응답 메시지 추가
-      const isError = results && results.includes('❌');
-      const isEmpty = results && results.includes('⚠️');
-      
-      // 오류나 빈 결과가 아니라면 응답 그대로 표시, 아니면 상태에 맞는 보조 메시지 추가
-      let finalContent = explanation;
-      
-      if (!explanation || explanation.length < 5) {
-        if (isError) {
-          finalContent = '쿼리 실행 중 오류가 발생했습니다. SQL 문법을 확인해주세요.';
-        } else if (isEmpty) {
-          finalContent = '조건에 맞는 데이터를 찾을 수 없습니다.';
-        } else {
-          finalContent = '쿼리 결과입니다:';
-        }
-      }
-      
-      const newAssistantMessage = {
-        type: 'assistant',
-        content: finalContent,
-        sql: sql,
-        result: results,
-        timestamp: new Date().toISOString()
-      };
-      
-      setChatMessages(prev => [...prev, newAssistantMessage]);
       // 파라미터로 전달된 질문이 아닌 경우에만 입력창 초기화
       if (!questionText) {
         setQuestion('');
       }
       
       // 결과가 테이블 형식이고 오류가 없는 경우 차트 데이터 준비
+      const isError = results && results.includes('❌');
+      const isEmpty = results && results.includes('⚠️');
+      
       if (results && !isError && !isEmpty) {
         try {
           const parsedData = parseTableData(results);
           setTableData(parsedData);
-          // 차트 가능 여부 확인 - 클래스 변수로 setCanShowChart 대신 직접 showChart 값 변경
+          // 차트 가능 여부 확인
           const isChartable = isDataChartable(parsedData);
-          setShowChart(isChartable); // setCanShowChart는 존재하지 않으므로 setShowChart 사용
+          setShowChart(isChartable);
         } catch (parseError) {
           console.error('테이블 데이터 파싱 오류:', parseError);
-          setShowChart(false); // setCanShowChart 대신 setShowChart 사용
+          setShowChart(false);
         }
       } else {
-        setShowChart(false); // setCanShowChart 대신 setShowChart 사용
+        setShowChart(false);
       }
       
     } catch (error) {
@@ -1605,9 +1688,13 @@ const SQLQueryPage = ({ setMode }) => {
       if (error.name === 'AbortError') {
         setErrorMessage('요청 시간이 초과되었습니다. LLM 응답 생성이 지연되고 있습니다.');
       } else {
-        setErrorMessage('SQL+LLM 변환 중 오류가 발생했습니다. 다시 시도해주세요.');
+        setErrorMessage(`SQL+LLM 변환 중 오류가 발생했습니다: ${error.message}`);
       }
+      
+      // 에러 발생 시 로딩 상태 해제
+      setIsLoading(false);
     } finally {
+      // 최종 로딩 상태 해제 (이미 해제되었을 수 있음)
       setIsLoading(false);
       scrollToBottom();
     }

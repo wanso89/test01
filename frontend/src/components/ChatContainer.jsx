@@ -1064,206 +1064,142 @@ function ChatContainer({
       }));
       
       // category가 문자열인지 확인하고 기본값 설정
-      const categoryValue = typeof selectedCategory === 'string' && selectedCategory.trim() !== '' 
-        ? selectedCategory 
-        : "메뉴얼";
+      const categoryValue = typeof selectedCategory === 'string' && selectedCategory ? selectedCategory : "메뉴얼";
       
-      console.log('요청 데이터:', {
-        question: input,
-        category: categoryValue,
-        history
-      });
-      
-      // 어시스턴트 응답을 위한 빈 메시지 생성 (스트리밍으로 채워질 예정)
-      const assistantMessage = {
+      // 응답 메시지 객체 미리 생성 (스트리밍용)
+      const botMessage = {
         role: "assistant",
-        content: "", // 스트리밍으로 채워질 빈 내용
-        sources: [], // 나중에 업데이트될 소스 배열
-        cited_sources: [], // 나중에 업데이트될 인용 소스 배열
+        content: "",
+        sources: [],
+        cited_sources: [],
         timestamp: new Date().getTime(),
       };
       
-      // 메시지 목록에 어시스턴트 응답 추가 (빈 상태로 시작)
-      const finalMessages = [...updatedMessages, assistantMessage];
-      onUpdateMessages(finalMessages);
+      // 빈 봇 메시지 추가 (스트리밍 시작 전)
+      onUpdateMessages([...updatedMessages, botMessage]);
       
-      // POST 요청 설정
-      const response = await fetch("http://172.10.2.70:8000/api/chat", {
+      // 스트리밍 응답 가져오기
+      const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           question: input,
+          history: history,
           category: categoryValue,
-          history
         }),
       });
       
       if (!response.ok) {
-        throw new Error(`서버 오류: ${response.status} ${response.statusText}`);
+        throw new Error(`서버 응답 오류: ${response.status}`);
       }
-      
-      // 응답이 스트림인지 확인
-      const contentType = response.headers.get('Content-Type') || '';
-      if (!contentType.includes('text/event-stream')) {
-        console.warn('서버가 스트리밍 응답을 반환하지 않음:', contentType);
-        // 일반 JSON 응답 처리
-        const data = await response.json();
-        
-        // 응답 데이터 처리
-        const updatedAssistantMessage = {
-          ...assistantMessage,
-          content: data.bot_response || data.answer || "응답을 불러오지 못했습니다.",
-          sources: Array.isArray(data.sources) ? data.sources : [],
-          cited_sources: Array.isArray(data.cited_sources) ? data.cited_sources : []
-        };
-        
-        // 메시지 목록 업데이트
-        const updatedFinalMessages = [...updatedMessages, updatedAssistantMessage];
-        onUpdateMessages(updatedFinalMessages);
-        
-        // 로딩 상태 비활성화
-        setTimeout(() => {
-          setLoading(false);
-        }, 300);
-        return;
-      }
-      
-      // 스트리밍 응답 처리를 위한 reader 설정
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let accumulatedText = "";
-      let currentSources = [];
-      let currentCitedSources = [];
       
       // 스트리밍 응답 처리
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      
+      // 스트리밍 시작 시 로딩 상태 비활성화 (중요: 스트리밍이 시작되면 로딩 인디케이터 제거)
+      let isFirstChunk = true;
+      let accumulatedContent = "";
+      let sources = [];
+      let cited_sources = [];
+      
       while (true) {
         const { done, value } = await reader.read();
+        
         if (done) {
-          console.log('스트림 종료');
           break;
         }
         
-        // 디코딩된 텍스트 처리
+        // 청크 디코딩
         const chunk = decoder.decode(value, { stream: true });
-        console.log('수신된 청크:', chunk);
+        const lines = chunk.split("\n");
         
-        // SSE 형식 처리 (data: {...} 형식)
-        const lines = chunk.split('\n\n');
         for (const line of lines) {
-          if (!line.trim()) continue;
+          if (line.trim() === "") continue;
           
-          // data: 접두사 제거 및 JSON 파싱
-          try {
-            // "data: " 접두사 확인 및 제거
-            const dataPrefix = "data: ";
-            if (line.startsWith(dataPrefix)) {
-              const jsonStr = line.substring(dataPrefix.length);
-              const eventData = JSON.parse(jsonStr);
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              // 첫 번째 청크가 도착하면 로딩 상태 비활성화
+              if (isFirstChunk) {
+                setLoading(false);
+                isFirstChunk = false;
+              }
               
               // 토큰 처리
-              if (eventData.token) {
-                // 토큰을 누적 텍스트에 추가
-                accumulatedText += eventData.token;
+              if (data.token) {
+                accumulatedContent += data.token;
                 
                 // 메시지 업데이트
-                const updatedAssistantMessage = {
-                  ...assistantMessage,
-                  content: accumulatedText,
-                  sources: currentSources,
-                  cited_sources: currentCitedSources
+                const updatedBotMessage = {
+                  role: "assistant",
+                  content: accumulatedContent,
+                  sources: sources,
+                  cited_sources: cited_sources,
+                  timestamp: new Date().getTime(),
                 };
                 
-                // 메시지 목록 업데이트
-                const updatedFinalMessages = [...updatedMessages, updatedAssistantMessage];
-                onUpdateMessages(updatedFinalMessages);
+                onUpdateMessages([...updatedMessages, updatedBotMessage]);
               }
               
-              // 출처 정보 처리 (sources 이벤트)
-              if (eventData.event === 'sources' && eventData.sources) {
-                console.log('출처 정보 수신:', eventData.sources.length, '개 항목');
-                currentSources = eventData.sources || [];
-                currentCitedSources = eventData.cited_sources || [];
+              // 출처 정보 처리
+              if (data.sources) {
+                sources = data.sources;
                 
-                // 메시지에 출처 정보 업데이트
-                const updatedAssistantMessage = {
-                  ...assistantMessage,
-                  content: accumulatedText,
-                  sources: currentSources,
-                  cited_sources: currentCitedSources
+                // 메시지 업데이트 (출처 포함)
+                const updatedBotMessage = {
+                  role: "assistant",
+                  content: accumulatedContent,
+                  sources: sources,
+                  cited_sources: cited_sources,
+                  timestamp: new Date().getTime(),
                 };
                 
-                // 메시지 목록 업데이트
-                const updatedFinalMessages = [...updatedMessages, updatedAssistantMessage];
-                onUpdateMessages(updatedFinalMessages);
+                onUpdateMessages([...updatedMessages, updatedBotMessage]);
               }
               
-              // 스트림 종료 이벤트 처리
-              if (eventData.event === 'eos') {
-                console.log('스트림 종료 이벤트:', eventData.message);
-                // 종료 처리는 reader.read()의 done으로 처리됨
+              // 인용된 출처 정보 처리
+              if (data.cited_sources) {
+                cited_sources = data.cited_sources;
+                
+                // 메시지 업데이트 (인용된 출처 포함)
+                const updatedBotMessage = {
+                  role: "assistant",
+                  content: accumulatedContent,
+                  sources: sources,
+                  cited_sources: cited_sources,
+                  timestamp: new Date().getTime(),
+                };
+                
+                onUpdateMessages([...updatedMessages, updatedBotMessage]);
               }
-              
-              // 오류 처리
-              if (eventData.error) {
-                console.error('스트리밍 오류:', eventData.error);
-                throw new Error(eventData.error);
-              }
-            } else {
-              console.warn('예상치 못한 형식의 라인:', line);
+            } catch (e) {
+              console.error("스트리밍 데이터 파싱 오류:", e);
             }
-          } catch (parseError) {
-            console.error('SSE 데이터 파싱 오류:', parseError, line);
-            // 파싱 오류는 건너뛰고 계속 진행
           }
         }
       }
       
       // 스트리밍 완료 후 최종 메시지 업데이트
-      if (accumulatedText) {
-        const finalAssistantMessage = {
-          ...assistantMessage,
-          content: accumulatedText,
-          sources: currentSources,
-          cited_sources: currentCitedSources,
-          timestamp: new Date().getTime(),
-        };
-        
-        const finalMessages = [...updatedMessages, finalAssistantMessage];
-        onUpdateMessages(finalMessages);
-      }
-      
-      // 스트리밍 완료 후 로딩 상태 비활성화
-      setTimeout(() => {
-        setLoading(false);
-      }, 300);
-      
-    } catch (err) {
-      console.error("채팅 요청 오류:", err);
-      // 오류 메시지를 명확하게 표시
-      const errorMsg = err.message && err.message !== '[object Object]' ? 
-        err.message : 
-        "서버에서 응답을 처리하는 중 오류가 발생했습니다. 개발자 콘솔을 확인해주세요.";
-      
-      setError(errorMsg);
-      
-      // 에러 메시지를 어시스턴트 응답으로 추가
-      const errorMessage = {
+      const finalBotMessage = {
         role: "assistant",
-        content: `죄송합니다. 요청을 처리하는 중 오류가 발생했습니다: ${errorMsg}`,
+        content: accumulatedContent,
+        sources: sources,
+        cited_sources: cited_sources,
         timestamp: new Date().getTime(),
-        sources: [], // 빈 sources 배열 추가
       };
-      onUpdateMessages([...updatedMessages, errorMessage]);
       
-      // 오류 발생 시에도 로딩 상태 비활성화
-      setTimeout(() => {
-        setLoading(false);
-      }, 300);
+      onUpdateMessages([...updatedMessages, finalBotMessage]);
+      
+    } catch (error) {
+      console.error("채팅 요청 오류:", error);
+      setError(`서버 응답을 처리할 수 없습니다: ${error.message}`);
     } finally {
-      // 사용자 입력 초기화
-      setUserInput("");
+      // 로딩 상태 비활성화 (오류 발생 시나 모든 처리 완료 후)
+      setLoading(false);
     }
   };
 
