@@ -20,12 +20,50 @@ from langchain.schema import Document
 from elasticsearch.helpers import bulk
 import traceback
 from datetime import datetime
+import logging
+
+# OCR 유틸리티 추가
+try:
+    # 상대 경로를 먼저 시도 (순환 참조 방지)
+    from .ocr_utils import (
+        extract_text_from_file,
+        extract_text_from_image,
+        extract_text_from_pdf_with_ocr,
+        get_paddle_ocr,
+        get_paddle_ocr_version
+    )
+except ImportError as e:
+    # 순환 참조 문제 발생 시 로깅
+    print(f"PaddleOCR 모듈 임포트 오류 (무시됨): {e}")
+    
+    # 모듈이 임포트 안 될 때는 더미 함수들을 제공
+    async def extract_text_from_file(file_path: str, min_confidence: float = 0.5) -> str:
+        print(f"PaddleOCR 모듈 로드 실패로 더미 함수 호출: extract_text_from_file({file_path})")
+        return None
+    
+    async def extract_text_from_image(image_path: str, min_confidence: float = 0.5) -> str:
+        print(f"PaddleOCR 모듈 로드 실패로 더미 함수 호출: extract_text_from_image({image_path})")
+        return None
+    
+    async def extract_text_from_pdf_with_ocr(pdf_path: str, min_confidence: float = 0.5) -> str:
+        print(f"PaddleOCR 모듈 로드 실패로 더미 함수 호출: extract_text_from_pdf_with_ocr({pdf_path})")
+        return None
+        
+    def get_paddle_ocr():
+        print("PaddleOCR 인스턴스 초기화 실패: 모듈 로드 오류")
+        return None
+        
+    def get_paddle_ocr_version():
+        return "unknown (import failed)"
+
+# 로깅 설정
+logger = logging.getLogger(__name__)
 
 ES_INDEX_NAME = "rag_documents_kure_v1"
 IMAGE_DIR = "static/document_images"  # 사용 안되면 제거 가능
 os.makedirs(IMAGE_DIR, exist_ok=True)  # 사용 안되면 제거 가능
 
-# LOADER_MAPPING: .pdf 로더를 PyPDFLoader로 변경
+# LOADER_MAPPING: 이미지 파일 확장자 추가
 LOADER_MAPPING = {
     ".pdf": (
         PyPDFLoader,  # 페이지 처리가 더 안정적인 PyPDFLoader 사용
@@ -34,6 +72,14 @@ LOADER_MAPPING = {
     ".xlsx": (UnstructuredExcelLoader, {"mode": "paged"}),
     ".xls": (UnstructuredExcelLoader, {"mode": "paged"}),
     ".txt": (TextLoader, {"encoding": "utf-8"}),
+    # 이미지 파일 OCR 처리를 위한 확장자 추가 (OCR_LOADER로 표시)
+    ".jpg": ("OCR_LOADER", {}),
+    ".jpeg": ("OCR_LOADER", {}),
+    ".png": ("OCR_LOADER", {}),
+    ".bmp": ("OCR_LOADER", {}),
+    ".tiff": ("OCR_LOADER", {}),
+    ".tif": ("OCR_LOADER", {}),
+    ".webp": ("OCR_LOADER", {}),
 }
 
 
@@ -94,13 +140,148 @@ async def convert_docx_to_pdf(docx_path: str, output_dir: str) -> Optional[str]:
     )
 
 
-# --- 파일 내용을 읽어 Langchain Document 객체 리스트로 만드는 함수 (핵심 수정) ---
-def load_document(file_path_to_load: str, loader_selector_ext: str) -> List[Document]:
+# PaddleOCR을 이용한 문서 로드 함수
+async def load_document_with_ocr(file_path: str) -> List[Document]:
+    """
+    PaddleOCR 엔진을 사용하여 이미지 또는 PDF 파일에서 텍스트를 추출하고 Document 객체로 변환합니다.
+    
+    Args:
+        file_path: 파일 경로
+        
+    Returns:
+        Document 객체 리스트
+    """
+    try:
+        logger.info(f"PaddleOCR을 사용하여 파일 처리 중: {file_path}")
+        file_extension = Path(file_path).suffix.lower()
+        
+        # 최소 신뢰도 설정 (0.0 ~ 1.0)
+        min_confidence = 0.5
+        
+        # 파일 종류에 따라 적절한 OCR 함수 호출
+        if file_extension == '.pdf':
+            extracted_text = await extract_text_from_pdf_with_ocr(file_path, min_confidence)
+        elif file_extension in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp']:
+            extracted_text = await extract_text_from_image(file_path, min_confidence)
+        else:
+            extracted_text = await extract_text_from_file(file_path, min_confidence)
+            
+        if not extracted_text:
+            logger.warning(f"PaddleOCR 텍스트 추출 실패: {file_path}")
+            return []
+            
+        # 텍스트 정리
+        cleaned_text = re.sub(r'\s+', ' ', extracted_text).strip()
+        
+        # 추출된 텍스트로 Document 객체 생성
+        # 여러 페이지가 있으면 페이지마다 분리해서 Document 생성
+        documents = []
+        page_texts = re.split(r'---\s*페이지\s*(\d+)\s*---', cleaned_text)
+        
+        if len(page_texts) > 1:  # 페이지 구분자가 있는 경우
+            # 홀수 인덱스는 페이지 번호, 짝수 인덱스는 텍스트 내용
+            for i in range(1, len(page_texts), 2):
+                if i + 1 < len(page_texts):
+                    page_num = int(page_texts[i])
+                    page_content = page_texts[i + 1].strip()
+                    
+                    if page_content:
+                        documents.append(Document(
+                            page_content=page_content,
+                            metadata={
+                                "source": file_path,
+                                "page": page_num,
+                                "loaded_at": datetime.now().isoformat(),
+                                "ocr_processed": True,
+                                "ocr_engine": "PaddleOCR"
+                            }
+                        ))
+        else:  # 페이지 구분자가 없는 경우 (단일 페이지 처리)
+            if cleaned_text:
+                documents.append(Document(
+                    page_content=cleaned_text,
+                    metadata={
+                        "source": file_path,
+                        "page": 1,
+                        "loaded_at": datetime.now().isoformat(),
+                        "ocr_processed": True,
+                        "ocr_engine": "PaddleOCR"
+                    }
+                ))
+        
+        logger.info(f"PaddleOCR 텍스트 추출 완료: {len(documents)} 페이지/섹션 생성")
+        return documents
+        
+    except Exception as e:
+        logger.error(f"PaddleOCR 문서 로드 중 오류 발생: {file_path}, 오류: {e}")
+        traceback.print_exc()
+        return []
+
+
+# --- 파일 내용을 읽어 Langchain Document 객체 리스트로 만드는 함수 (OCR 기능 추가) ---
+async def load_document(file_path_to_load: str, loader_selector_ext: str) -> List[Document]:
     print(
         f"load_document 호출: file_path_to_load='{file_path_to_load}', loader_selector_ext='{loader_selector_ext}'"
     )
 
     loader_info = LOADER_MAPPING.get(loader_selector_ext)
+
+    # OCR 로더 처리
+    if loader_info and loader_info[0] == "OCR_LOADER":
+        logger.info(f"OCR 로더를 사용하여 파일 처리: {file_path_to_load}")
+        return await load_document_with_ocr(file_path_to_load)
+    
+    # PDF 파일 처리 강화 (OCR 보조)
+    if loader_selector_ext == '.pdf':
+        # 먼저 기존 PyPDFLoader로 처리 시도
+        pdf_loader_class, pdf_loader_kwargs = loader_info
+        pdf_loader = pdf_loader_class(file_path_to_load)
+        
+        try:
+            docs = pdf_loader.load()
+            
+            # 추출된 텍스트가 충분한지 확인
+            total_text = "".join([doc.page_content for doc in docs])
+            clean_text = re.sub(r'\s+', '', total_text)
+            
+            if len(clean_text) < 100:  # 텍스트가 충분하지 않으면 PaddleOCR 시도
+                logger.info(f"PDF에서 추출된 텍스트가 부족함 ({len(clean_text)} 글자). PaddleOCR 시도: {file_path_to_load}")
+                ocr_docs = await load_document_with_ocr(file_path_to_load)
+                
+                if ocr_docs and len(ocr_docs) > 0:
+                    logger.info(f"PaddleOCR을 통해 PDF에서 텍스트 추출 성공: {len(ocr_docs)} 페이지")
+                    return ocr_docs
+            
+            # 기존 로더로 충분한 텍스트 추출에 성공한 경우
+            print(f"DEBUG (load_document): 총 {len(docs)}개의 Document 객체 로드됨 (path: {file_path_to_load})")
+            for i, loaded_doc in enumerate(docs):
+                print(f"  Loaded doc {i} metadata: {loaded_doc.metadata}")
+                
+            processed_docs = []
+            for doc_idx, doc in enumerate(docs):
+                cleaned_content = doc.page_content
+                cleaned_content = re.sub(r'\s+', ' ', cleaned_content).strip()
+                
+                if cleaned_content:
+                    doc.page_content = cleaned_content
+                    doc.metadata["loaded_at"] = datetime.now().isoformat()
+                    
+                    # 페이지 번호 설정
+                    page_number_to_set = None
+                    if "page" in doc.metadata and isinstance(doc.metadata["page"], int):
+                        page_number_to_set = doc.metadata["page"] + 1
+                    else:
+                        print(f"Warning: PyPDFLoader가 Doc {doc_idx}의 'page' 메타데이터를 제공하지 않음. 순번 사용.")
+                        page_number_to_set = doc_idx + 1
+                        
+                    doc.metadata["page"] = int(page_number_to_set)
+                    processed_docs.append(doc)
+                    
+            return processed_docs
+            
+        except Exception as e:
+            logger.error(f"기본 PDF 로더 실패, PaddleOCR 시도: {file_path_to_load}, 오류: {e}")
+            return await load_document_with_ocr(file_path_to_load)
 
     if (
         not loader_info
@@ -184,6 +365,18 @@ def load_document(file_path_to_load: str, loader_selector_ext: str) -> List[Docu
             f"파일 로딩 중 오류 발생 ({file_path_to_load}, loader_ext: {loader_selector_ext}): {e}"
         )
         traceback.print_exc()
+        
+        # 로딩 실패 시 PaddleOCR 시도 (새로운 코드)
+        if loader_selector_ext != "OCR_LOADER":  # OCR 로더가 아닌 경우에만 시도
+            logger.info(f"일반 로더 실패, PaddleOCR 시도: {file_path_to_load}")
+            try:
+                ocr_docs = await load_document_with_ocr(file_path_to_load)
+                if ocr_docs and len(ocr_docs) > 0:
+                    logger.info(f"PaddleOCR을 통해 텍스트 추출 성공: {len(ocr_docs)} 페이지")
+                    return ocr_docs
+            except Exception as ocr_e:
+                logger.error(f"PaddleOCR 대체 시도 실패: {file_path_to_load}, 오류: {ocr_e}")
+                
         return []
 
 
@@ -424,18 +617,12 @@ def format_file_size(size_in_bytes):
     return f"{size_in_bytes:.2f} TB"
 
 
-# --- process_and_index_file 함수 수정 ---
+# --- process_and_index_file 함수 수정 (async load_document 호출) ---
 async def process_and_index_file(
     es_client: Any,
     embedding_function: Any,
     uploaded_file_path: str,
     category: str,
-    # 원본에는 chunk_size, chunk_overlap 인자가 있었음.
-    # split_text의 adaptive 로직을 사용하려면 이 인자들은 필요 없거나,
-    # split_text 호출 시 adaptive=False로 하고 이 인자들을 전달해야 함.
-    # 현재는 split_text의 adaptive=True를 기본으로 사용.
-    # chunk_size: int = 768, (원본의 기본값)
-    # chunk_overlap: int = 128, (원본의 기본값)
 ) -> bool:
     print(f"파일 처리 시작: '{uploaded_file_path}', 카테고리: '{category}'")
     if not es_client or not embedding_function:
@@ -471,7 +658,9 @@ async def process_and_index_file(
             )
             # extension_for_loader_selection은 .docx 그대로 유지 -> load_document에서 UnstructuredFileLoader 사용
 
-    documents = load_document(file_to_actually_load, extension_for_loader_selection)
+    # 함수 시그니처 변경으로 인한 수정
+    documents = await load_document(file_to_actually_load, extension_for_loader_selection)
+    
     if not documents:
         # ... (실패 처리 및 임시 파일 정리)
         print(f"문서 로드 실패: '{file_to_actually_load}'")

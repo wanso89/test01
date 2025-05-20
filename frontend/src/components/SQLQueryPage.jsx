@@ -1161,9 +1161,9 @@ const flatExampleQuestions = exampleQuestions.flatMap(category => category.quest
 
 // 예시 질문 목록 수정 - 한국어 질문 추가
 const EXAMPLE_QUESTIONS = [
-  "매출이 가장 높은 상위 5개 제품은 무엇인가요?",
-  "지난 달에 가장 많이 주문한 고객 3명을 보여주세요",
-  "카테고리별 판매량을 내림차순으로 정렬해서 보여주세요",
+ // "매출이 가장 높은 상위 5개 제품은 무엇인가요?",
+ // "지난 달에 가장 많이 주문한 고객 3명을 보여주세요",
+ // "카테고리별 판매량을 내림차순으로 정렬해서 보여주세요",
   "평균 주문 금액이 50,000원 이상인 고객 목록을 보여주세요",
   "리뷰 평점이 4.5 이상인 제품의 수는 몇 개인가요?",
   "각 사용자별 총 자원 사용량을 내림차순으로 보여주세요",
@@ -1892,7 +1892,7 @@ const SQLQueryPage = ({ setMode }) => {
             {/* 드롭다운 메뉴 방식으로 변경 */}
             <div className="flex items-center gap-3 flex-wrap">
               {/* 선택된 질문만 남기고 표시 */}
-              {EXAMPLE_QUESTIONS.slice(0, 4).map((question, idx) => (
+              {EXAMPLE_QUESTIONS.slice(0, 5).map((question, idx) => (
                         <button
                           key={idx}
                           type="button"

@@ -1,0 +1,271 @@
+"""
+OCR 유틸리티 모듈
+
+이 모듈은 Tesseract OCR을 사용하여 이미지, PDF 파일에서 텍스트를 추출하는 기능을 제공합니다.
+표, 도표, 이미지 등 다양한 형식의 콘텐츠에서 텍스트를 추출하는 기능이
+포함되어 있습니다.
+"""
+
+import os
+import re
+import traceback
+import numpy as np
+import logging
+from typing import List, Dict, Any, Optional, Tuple, Union
+from pathlib import Path
+import asyncio
+import time
+import pytesseract
+import tempfile
+import shutil
+import subprocess
+
+# 이미지 처리 관련 라이브러리
+from PIL import Image
+import fitz  # PyMuPDF
+import io
+
+# PDF 처리 라이브러리
+from pdfminer.high_level import extract_text as pdfminer_extract_text
+from pdf2image import convert_from_path, convert_from_bytes
+
+# 로깅 설정
+logger = logging.getLogger(__name__)
+
+# Tesseract OCR 설정
+TESSERACT_CONFIG = r'--oem 3 --psm 6'  # OCR 엔진 모드 3, 페이지 세그먼트 모드 6 (단일 텍스트 블록)
+TESSERACT_LANG = 'kor+eng'  # 한국어 + 영어
+
+def get_tesseract_version():
+    """
+    설치된 Tesseract 버전을 확인합니다.
+    """
+    try:
+        version = pytesseract.get_tesseract_version()
+        return version
+    except Exception as e:
+        logger.error(f"Tesseract 버전 확인 중 오류: {e}")
+        return None
+
+async def extract_text_from_image(image_path: str, min_confidence: float = 0.0) -> str:
+    """
+    이미지 파일에서 텍스트를 추출합니다.
+    
+    Args:
+        image_path: 이미지 파일 경로
+        min_confidence: 미사용 (pytesseract는 confidence를 개별적으로 반환하지 않음)
+        
+    Returns:
+        추출된 텍스트
+    """
+    try:
+        loop = asyncio.get_event_loop()
+        
+        # 이미지 로드 및 OCR 처리를 비동기로 실행
+        def process_image():
+            start_time = time.time()
+            
+            # 이미지 로드
+            image = Image.open(image_path)
+            
+            # 이미지가 너무 크면 리사이징 (성능 향상)
+            max_dim = 3000
+            if image.width > max_dim or image.height > max_dim:
+                ratio = min(max_dim / image.width, max_dim / image.height)
+                new_size = (int(image.width * ratio), int(image.height * ratio))
+                image = image.resize(new_size, Image.LANCZOS)
+            
+            # 전처리: 회색조로 변환 (옵션)
+            # image = image.convert('L')
+            
+            # OCR 처리
+            text = pytesseract.image_to_string(image, lang=TESSERACT_LANG, config=TESSERACT_CONFIG)
+            
+            # 후처리: 불필요한 줄바꿈, 공백 정리
+            text = re.sub(r'\s*\n\s*', '\n', text)
+            text = re.sub(r' +', ' ', text)
+            
+            elapsed = time.time() - start_time
+            logger.info(f"이미지 OCR 처리 완료: {elapsed:.2f}초")
+            
+            return text
+            
+        return await loop.run_in_executor(None, process_image)
+    except Exception as e:
+        logger.error(f"이미지에서 텍스트 추출 중 오류 발생: {e}")
+        traceback.print_exc()
+        return ""
+
+async def extract_text_from_pdf_with_ocr(pdf_path: str, min_confidence: float = 0.0) -> str:
+    """
+    PDF 파일에서 텍스트를 추출합니다. 
+    먼저 PyPDF를 통한 직접 추출을 시도하고, 충분한 텍스트가 없는 경우 OCR을 적용합니다.
+    
+    Args:
+        pdf_path: PDF 파일 경로
+        min_confidence: 미사용 (pytesseract는 confidence를 개별적으로 반환하지 않음)
+        
+    Returns:
+        추출된 텍스트
+    """
+    try:
+        # 1. 먼저 일반적인 텍스트 추출 시도 (PDFMiner)
+        logger.info(f"PDF에서 텍스트 직접 추출 시도: {pdf_path}")
+        loop = asyncio.get_event_loop()
+        extracted_text = await loop.run_in_executor(None, lambda: pdfminer_extract_text(pdf_path))
+        
+        # 충분한 텍스트가 추출되었는지 확인 (최소 30자)
+        if extracted_text and len(re.sub(r'\s+', '', extracted_text)) >= 30:
+            logger.info(f"PDF에서 텍스트 직접 추출 성공: {len(extracted_text)} 글자")
+            return extracted_text
+            
+        # 2. 직접 추출이 불충분한 경우, OCR 적용
+        logger.info(f"직접 추출 불충분. OCR 적용 중: {pdf_path}")
+        
+        # PDF를 이미지로 변환
+        def convert_pdf_to_images():
+            return convert_from_path(
+                pdf_path,
+                dpi=300,  # 해상도 (높을수록 더 정확하지만 처리 시간 증가)
+                thread_count=4,  # 멀티스레딩
+                use_pdftocairo=True,  # pdftocairo 사용 (더 빠르고 정확함)
+                grayscale=False,  # 컬러 유지 (표와 도표 인식 향상)
+                transparent=False  # 투명도 제거
+            )
+        
+        # 비동기로 PDF를 이미지로 변환
+        images = await loop.run_in_executor(None, convert_pdf_to_images)
+        logger.info(f"PDF 이미지 변환 완료: {len(images)} 페이지")
+        
+        # 각 이미지에 OCR 적용
+        all_text = ""
+        
+        for i, image in enumerate(images):
+            logger.info(f"페이지 {i+1}/{len(images)} OCR 처리 중...")
+            
+            # 비동기로 OCR 처리
+            def process_page(img):
+                # 이미지가 너무 크면 리사이징 (성능 향상)
+                max_dim = 3000
+                if img.width > max_dim or img.height > max_dim:
+                    ratio = min(max_dim / img.width, max_dim / img.height)
+                    new_size = (int(img.width * ratio), int(img.height * ratio))
+                    img = img.resize(new_size, Image.LANCZOS)
+                
+                # OCR 처리
+                page_text = pytesseract.image_to_string(img, lang=TESSERACT_LANG, config=TESSERACT_CONFIG)
+                
+                # 후처리: 불필요한 줄바꿈, 공백 정리
+                page_text = re.sub(r'\s*\n\s*', '\n', page_text)
+                page_text = re.sub(r' +', ' ', page_text)
+                
+                return page_text
+            
+            page_text = await loop.run_in_executor(None, lambda: process_page(image))
+            all_text += f"--- 페이지 {i+1} ---\n{page_text}\n"
+        
+        logger.info(f"PDF OCR 처리 완료: {len(all_text)} 글자")
+        return all_text
+    
+    except Exception as e:
+        logger.error(f"PDF 텍스트 추출 중 오류 발생: {e}")
+        traceback.print_exc()
+        return ""
+
+async def extract_text_from_file(file_path: str) -> str:
+    """
+    파일 확장자에 따라 적절한 텍스트 추출 방식을 적용합니다.
+    
+    Args:
+        file_path: 파일 경로
+        
+    Returns:
+        추출된 텍스트
+    """
+    file_ext = Path(file_path).suffix.lower()
+    
+    try:
+        # 이미지 파일 처리
+        if file_ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp']:
+            logger.info(f"이미지 파일 OCR 처리 중: {file_path}")
+            return await extract_text_from_image(file_path)
+        
+        # PDF 파일 처리
+        elif file_ext == '.pdf':
+            logger.info(f"PDF 파일 처리 중: {file_path}")
+            return await extract_text_from_pdf_with_ocr(file_path)
+        
+        # 기타 파일은 None 반환 (기존 로더 사용)
+        else:
+            logger.info(f"OCR이 지원하지 않는 파일 형식: {file_ext}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"파일 텍스트 추출 중 오류 발생: {file_path}, 오류: {e}")
+        traceback.print_exc()
+        return None
+
+# 표 및 구조화된 데이터 추출 (표 인식에 특화된 Tesseract 설정 사용)
+async def detect_tables_in_image(image_path: str) -> List[Dict[str, Any]]:
+    """
+    이미지에서 표를 감지하고 구조화된 데이터로 변환합니다.
+    
+    Args:
+        image_path: 이미지 파일 경로
+        
+    Returns:
+        감지된 표 목록 (각 표는 행과 열로 구성된 딕셔너리)
+    """
+    try:
+        # 이미지 로드
+        image = Image.open(image_path)
+        
+        # 테이블에 특화된 OCR 설정
+        table_config = r'--oem 3 --psm 6 -c tessedit_char_whitelist="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,:-+()%[]한글"'
+        
+        # OCR 텍스트 추출 (데이터 프레임 형식으로)
+        data_frame = pytesseract.image_to_data(image, lang=TESSERACT_LANG, config=table_config, output_type=pytesseract.Output.DICT)
+        
+        # 테이블 구조 분석 (실제 테이블 구조 분석은 더 복잡한 구현이 필요)
+        # 간단한 구현이므로 탐지된 테이블은 빈 목록을 반환
+        return []
+    except Exception as e:
+        logger.error(f"표 탐지 중 오류 발생: {e}")
+        return []
+
+# 텍스트 인식 향상을 위한 이미지 전처리 함수
+def preprocess_image_for_ocr(image: Image.Image) -> Image.Image:
+    """
+    OCR 인식률을 높이기 위한 이미지 전처리 함수
+    
+    Args:
+        image: 입력 이미지
+        
+    Returns:
+        전처리된 이미지
+    """
+    # 그레이스케일 변환
+    gray = image.convert('L')
+    
+    # 이미지 크기 조정 (OCR 성능 향상)
+    max_dim = 3000
+    if gray.width > max_dim or gray.height > max_dim:
+        ratio = min(max_dim / gray.width, max_dim / gray.height)
+        new_size = (int(gray.width * ratio), int(gray.height * ratio))
+        gray = gray.resize(new_size, Image.LANCZOS)
+    
+    return gray
+
+# DOCX 문서에서 텍스트 추출 (future enhancement)
+async def extract_text_from_docx(docx_path: str) -> str:
+    """
+    DOCX 문서에서 텍스트를 추출합니다. 실패 시 OCR로 처리합니다.
+    
+    Args:
+        docx_path: DOCX 파일 경로
+        
+    Returns:
+        추출된 텍스트
+    """
+    # 이 기능은 향후 확장을 위한 플레이스홀더입니다.
+    return None 
