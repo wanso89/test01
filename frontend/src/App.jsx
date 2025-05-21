@@ -143,6 +143,9 @@ function App() {
   const [recentQueries, setRecentQueries] = useState([]);
   const [dbSchema, setDbSchema] = useState({});
 
+  // 응답 스트리밍 상태 추가
+  const [isStreaming, setIsStreaming] = useState(false);
+
   console.log('===============================================');
   console.log('앱 컴포넌트 초기화');
   console.log('showSQLPage 초기값:', showSQLPage);
@@ -1256,6 +1259,8 @@ function App() {
               sidebarOpen={sidebarOpen}
               setMode={setMode}
               currentMode={mode}
+              isStreaming={isStreaming}
+              setIsStreaming={setIsStreaming}
               key="chat-container-component"
             />
           </div>

@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
-import { FiLoader, FiSend, FiPaperclip, FiX, FiCheck, FiImage, FiMessageSquare, FiFile, FiSmile, FiUploadCloud } from 'react-icons/fi';
+import { FiLoader, FiSend, FiPaperclip, FiX, FiCheck, FiImage, FiMessageSquare, FiFile, FiSmile, FiUploadCloud, FiStopCircle } from 'react-icons/fi';
 import EmojiPicker from 'emoji-picker-react';
 import FileUpload from './FileUpload';
 
-const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isEmbedding }, ref) => {
+const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isEmbedding, isStreaming, onStopGeneration }, ref) => {
   const [message, setMessage] = useState('');
   const [showFileUploadModal, setShowFileUploadModal] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -295,6 +295,7 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
           <button onClick={handleFileButtonClick} type="button" disabled={disabled || isEmbedding} className={`p-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${disabled || isEmbedding ? 'text-gray-500 bg-gray-800/40 cursor-not-allowed' : 'text-gray-300 hover:bg-indigo-600/30 hover:text-indigo-300'}`} aria-label="파일 첨부" title="파일 첨부">
             <FiUploadCloud className="w-5 h-5" />
           </button>
+          
           {/* 입력창 */}
           <textarea
             ref={textareaRef}
@@ -309,6 +310,20 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
             rows={1}
             aria-label="메시지 입력"
           />
+          
+          {/* 응답 중지 버튼 (스트리밍 중일 때만 표시) */}
+          {isStreaming && (
+            <button
+              onClick={onStopGeneration}
+              type="button"
+              className="p-2 rounded-full bg-red-600 text-white shadow-lg hover:bg-red-700 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500"
+              aria-label="응답 중지"
+              title="응답 중지"
+            >
+              <FiStopCircle className="w-5 h-5" />
+            </button>
+          )}
+          
           {/* 전송 버튼 */}
           <button
             onClick={handleSend}

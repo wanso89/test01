@@ -2,7 +2,7 @@ import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 // FiExternalLink 아이콘 추가
-import { FiLoader, FiArrowUp, FiList, FiX, FiExternalLink, FiTrash2, FiHardDrive, FiFile, FiFolder, FiSearch, FiMessageSquare, FiBookmark, FiUploadCloud, FiPlus, FiCornerDownRight, FiCommand, FiMessageCircle, FiDatabase, FiBarChart2 } from "react-icons/fi"; 
+import { FiLoader, FiArrowUp, FiList, FiX, FiExternalLink, FiTrash2, FiHardDrive, FiFile, FiFolder, FiSearch, FiMessageSquare, FiBookmark, FiUploadCloud, FiPlus, FiCornerDownRight, FiCommand, FiMessageCircle, FiDatabase, FiBarChart2, FiSquare, FiStopCircle } from "react-icons/fi"; 
 import { FiAlertCircle, FiFileText, FiHelpCircle } from "react-icons/fi";
 
 // 로딩 인디케이터 컴포넌트 추가
@@ -778,19 +778,41 @@ function ChatContainer({
   setFileManagerOpen,
   sidebarOpen,
   setMode, // onToggleMode 대신 setMode를 받습니다
-  currentMode // 현재 모드 props 추가
+  currentMode, // 현재 모드 props 추가
+  isStreaming,
+  setIsStreaming
 }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [showScrollToTop, setShowScrollToTop] = useState(false);
-  const [userInput, setUserInput] = useState("");
-  const [category, setCategory] = useState("메뉴얼");
   const containerRef = useRef(null);
-  const messagesEndRef = useRef(null);
   const chatInputRef = useRef(null);
+  const messagesEndRef = useRef(null); // 메시지 끝 참조 추가
+  const dropZoneRef = useRef(null); // dropZone 참조 추가
+  const [atBottom, setAtBottom] = useState(true);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [showScrollToTop, setShowScrollToTop] = useState(false); // 위로 스크롤 버튼 상태 추가
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [indexedFilesModalOpen, setIndexedFilesModalOpen] = useState(false);
   const [newChatModalOpen, setNewChatModalOpen] = useState(false);
-  const [isDraggingFile, setIsDraggingFile] = useState(false);
-  const dropZoneRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [selectedSourceIndex, setSelectedSourceIndex] = useState(null);
+  const [selectedSourceContent, setSelectedSourceContent] = useState("");
+  const [selectedSourceHighlights, setSelectedSourceHighlights] = useState([]);
+  const prevMessageLengthRef = useRef(messages.length);
+  const [filesToUpload, setFilesToUpload] = useState([]);
+  
+  // 응답 스트리밍 중지 컨트롤러
+  const abortControllerRef = useRef(null);
+  
+  // 스트리밍 중지 함수
+  const stopResponseGeneration = useCallback(() => {
+    if (abortControllerRef.current) {
+      console.log("응답 생성 중지");
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsStreaming(false);
+    }
+  }, [setIsStreaming]);
 
   // 스타일 주입
   useEffect(() => {
@@ -925,16 +947,19 @@ function ChatContainer({
 
   // 드래그 앤 드롭 이벤트 핸들러 설정
   useEffect(() => {
+    const dropZone = dropZoneRef.current;
+    if (!dropZone) return;
+
     const handleDragOver = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      setIsDraggingFile(true);
+      setIsDragging(true);
     };
     
     const handleDragEnter = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      setIsDraggingFile(true);
+      setIsDragging(true);
     };
     
     const handleDragLeave = (e) => {
@@ -949,14 +974,14 @@ function ChatContainer({
         e.clientY <= rect.top ||
         e.clientY >= rect.bottom
       ) {
-        setIsDraggingFile(false);
+        setIsDragging(false);
       }
     };
     
     const handleDrop = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      setIsDraggingFile(false);
+      setIsDragging(false);
       
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         // 파일 업로드 모달 열기
@@ -972,21 +997,18 @@ function ChatContainer({
       }
     };
     
-    const dropZone = dropZoneRef.current;
-    if (dropZone) {
-      dropZone.addEventListener('dragover', handleDragOver);
-      dropZone.addEventListener('dragenter', handleDragEnter);
-      dropZone.addEventListener('dragleave', handleDragLeave);
-      dropZone.addEventListener('drop', handleDrop);
-      
-      return () => {
-        dropZone.removeEventListener('dragover', handleDragOver);
-        dropZone.removeEventListener('dragenter', handleDragEnter);
-        dropZone.removeEventListener('dragleave', handleDragLeave);
-        dropZone.removeEventListener('drop', handleDrop);
-      };
-    }
-  }, []);
+    dropZone.addEventListener('dragover', handleDragOver);
+    dropZone.addEventListener('dragenter', handleDragEnter);
+    dropZone.addEventListener('dragleave', handleDragLeave);
+    dropZone.addEventListener('drop', handleDrop);
+    
+    return () => {
+      dropZone.removeEventListener('dragover', handleDragOver);
+      dropZone.removeEventListener('dragenter', handleDragEnter);
+      dropZone.removeEventListener('dragleave', handleDragLeave);
+      dropZone.removeEventListener('drop', handleDrop);
+    };
+  }, [chatInputRef]);
 
   const scrollToBottom = useCallback(() => {
     if (!containerRef.current || scrollLocked) return;
@@ -1057,6 +1079,14 @@ function ChatContainer({
     setError(null);
     
     try {
+      // 이전 스트리밍 중인 경우 중단
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      
+      // 새 AbortController 생성
+      abortControllerRef.current = new AbortController();
+      
       // history 배열 처리 - role과 content만 포함
       const history = messages.slice(-10).map(m => ({
         role: m.role,
@@ -1078,6 +1108,9 @@ function ChatContainer({
       // 빈 봇 메시지 추가 (스트리밍 시작 전)
       onUpdateMessages([...updatedMessages, botMessage]);
       
+      // 스트리밍 시작 상태로 설정
+      setIsStreaming(true);
+      
       // 스트리밍 응답 가져오기
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -1089,6 +1122,7 @@ function ChatContainer({
           history: history,
           category: categoryValue,
         }),
+        signal: abortControllerRef.current.signal, // AbortController 신호 연결
       });
       
       if (!response.ok) {
@@ -1195,11 +1229,29 @@ function ChatContainer({
       onUpdateMessages([...updatedMessages, finalBotMessage]);
       
     } catch (error) {
-      console.error("채팅 요청 오류:", error);
-      setError(`서버 응답을 처리할 수 없습니다: ${error.message}`);
+      // AbortError는 사용자가 의도적으로 중단한 경우이므로 일반 오류로 처리하지 않음
+      if (error.name === 'AbortError') {
+        console.log("사용자가 응답 생성을 중단했습니다.");
+        
+        // 마지막 메시지가 어시스턴트 메시지인 경우 중단됨을 표시
+        const lastMessage = updatedMessages[updatedMessages.length - 1];
+        if (lastMessage && lastMessage.role === "assistant") {
+          const updatedBotMessage = {
+            ...lastMessage,
+            content: lastMessage.content + " (응답이 중단되었습니다)",
+          };
+          
+          onUpdateMessages([...updatedMessages.slice(0, -1), updatedBotMessage]);
+        }
+      } else {
+        console.error("채팅 요청 오류:", error);
+        setError(`서버 응답을 처리할 수 없습니다: ${error.message}`);
+      }
     } finally {
       // 로딩 상태 비활성화 (오류 발생 시나 모든 처리 완료 후)
       setLoading(false);
+      setIsStreaming(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -1377,7 +1429,7 @@ function ChatContainer({
       e.stopPropagation();
       
       // 같은 모드를 다시 클릭한 경우 무시
-      if (mode === newMode) return;
+      if (currentMode === newMode) return;
       
       console.log(`ModeToggleSwitch: ${newMode} 모드로 전환 시작`);
       
@@ -1388,11 +1440,11 @@ function ChatContainer({
           console.log(`${newMode} 모드 전환 함수 호출 완료`);
         
           // 버튼 효과
-        const button = e.currentTarget;
+          const button = e.currentTarget;
           button.classList.add('scale-95');
-        setTimeout(() => {
+          setTimeout(() => {
             button.classList.remove('scale-95');
-        }, 200);
+          }, 200);
           
           // 클릭 효과음 (향후 추가 가능)
           // const audio = new Audio('/sounds/switch-click.mp3');
@@ -1496,7 +1548,7 @@ function ChatContainer({
       <LoadingIndicator active={loading} />
       
       {/* 파일 드래그 오버레이 */}
-      {isDraggingFile && (
+      {isDragging && (
         <div className="absolute inset-0 bg-indigo-900/50 backdrop-blur-sm z-50 flex items-center justify-center border-2 border-dashed border-indigo-400 animate-pulse">
           <div className="bg-gray-800/80 backdrop-blur-md p-8 rounded-2xl text-center shadow-2xl">
             <div className="w-20 h-20 bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -1587,6 +1639,8 @@ function ChatContainer({
             onTyping={(isTyping) => {}}
             onUploadSuccess={onUploadSuccess}
             isEmbedding={isEmbedding}
+            isStreaming={isStreaming}
+            onStopGeneration={stopResponseGeneration}
           />
           
           {/* 로딩 상태 표시 */}
