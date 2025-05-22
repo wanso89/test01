@@ -1110,155 +1110,102 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     setStar((current) => (current === n ? 0 : n));
   }, []);
 
-  // 키워드 추출 함수 (간단한 버전)
-  const extractKeywords = useCallback((text) => {
-    if (!text || typeof text !== 'string' || text.trim() === "") return [];
+  const extractKeywordsFromText = useCallback((text, maxKeywords = 12) => {
+    if (!text || typeof text !== 'string') return [];
     
-    console.log("키워드 추출 시도:", text.substring(0, 100) + "...");
-    
-    // 정규식으로 문자와 한글만 추출
-    const cleaned = text.toLowerCase().replace(/[^\w\s가-힣]/g, ' ');
-    const words = cleaned.split(/\s+/)
-                         .filter(word => word.length >= 2 && !KOREAN_STOPWORDS.has(word));
-    
-    // 단어 빈도수 계산
-    const wordFreq = {};
-    words.forEach(word => {
-      wordFreq[word] = (wordFreq[word] || 0) + 1;
-    });
-    
-    // 빈도수 기준 정렬
-    const sortedWords = Object.keys(wordFreq).sort((a, b) => wordFreq[b] - wordFreq[a]);
-    const uniqueKeywords = [...new Set(sortedWords)].slice(0, 8); // 중복 제거 후 상위 8개 추출
-    
-    console.log("추출된 키워드:", uniqueKeywords);
-    return uniqueKeywords;
+    try {
+      // 한글, 영문, 숫자 단어 추출 (2글자 이상)
+      const words = text.match(/[\wㄱ-ㅎ가-힣]{2,}/g) || [];
+      
+      // 불용어 제거 및 중복 제거
+      const filteredWords = words
+        .filter(word => word.length >= 2)
+        .filter(word => !KOREAN_STOPWORDS.has(word))
+        .map(word => word.toLowerCase());
+      
+      // 중복 제거 및 빈도수 계산
+      const wordFreq = {};
+      filteredWords.forEach(word => {
+        wordFreq[word] = (wordFreq[word] || 0) + 1;
+      });
+      
+      // 빈도수 기준 정렬 후 상위 N개 추출
+      const uniqueKeywords = Object.entries(wordFreq)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, maxKeywords)
+        .map(([word]) => word);
+      
+      return uniqueKeywords;
+    } catch (error) {
+      return [];
+    }
   }, []);
 
   // 소스 미리보기 핸들러
   const handlePreviewSource = async (source) => {
-    if (loadingContent) return;
-
+    if (!source || !source.path) {
+      // 오류 메시지 표시 방식 수정
+      setPreviewContent("유효한 출처 정보가 없습니다.");
+      setShowSourcePreview(true);
+      return;
+    }
+    
+    setShowSourcePreview(true);
+    setPreviewSource(source);
+    setPreviewContent("");
+    setPreviewImage(null);
     setLoadingContent(true);
-    setPreviewSource(source); 
-    setSourceFilterText(""); // 필터 초기화
-    setShowSourcePreview(true); // 미리보기 모달 표시
-
+    
     try {
-      // source 객체 유효성 검증
-      if (!source || typeof source !== 'object') {
-        throw new Error("잘못된 출처 데이터 형식입니다.");
+      // 키워드 추출 (응답 텍스트에서)
+      let extractedKeywords = [];
+      if (message.content) {
+        extractedKeywords = extractKeywordsFromText(message.content);
       }
-
-      const sourcePath = source.path;
-      // 필수 필드 검증
-      if (!sourcePath) {
-        console.error("출처 경로가 없습니다:", source);
-        throw new Error("출처 경로 정보가 없습니다.");
-      }
-
-      const chunkId = source.chunk_id || "";
-      const page = source.page || 1;
       
-      // 메시지 내용에서 키워드 추출
-      const extractedKeywords = extractKeywords(message.content);
-      console.log("출처 미리보기 요청:", {
-        path: sourcePath,
-        page: page,
-        chunk_id: chunkId,
-        has_answer_text: !!message.content,
-        extracted_keywords: extractedKeywords
-      });
-
-      const response = await fetch("/api/source-preview", {
-        method: "POST",
+      // API 호출 - 출처 미리보기
+      const response = await fetch('/api/source-preview', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          path: sourcePath,
-          page: page,
-          chunk_id: chunkId,
-          answer_text: message.content || "", // 챗봇 응답 텍스트 전달 (null 값 방지)
-          keywords: extractedKeywords // 클라이언트에서 추출한 키워드 전달
+          path: source.path,
+          page: source.page || 1,
+          chunk_id: source.chunk_id || "",
+          keywords: extractedKeywords,
+          answer_text: message.content || ""
         }),
       });
       
       if (!response.ok) {
-        console.error("출처 미리보기 API 오류:", response.status, response.statusText);
-        throw new Error(`소스 미리보기 실패 (상태 코드: ${response.status})`);
+        throw new Error(`서버 응답 오류: ${response.status}`);
       }
-
+      
       const data = await response.json();
       
-      // 응답 데이터 검증
-      if (data.status === "error") {
-        console.error("출처 미리보기 API 응답 오류:", data.message);
-        let errorMessage = data.message || "서버에서 내용을 불러올 수 없습니다.";
-        
-        // 디버그 정보가 있으면 유사 파일 정보 추가
-        if (data.debug_info) {
-          const { indexed_files_count, similar_files } = data.debug_info;
-          
-          if (indexed_files_count > 0) {
-            errorMessage += `\n\n시스템에 인덱싱된 파일 수: ${indexed_files_count}`;
-            
-            if (similar_files && similar_files.length > 0) {
-              errorMessage += `\n\n유사한 파일:`;
-              similar_files.forEach(file => {
-                errorMessage += `\n- ${file.split('_')[1] || file}`;
-              });
-            }
-          }
-        }
-        
-        throw new Error(errorMessage);
-      }
-      
-      if (data.content_type && data.content_type.startsWith('image/')) {
-        // 이미지 소스인 경우
-        if (!data.image_url) {
-          throw new Error("이미지 URL이 없습니다.");
-        }
-        setPreviewImage(data.image_url);
-        setPreviewContent(null);
-        setSourceKeywords([]);
-        setHighlightKeywords([]);
-      } else {
-        // 텍스트 소스인 경우
-        if (!data.content && !data.original_content) {
-          throw new Error("내용이 없거나 빈 문서입니다.");
-        }
-        
-        // content 또는 original_content 중 하나라도 있으면 사용
-        const contentToUse = data.content || data.original_content || "";
-        setPreviewContent(contentToUse);
-        setPreviewImage(null);
-        
-        // 키워드 설정 - API에서 제공된 키워드 또는 추출한 키워드 사용
-        let keywordsToUse = [];
-        
-        if (data.keywords && Array.isArray(data.keywords) && data.keywords.length > 0) {
-          console.log("API에서 제공된 키워드:", data.keywords);
-          keywordsToUse = data.keywords;
+      if (data.status === 'success') {
+        // 이미지 또는 텍스트 컨텐츠 설정
+        if (data.is_image) {
+          setPreviewImage(data.image_data);
+          setPreviewContent("");
         } else {
-          console.log("자체 추출 키워드 사용:", extractedKeywords);
-          keywordsToUse = extractedKeywords;
+          setPreviewContent(data.content || "");
+          setPreviewImage(null);
+          
+          // 하이라이트할 키워드 설정
+          // API에서 제공한 키워드가 있으면 사용, 없으면 자체 추출한 키워드 사용
+          const keywordsToUse = data.keywords && data.keywords.length > 0
+            ? data.keywords
+            : extractedKeywords;
+            
+          setHighlightKeywords(keywordsToUse);
         }
-        
-        // 짧은 키워드 제외 (1글자)
-        keywordsToUse = keywordsToUse.filter(kw => kw && kw.length > 1);
-        
-        console.log("최종 사용 키워드:", keywordsToUse);
-        setSourceKeywords(keywordsToUse);
-        setHighlightKeywords(keywordsToUse);
+      } else {
+        throw new Error(data.message || "출처 내용을 불러올 수 없습니다.");
       }
     } catch (error) {
-      console.error("소스 미리보기 오류:", error);
-      setPreviewContent(`소스를 불러오는 중 오류가 발생했습니다: ${error.message}`);
-      setPreviewImage(null);
-      setSourceKeywords([]);
-      setHighlightKeywords([]);
+      setPreviewContent(`출처 미리보기 오류: ${error.message}`);
     } finally {
       setLoadingContent(false);
     }
@@ -1490,39 +1437,62 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
   const escapeHtmlTags = (content) => {
     if (!content) return '';
     
+    // HTML 태그 감지 함수
+    const detectMalformedTags = (text) => {
+      const malformedTags = [];
+      
+      // 닫히지 않은 태그 찾기
+      const openTagsRegex = /<([a-zA-Z][a-zA-Z0-9]*)[^>]*>/g;
+      const closeTagsRegex = /<\/([a-zA-Z][a-zA-Z0-9]*)>/g;
+      
+      const openTags = {};
+      let match;
+      
+      // 열린 태그 찾기
+      while ((match = openTagsRegex.exec(text)) !== null) {
+        const tagName = match[1].toLowerCase();
+        openTags[tagName] = (openTags[tagName] || 0) + 1;
+      }
+      
+      // 닫힌 태그 찾기
+      while ((match = closeTagsRegex.exec(text)) !== null) {
+        const tagName = match[1].toLowerCase();
+        openTags[tagName] = (openTags[tagName] || 0) - 1;
+      }
+      
+      // 균형이 맞지 않는 태그 찾기
+      Object.entries(openTags).forEach(([tag, count]) => {
+        if (count !== 0) {
+          malformedTags.push(tag);
+        }
+      });
+      
+      return malformedTags.length > 0 ? malformedTags : null;
+    };
+    
+    // 중국어 한자 감지 및 제거
+    const detectChineseChars = (text) => {
+      const chineseRegex = /[\u4e00-\u9fff]+/g;
+      const match = text.match(chineseRegex);
+      
+      if (match) {
+        // 중국어 한자를 공백으로 대체
+        return text.replace(chineseRegex, ' ');
+      }
+      
+      return text;
+    };
+    
     // 원본 콘텐츠 보존
     let processedContent = String(content);
     
     // 비정상 태그 패턴 감지 및 제거
-    const detectMalformedTags = (text) => {
-      // 정상적이지 않은 태그 패턴 예: <<tag>, <tag<, <tag</tag>, 등
-      const malformedTagPattern = /<<\/?[a-zA-Z][^>]*>|<[a-zA-Z][^>]*<|<[^>]*<\/[^>]*>/g;
-      
-      const malformedTags = text.match(malformedTagPattern);
-      if (malformedTags && malformedTags.length > 0) {
-        console.log('비정상 태그 감지:', malformedTags);
-        // 비정상 태그 제거
-        return text.replace(malformedTagPattern, '');
-      }
-      return text;
-    };
-    
-    // 비정상 태그 수정
-    processedContent = detectMalformedTags(processedContent);
-    
-    // 한자(중국어) 글자 탐지 및 제거 (한글은 유지)
-    const detectChineseChars = (text) => {
-      // CJK 유니코드 범위 중 한자 범위만 포함 (한글 제외)
-      // \u4e00-\u9fff: 중국어/일본어 한자
-      // \u3400-\u4dbf: CJK 통합 확장 A
-      // \uf900-\ufaff: CJK 호환 한자
-      const chineseCharPattern = /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+/g;
-      
-      return text.replace(chineseCharPattern, (match) => {
-        console.log('중국어 한자 감지 및 제거:', match);
-        return ''; // 한자를 제거하거나 빈 문자열로 대체
-      });
-    };
+    const malformedTags = detectMalformedTags(processedContent);
+    if (malformedTags) {
+      console.log('비정상 태그 감지:', malformedTags);
+      // 비정상 태그 제거
+      processedContent = processedContent.replace(new RegExp(`<${malformedTags.join('|')}>`, 'g'), '');
+    }
     
     // 한자 제거 처리
     processedContent = detectChineseChars(processedContent);
@@ -1825,9 +1795,28 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
   
   // 출처 섹션 렌더링 함수
   const renderSourcesSection = () => {
+    // 출처 정보 없는 경우 처리
     if (!message.sources || !Array.isArray(message.sources) || message.sources.length === 0) {
       return null;
     }
+    
+    // 인용된 출처만 필터링 (cited_sources가 있으면 우선 사용, 없으면 is_cited=true인 항목만 필터링)
+    const citedSources = message.cited_sources && Array.isArray(message.cited_sources) && message.cited_sources.length > 0
+      ? message.cited_sources 
+      : message.sources.filter(s => s && s.is_cited === true);
+    
+    // 인용된 출처가 없는 경우 표시하지 않음
+    if (citedSources.length === 0) {
+      return null;
+    }
+
+    // 인용된 출처에 대해서만 필터링 적용
+    const displaySources = sourceFilterText
+      ? citedSources.filter(source => {
+          const sourcePath = source.path || source.source || "";
+          return sourcePath.toLowerCase().includes(sourceFilterText.toLowerCase());
+        })
+      : citedSources;
 
     return (
       <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
@@ -1841,10 +1830,10 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
             ) : (
               <FiChevronRight className="mr-1" size={14} />
             )}
-            출처 {filteredSources.length}개
+            출처 {displaySources.length}개
           </button>
           
-          {sourcesVisible && filteredSources.length > 3 && (
+          {sourcesVisible && displaySources.length > 3 && (
             <div className="relative">
               <input
                 type="text"
@@ -1867,10 +1856,10 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
         
         {sourcesVisible && (
           <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
-            {filteredSources.length > 0 ? (
-              filteredSources.map((source, index) => (
+            {displaySources.length > 0 ? (
+              displaySources.map((source, index) => (
                 <SourceItem 
-                  key={`${source.source}-${source.page}-${index}`}
+                  key={`${source.source || source.path}-${source.page}-${index}`}
                   source={source}
                   onClick={handlePreviewSource}
                 />
@@ -2013,12 +2002,12 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
         {/* 사용자 아바타 (왼쪽) */}
         {!isUser && (
           <div className="flex flex-col items-center">
-            <ProfileAvatar role="assistant" isGrouped={isGrouped} />
             {!isGrouped && (
-              <span className="message-time text-xs text-gray-400 mt-1">
+              <span className="message-time text-xs text-gray-400 mb-1">
                 {formatMessageTime(messageTime)}
               </span>
             )}
+            <ProfileAvatar role="assistant" isGrouped={isGrouped} />
           </div>
         )}
         
@@ -2085,12 +2074,12 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
         {/* 사용자 아바타 (오른쪽) */}
         {isUser && (
           <div className="flex flex-col items-center">
-            <ProfileAvatar role="user" isGrouped={isGrouped} />
             {!isGrouped && (
-              <span className="message-time text-xs text-gray-400 mt-1">
+              <span className="message-time text-xs text-gray-400 mb-1">
                 {formatMessageTime(messageTime)}
               </span>
             )}
+            <ProfileAvatar role="user" isGrouped={isGrouped} />
           </div>
         )}
       </div>
@@ -2098,7 +2087,10 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
       {/* 출처 미리보기 모달 */}
       <SourcePreviewModal
         isOpen={showSourcePreview}
-        onClose={() => setShowSourcePreview(false)}
+        onClose={() => {
+          setShowSourcePreview(false);
+          handleClosePreview();
+        }}
         source={previewSource}
         content={previewContent}
         image={previewImage}

@@ -332,6 +332,7 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
             className="w-full px-4 py-3 max-h-[150px] bg-transparent border-0 resize-none focus:ring-0 focus:outline-none text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500"
             disabled={disabled || isEmbedding}
             rows={1}
+            aria-label="메시지 입력"
           />
           
           {/* 버튼 영역 */}

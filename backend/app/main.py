@@ -26,6 +26,7 @@ import mimetypes  # 파일 타입 감지용
 from collections import Counter  # 피드백 통계용
 import re  # 정규식 사용을 위한 모듈
 from pathlib import Path  # 경로 처리용
+from fastapi import Request as FastAPIRequest # FastAPI의 Request를 명시적으로 임포트
 
 # 검색 개선 모듈 import
 from app.utils.search_enhancer import EnhancedSearchPipeline
@@ -1836,68 +1837,101 @@ async def delete_all_files():
     인덱싱된 모든 파일을 삭제합니다.
     파일 시스템에서 파일을 삭제하고 Elasticsearch에서 관련 문서를 모두 제거합니다.
     """
+    start_time = time.time()
+    logger.info("모든 파일 삭제 요청 수신")
+
+    es_client = get_elasticsearch_client()
+    if not es_client:
+        logger.error("Elasticsearch 클라이언트 초기화 실패. 모든 파일 삭제 작업을 중단합니다.")
+        raise HTTPException(status_code=500, detail="Elasticsearch 연결 실패")
+
+    uploads_dir = os.path.join(STATIC_DIR, "uploads")
+    deleted_files_count = 0
+    failed_files_es = []
+    failed_files_fs = []
+
     try:
-        es_client = get_elasticsearch_client()
-        if not es_client:
-            raise HTTPException(status_code=500, detail="Elasticsearch 연결 실패")
-            
-        # 업로드 디렉토리 경로
-        uploads_dir = "app/static/uploads"
-        
-        # 1. 모든 파일 목록 가져오기
+        # 1. Elasticsearch에서 모든 문서 삭제
+        logger.info(f"'{ES_INDEX_NAME}' 인덱스에서 모든 문서 삭제 시작...")
         try:
-            files = os.listdir(uploads_dir)
-        except Exception as e:
-            logger.error(f"업로드 디렉토리 읽기 실패: {e}")
-            return JSONResponse(
-                status_code=500,
-                content={"status": "error", "message": f"업로드 디렉토리 읽기 실패: {str(e)}"}
+            # match_all 쿼리를 사용하여 모든 문서 삭제
+            delete_response = es_client.delete_by_query(
+                index=ES_INDEX_NAME,
+                body={
+                    "query": {
+                        "match_all": {}
+                    }
+                },
+                refresh=True,  # 즉시 인덱스 갱신
+                wait_for_completion=True  # 작업 완료까지 대기
             )
             
-        # 2. 각 파일에 대해 삭제 작업 수행
-        deleted_count = 0
-        failed_count = 0
-        
-        for filename in files:
-            file_path = os.path.join(uploads_dir, filename)
-            if os.path.isfile(file_path):
-                try:
-                    # Elasticsearch에서 문서 삭제
-                    delete_query = {
-                        "query": {
-                            "term": {
-                                "source": filename
-                            }
-                        }
-                    }
-                    
-                    es_client.delete_by_query(
-                        index=ES_INDEX_NAME, 
-                        body=delete_query,
-                        refresh=True
-                    )
-                    
-                    # 파일 시스템에서 삭제
-                    os.remove(file_path)
-                    deleted_count += 1
-                    logger.info(f"파일 삭제 성공: {filename}")
-                except Exception as e:
-                    failed_count += 1
-                    logger.error(f"파일 삭제 실패 ({filename}): {e}")
-        
+            es_deleted_count = delete_response.get("deleted", 0)
+            logger.info(f"Elasticsearch에서 총 {es_deleted_count}개 문서 삭제 완료")
+            
+            if es_deleted_count == 0:
+                logger.warning("Elasticsearch에서 삭제할 문서가 없습니다.")
+        except Exception as es_error:
+            logger.error(f"Elasticsearch 문서 삭제 중 오류: {es_error}")
+            traceback.print_exc()
+            failed_files_es.append("ALL_DOCUMENTS")
+            return JSONResponse(
+                status_code=500,
+                content={"status": "error", "message": f"Elasticsearch 문서 삭제 중 오류: {str(es_error)}"}
+            )
+
+        # 2. 파일 시스템에서 모든 파일 삭제
+        logger.info(f"파일 시스템에서 모든 파일 삭제 시작 (경로: {uploads_dir})...")
+        try:
+            files = os.listdir(uploads_dir)
+            logger.info(f"삭제할 파일 {len(files)}개 발견")
+            
+            for filename in files:
+                file_path = os.path.join(uploads_dir, filename)
+                if os.path.isfile(file_path):
+                    try:
+                        os.remove(file_path)
+                        deleted_files_count += 1
+                        logger.info(f"파일 삭제 성공: {filename}")
+                    except Exception as file_error:
+                        failed_files_fs.append(filename)
+                        logger.error(f"파일 삭제 실패 ({filename}): {file_error}")
+            
+            logger.info(f"파일 시스템에서 총 {deleted_files_count}개 파일 삭제 완료")
+        except Exception as fs_error:
+            logger.error(f"파일 시스템 접근 중 오류: {fs_error}")
+            traceback.print_exc()
+            return JSONResponse(
+                status_code=500,
+                content={"status": "error", "message": f"파일 시스템 접근 중 오류: {str(fs_error)}"}
+            )
+
         # 3. 결과 반환
-        if failed_count == 0:
+        end_time = time.time()
+        execution_time = round(end_time - start_time, 2)
+        
+        if not failed_files_fs and not failed_files_es:
+            logger.info(f"모든 파일 삭제 성공 (총 {deleted_files_count}개, 소요시간: {execution_time}초)")
             return JSONResponse(
                 content={
-                    "status": "success", 
-                    "message": f"모든 파일이 성공적으로 삭제되었습니다. (총 {deleted_count}개)"
+                    "status": "success",
+                    "message": f"모든 파일이 성공적으로 삭제되었습니다. (총 {deleted_files_count}개)",
+                    "deleted_count": deleted_files_count,
+                    "es_deleted_count": es_deleted_count,
+                    "execution_time": execution_time
                 }
             )
         else:
+            failed_count = len(failed_files_fs)
+            logger.warning(f"일부 파일 삭제 실패 (성공: {deleted_files_count}개, 실패: {failed_count}개)")
             return JSONResponse(
                 content={
                     "status": "partial_success",
-                    "message": f"{deleted_count}개 파일 삭제 성공, {failed_count}개 파일 삭제 실패"
+                    "message": f"{deleted_files_count}개 파일 삭제 성공, {failed_count}개 파일 삭제 실패",
+                    "deleted_count": deleted_files_count,
+                    "failed_count": failed_count,
+                    "failed_files": failed_files_fs[:10],  # 최대 10개까지만 표시
+                    "execution_time": execution_time
                 }
             )
             
@@ -2096,7 +2130,7 @@ async def upload_files(
 
 # 질문-응답 엔드포인트
 @app.post("/api/chat")
-async def chat(request: QuestionRequest = Body(...)):
+async def chat(fastapi_request: FastAPIRequest, request: QuestionRequest = Body(...)):
     logger.info(f"Received chat request: '{request.question}', Category: '{request.category}', History items: {len(request.history) if request.history else 0}")
     request_start_time = time.time()
 
@@ -2231,6 +2265,17 @@ async def chat(request: QuestionRequest = Body(...)):
             generated_text_count = 0
             try:
                 for new_text in streamer:
+                    # 클라이언트 연결 중단 확인
+                    if await fastapi_request.is_disconnected():
+                        logger.info("Client disconnected, stopping stream.")
+                        # 스레드가 아직 실행 중이면 종료 시도 (주의: 스레드를 강제로 종료하는 것은 위험할 수 있음)
+                        # 모델 생성 로직이 중단 신호를 받을 수 있도록 설계하는 것이 이상적
+                        if thread.is_alive():
+                            logger.warning("LLM generation thread is still alive. Attempting to manage resources.")
+                            # streamer.end = True # TextIteratorStreamer에 종료 플래그가 있다면 설정 (라이브러리 확인 필요)
+                            # 또는 모델 generate 함수가 중단될 수 있는 방법을 찾아야 함
+                        break # 스트리밍 루프 중단
+
                     if new_text:
                         generated_text_count += len(new_text)
                         accumulated_text += new_text
@@ -2290,32 +2335,39 @@ async def chat(request: QuestionRequest = Body(...)):
                         cited = False
                         source_text = top_docs_content[i].page_content if i < len(top_docs_content) else ""
                         
-                        # 1. 연속된 텍스트 일치 여부 확인 (최소 30자)
+                        # 1. 연속된 텍스트 일치 여부 확인 (최소 40자로 상향 조정)
                         if len(source_text) > 50:
-                            for j in range(0, len(source_text) - 30, 10):
-                                snippet = source_text[j:j+30]
+                            # 더 긴 스니펫(40자)으로 일치 여부 확인하여 정확도 향상
+                            for j in range(0, len(source_text) - 40, 10):
+                                snippet = source_text[j:j+40]
                                 if snippet in cleaned_text:
                                     cited = True
+                                    logger.debug(f"문서 인용 감지: 40자 스니펫 일치 - {snippet[:20]}...")
                                     break
                         
-                        # 2. 키워드 기반 매칭
+                        # 2. 키워드 기반 매칭 (매칭 비율 임계값 0.3 → 0.4로 상향 조정)
                         if not cited and source_text:
                             source_keywords = extract_keywords(source_text)
                             if source_keywords:
                                 matches = [k for k in source_keywords if k in cleaned_text]
                                 match_ratio = len(matches) / len(source_keywords)
-                                if match_ratio > 0.3:
+                                # 매칭 비율 임계값 상향 조정 (0.3 → 0.4)
+                                if match_ratio > 0.4:
                                     cited = True
+                                    logger.debug(f"문서 인용 감지: 키워드 매칭 비율 {match_ratio:.2f} - 키워드: {matches[:5]}...")
                         
                         # 인용된 소스만 추가
                         if cited:
                             meta["is_cited"] = True
-                            cited_sources.append(meta)
                         else:
                             meta["is_cited"] = False
                 
                 # 스트림 종료 알림 (모든 토큰 생성 완료) - 출처 정보 포함
                 logger.info(f"LLM generation stream finished. Total chars: {generated_text_count}. Time: {time.time() - llm_generation_start_time:.4f}s")
+                
+                # cited_sources를 source_metadata에서 is_cited가 True인 항목으로 명시적으로 필터링
+                cited_sources = [meta for meta in source_metadata if meta.get("is_cited", False)]
+                logger.info(f"인용된 소스 수: {len(cited_sources)}/{len(source_metadata)}")
                 
                 # 최종 메시지에 출처 정보 포함
                 yield f"data: {json.dumps({'event': 'sources', 'sources': source_metadata, 'cited_sources': cited_sources})}\n\n"

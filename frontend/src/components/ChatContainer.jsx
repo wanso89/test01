@@ -299,7 +299,6 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
     setError(null);
     
     try {
-      console.log('파일 목록 로드 시도...');
       const controller = new AbortController(); // 요청 취소 컨트롤러
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
       
@@ -316,16 +315,12 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
       const data = await response.json();
       
       if (response.ok && data.status === 'success') {
-        console.log('파일 목록 로드 성공:', data.files?.length || 0, '개 항목');
         setFiles(data.files || []);
         hasLoadedRef.current = true; // 로드 완료 표시
       } else {
-        console.error('API 응답 오류:', data);
         throw new Error(data.detail || data.message || '파일 목록을 불러오는데 실패했습니다.');
       }
     } catch (err) {
-      console.error('파일 목록 조회 오류:', err);
-      
       // 오류 타입에 따른 메시지 설정
       let errorMsg = '파일 목록을 불러오는데 실패했습니다.';
       
@@ -435,44 +430,53 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
       setIsDeleting(true);
       setShowDeleteAllConfirm(false); // 확인 모달 닫기
       
-      console.log("전체 파일 삭제 요청 시작");
-      
       // 서버에 전체 삭제 요청 - 상대 경로로 변경
       const response = await fetch(`/api/delete-all-files`, {
         method: 'DELETE',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
-        }
+        },
+        // 타임아웃 설정 추가
+        signal: AbortSignal.timeout(30000) // 30초 타임아웃
       });
       
       // 응답 데이터 가져오기 (JSON이 아닐 경우 대비)
       let data;
+      let responseText;
+      
       try {
-        data = await response.json();
+        responseText = await response.text(); // 먼저 텍스트로 가져옴
+        data = JSON.parse(responseText); // 그 다음 JSON으로 파싱 시도
       } catch (jsonError) {
-        console.error('응답 JSON 파싱 오류:', jsonError);
         throw new Error('서버 응답을 처리할 수 없습니다.');
       }
       
-      console.log("전체 파일 삭제 응답:", data);
-      
-      if (response.ok && data.status === 'success') {
-        console.log("전체 파일 삭제 성공");
+      if (response.ok && (data.status === 'success' || data.status === 'partial_success')) {
+        // 파일 목록 강제 새로고침을 위해 상태 초기화
+        hasLoadedRef.current = false;
+        
         // 전체 파일 목록 비우기
         setFiles([]);
-        setSuccessMessage(`모든 파일이 삭제되었습니다.`);
+        
+        // 성공 메시지 설정
+        if (data.status === 'success') {
+          setSuccessMessage(`모든 파일이 삭제되었습니다. (총 ${data.deleted_count || 0}개)`);
+        } else {
+          setSuccessMessage(`${data.deleted_count || 0}개 파일 삭제 성공, ${data.failed_count || 0}개 파일 삭제 실패`);
+        }
+        
+        // 파일 목록 다시 로드
+        await loadFiles();
         
         // 부모 컴포넌트에 삭제 완료 알림 (필요시)
         if (onUploadSuccess) {
           onUploadSuccess([]);
         }
       } else {
-        console.error("전체 파일 삭제 실패:", data);
-        throw new Error(data.detail || data.message || '파일 전체 삭제 중 오류가 발생했습니다.');
+        throw new Error(data.message || '파일 전체 삭제 중 오류가 발생했습니다.');
       }
     } catch (err) {
-      console.error('파일 전체 삭제 오류:', err);
       setDeleteError(`파일 전체 삭제에 실패했습니다: ${err.message || '알 수 없는 오류'}`);
       // 실패 시 파일 목록 다시 불러오기
       loadFiles();
@@ -559,8 +563,8 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
         
         {/* 검색 바와 전체 삭제 버튼 */}
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex justify-between items-center">
-            <div className="relative flex-1 mr-3">
+          <div className="flex items-center">
+            <div className="relative flex-1">
               <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                 <FiSearch className="text-gray-400" size={16} />
               </div>
@@ -572,18 +576,6 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
                 className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 text-gray-800 dark:text-gray-200"
               />
             </div>
-            
-            {/* 전체 삭제 버튼 추가 */}
-            {files.length > 0 && !isLoading && (
-              <button 
-                onClick={() => setShowDeleteAllConfirm(true)}
-                className="px-3 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-colors flex items-center shadow-sm"
-                disabled={isDeleting}
-              >
-                <FiTrash2 size={16} className="mr-1.5" />
-                전체 삭제
-              </button>
-            )}
           </div>
         </div>
         
@@ -829,24 +821,13 @@ function ChatContainer({
   
   // 스트리밍 중지 함수
   const stopResponseGeneration = useCallback(() => {
-    console.log("응답 생성 중지 요청");
-    
-    // App 컴포넌트에서 전달받은 중지 함수 호출
-    if (onStopGeneration) {
-      console.log("App 컴포넌트의 onStopGeneration 함수 호출");
-      onStopGeneration();
-    }
-    
-    // 로컬 AbortController가 있다면 함께 중단
     if (abortControllerRef.current) {
-      console.log("로컬 AbortController 중단");
+      console.log("응답 생성 중지");
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
+      setIsStreaming(false);
     }
-    
-    // 스트리밍 상태 비활성화
-    setIsStreaming(false);
-  }, [onStopGeneration, setIsStreaming]);
+  }, [setIsStreaming]);
 
   // 스타일 주입
   useEffect(() => {
@@ -999,6 +980,7 @@ function ChatContainer({
     const handleDragLeave = (e) => {
       e.preventDefault();
       e.stopPropagation();
+      setIsDragging(false);
       
       // 부모 요소 밖으로 나갔을 때만 드래그 상태 해제
       const rect = dropZoneRef.current.getBoundingClientRect();
@@ -1023,7 +1005,6 @@ function ChatContainer({
         
         // ChatInput 컴포넌트 참조를 통해 메서드 호출
         if (chatInputRef.current && typeof chatInputRef.current.handleDroppedFiles === 'function') {
-          console.log('Calling handleDroppedFiles with:', droppedFiles.length, 'files');
           chatInputRef.current.handleDroppedFiles(droppedFiles);
         } else {
           console.error('chatInputRef.current.handleDroppedFiles is not a function or chatInputRef is null');
@@ -1244,6 +1225,13 @@ function ChatContainer({
                 
                 onUpdateMessages([...updatedMessages, updatedBotMessage]);
               }
+              
+              // eos 이벤트 처리 (스트리밍 종료)
+              if (data.event === 'eos') {
+                // 스트리밍 상태 비활성화
+                setIsStreaming(false);
+                abortControllerRef.current = null;
+              }
             } catch (e) {
               console.error("스트리밍 데이터 파싱 오류:", e);
             }
@@ -1265,18 +1253,9 @@ function ChatContainer({
     } catch (error) {
       // AbortError는 사용자가 의도적으로 중단한 경우이므로 일반 오류로 처리하지 않음
       if (error.name === 'AbortError') {
-        console.log("사용자가 응답 생성을 중단했습니다.");
-        
-        // 마지막 메시지가 어시스턴트 메시지인 경우 중단됨을 표시
-        const lastMessage = updatedMessages[updatedMessages.length - 1];
-        if (lastMessage && lastMessage.role === "assistant") {
-          const updatedBotMessage = {
-            ...lastMessage,
-            content: lastMessage.content + " (응답이 중단되었습니다)",
-          };
-          
-          onUpdateMessages([...updatedMessages.slice(0, -1), updatedBotMessage]);
-        }
+        // 사용자가 응답 생성을 중단했습니다.
+        console.log("ChatContainer: 사용자에 의해 응답이 중단되었습니다.");
+        // App.jsx의 handleStopGeneration에서 메시지 처리를 담당합니다.
       } else {
         console.error("채팅 요청 오류:", error);
         setError(`서버 응답을 처리할 수 없습니다: ${error.message}`);
@@ -1284,8 +1263,9 @@ function ChatContainer({
     } finally {
       // 로딩 상태 비활성화 (오류 발생 시나 모든 처리 완료 후)
       setLoading(false);
-      setIsStreaming(false);
-      abortControllerRef.current = null;
+      // setIsStreaming(false); // App.jsx에서 관리하므로 주석 처리 또는 삭제
+      // abortControllerRef.current = null; // App.jsx에서 관리하므로 주석 처리 또는 삭제
+      console.log("ChatContainer: handleSubmit finally - 로딩 상태 비활성화");
     }
   };
 
@@ -1465,13 +1445,10 @@ function ChatContainer({
       // 같은 모드를 다시 클릭한 경우 무시
       if (currentMode === newMode) return;
       
-      console.log(`ModeToggleSwitch: ${newMode} 모드로 전환 시작`);
-      
       try {
         // 해당 모드로 전환
         if (typeof setMode === 'function') {
           setMode(newMode);
-          console.log(`${newMode} 모드 전환 함수 호출 완료`);
         
           // 버튼 효과
           const button = e.currentTarget;

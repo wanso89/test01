@@ -158,11 +158,9 @@ function App() {
     // 전역 함수로 등록
     window.setAppMode = (newMode) => {
       if (newMode === 'sql' || newMode === 'chat' || newMode === 'dashboard') {
-        console.log('콘솔에서 모드 변경:', newMode);
         setMode(newMode);
         return true;
       }
-      console.error('유효하지 않은 모드:', newMode, '(chat, sql 또는 dashboard만 가능)');
       return false;
     };
 
@@ -172,25 +170,13 @@ function App() {
       const nextIndex = (currentIndex + 1) % modes.length;
       const newMode = modes[nextIndex];
       
-      console.log('콘솔에서 모드 토글:', mode, '->', newMode);
       setMode(newMode);
       return newMode;
     };
     
     window.debugAppState = () => {
-      console.log('현재 앱 상태:');
-      console.log('- 현재 모드:', mode);
-      console.log('- showSQLPage:', showSQLPage);
-      console.log('- sidebarOpen:', sidebarOpen);
-      console.log('- activeConversationId:', activeConversationId);
-      console.log('- isEmbedding:', isEmbedding);
-      console.log('- theme:', theme);
+      // 디버깅 함수는 유지
     };
-    
-    console.log('디버깅 함수가 콘솔에 등록되었습니다. 사용법:');
-    console.log('window.setAppMode("chat", "sql" 또는 "dashboard") - 모드 직접 설정');
-    console.log('window.toggleAppMode() - 모드 전환');
-    console.log('window.debugAppState() - 현재 앱 상태 출력');
     
     return () => {
       // 정리 함수
@@ -198,7 +184,7 @@ function App() {
       delete window.toggleAppMode;
       delete window.debugAppState;
     };
-  }, [mode, showSQLPage, sidebarOpen, activeConversationId, isEmbedding, theme]);
+  }, [mode]);
   
   // mode 상태가 변경될 때 toast 메시지 표시
   useEffect(() => {
@@ -1226,13 +1212,69 @@ function App() {
         signal, // AbortController 시그널 추가
       });
 
-      // ... existing code ...
+      if (!response.ok) {
+        throw new Error(`서버 오류: ${response.status} ${response.statusText}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let responseText = "";
+
+      // 응답 스트리밍 처리
+      while (!done) {
+        // 중단 여부 확인 (매 반복마다)
+        if (signal.aborted) {
+          console.log("App: 스트리밍 중 중단 신호 감지됨");
+          break;
+        }
+
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+
+        if (value) {
+          const chunk = decoder.decode(value, { stream: !done });
+          responseText += chunk;
+
+          // 메시지 업데이트
+          setCurrentMessages((prevMessages) => {
+            const lastMessage = prevMessages[prevMessages.length - 1];
+            if (lastMessage && lastMessage.role === "assistant") {
+              return [
+                ...prevMessages.slice(0, -1),
+                { ...lastMessage, content: responseText },
+              ];
+            }
+            return prevMessages;
+          });
+        }
+      }
+
+      // 스트리밍 완료 후 처리
+      if (!signal.aborted) {
+        console.log("App: 응답 스트리밍 완료");
+        
+        // 메시지에 최종 응답 설정 및 스트리밍 상태 제거
+        setCurrentMessages((prevMessages) => {
+          const lastMessage = prevMessages[prevMessages.length - 1];
+          if (lastMessage && lastMessage.role === "assistant") {
+            return [
+              ...prevMessages.slice(0, -1),
+              { 
+                ...lastMessage, 
+                content: responseText,
+                isStreaming: false
+              },
+            ];
+          }
+          return prevMessages;
+        });
+      }
     } catch (error) {
       // 중단 요청에 의한 에러인 경우 특별 처리
       if (error.name === 'AbortError') {
         console.log('App: 사용자에 의해 응답이 중단되었습니다.');
-        
-        // 중단 메시지는 handleStopGeneration에서 처리하므로 여기서는 추가 작업 없음
+        // 중단 메시지 처리는 handleStopGeneration에서 일괄적으로 수행하므로 여기서는 추가 작업 없음
       } else {
         console.error("App: 응답 처리 중 오류 발생:", error);
         // 기존 에러 처리 로직 유지
@@ -1252,12 +1294,14 @@ function App() {
         });
       }
     } finally {
-      // 중단되지 않은 경우에만 스트리밍 상태 비활성화
-      // (중단된 경우는 handleStopGeneration에서 이미 처리됨)
-      if (abortControllerRef.current) {
-        console.log("App: 응답 완료 또는 오류 발생으로 스트리밍 종료");
+      // 스트리밍 상태 비활성화 및 AbortController 참조 해제
+      // handleStopGeneration 함수에서도 setIsStreaming(false) 및 abortControllerRef.current = null을 호출하므로,
+      // 여기서의 호출은 스트리밍이 정상적으로 완료되었거나, AbortError 외의 다른 오류로 종료된 경우를 담당합니다.
+      // AbortError의 경우 handleStopGeneration에서 이미 처리되었으므로, 여기서는 추가적인 상태 변경이 발생하지 않습니다.
+      if (abortControllerRef.current !== null) { // handleStopGeneration에서 null로 설정되지 않은 경우에만 실행
         setIsStreaming(false);
         abortControllerRef.current = null;
+        console.log("App: handleSubmit finally - 스트리밍 상태 비활성화 및 컨트롤러 해제");
       }
     }
   };
@@ -1266,21 +1310,21 @@ function App() {
   const handleStopGeneration = () => {
     console.log("App: 응답 생성 중단 함수 실행");
     
-    // 스트리밍 상태 즉시 비활성화 (가장 먼저 실행)
-    setIsStreaming(false);
-    
     // 디버그 정보 출력
     console.log("App: 현재 AbortController 상태:", {
       exists: !!abortControllerRef.current,
-      isStreaming: false // 이미 false로 설정했으므로 false로 표시
+      isStreaming: isStreaming
     });
+    
+    // 스트리밍 상태 즉시 비활성화 (가장 먼저 실행)
+    setIsStreaming(false);
     
     if (abortControllerRef.current) {
       console.log("App: AbortController 중단 신호 발생");
       
       try {
         // 명시적으로 abort 메서드 호출
-        abortControllerRef.current.abort();
+        abortControllerRef.current.abort("사용자가 응답 생성을 중지함");
         console.log("App: abort() 메서드 호출 성공");
       } catch (abortError) {
         console.error("App: abort() 호출 중 오류:", abortError);
@@ -1298,7 +1342,7 @@ function App() {
         // 기존 메시지에 중단 표시 추가
         const updatedLastMessage = {
           ...lastMessage,
-          content: lastMessage.content + " (응답이 중단되었습니다)",
+          content: lastMessage.content + "\n\n(응답이 중단되었습니다)",
           isStopped: true // 중단 플래그 추가
         };
         
@@ -1356,11 +1400,9 @@ function App() {
 
       {/* 채팅 컨테이너, SQL 쿼리 페이지 또는 대시보드 */}
       <div className="flex-grow relative overflow-hidden">
-        {console.log('렌더링 시점의 mode 값:', mode)}
         {mode === 'sql' ? (
           // SQL 쿼리 페이지 렌더링
           <div className="w-full h-full">
-            {console.log('SQL 페이지 렌더링 중...')}
             <SQLQueryPage 
               setMode={setMode} 
               key="sql-page-component" 
@@ -1369,7 +1411,6 @@ function App() {
         ) : mode === 'dashboard' ? (
           // 대시보드 렌더링
           <div className="w-full h-full">
-            {console.log('대시보드 렌더링 중...')}
             <Dashboard 
               setMode={setMode} 
               key="dashboard-component" 
@@ -1378,7 +1419,6 @@ function App() {
         ) : (
           // 챗봇 컨테이너 렌더링
           <div className="w-full h-full">
-            {console.log('챗봇 컨테이너 렌더링 중...')}
             {!sidebarOpen && (
               <button
                 className="absolute left-4 top-4 z-10 md:hidden p-2 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
