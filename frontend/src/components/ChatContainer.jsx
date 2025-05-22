@@ -822,12 +822,18 @@ function ChatContainer({
   // 스트리밍 중지 함수
   const stopResponseGeneration = useCallback(() => {
     if (abortControllerRef.current) {
-      console.log("응답 생성 중지");
+      console.log("ChatContainer: 응답 생성 중지");
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
       setIsStreaming(false);
+      
+      // App.jsx의 스트리밍 중단 처리도 함께 호출
+      if (onStopGeneration) {
+        console.log("ChatContainer: App의 중단 함수 호출");
+        onStopGeneration();
+      }
     }
-  }, [setIsStreaming]);
+  }, [onStopGeneration]);
 
   // 스타일 주입
   useEffect(() => {
@@ -1096,11 +1102,14 @@ function ChatContainer({
     try {
       // 이전 스트리밍 중인 경우 중단
       if (abortControllerRef.current) {
+        console.log("ChatContainer: 이전 요청 중단");
         abortControllerRef.current.abort();
+        abortControllerRef.current = null;
       }
       
       // 새 AbortController 생성
       abortControllerRef.current = new AbortController();
+      console.log("ChatContainer: 새 AbortController 생성");
       
       // history 배열 처리 - role과 content만 포함
       const history = messages.slice(-10).map(m => ({
@@ -1664,7 +1673,7 @@ function ChatContainer({
             onUploadSuccess={onUploadSuccess}
             isEmbedding={isEmbedding}
             isStreaming={isStreaming}
-            onStopGeneration={onStopGeneration}
+            onStopGeneration={stopResponseGeneration}
           />
           
           {/* 로딩 상태 표시 */}

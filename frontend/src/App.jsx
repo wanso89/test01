@@ -1310,6 +1310,12 @@ function App() {
   const handleStopGeneration = () => {
     console.log("App: 응답 생성 중단 함수 실행");
     
+    // 이미 스트리밍이 중지된 상태라면 함수 종료
+    if (!isStreaming) {
+      console.log("App: 이미 스트리밍이 중단되어 있음");
+      return;
+    }
+    
     // 디버그 정보 출력
     console.log("App: 현재 AbortController 상태:", {
       exists: !!abortControllerRef.current,
