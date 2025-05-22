@@ -119,7 +119,7 @@ function FileUpload({ onClose, categories = ['메뉴얼'], onUploadSuccess, init
         });
       }, 800);
       
-      const response = await fetch('http://172.10.2.70:9000/api/upload', {
+      const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
         // 캐시 방지 헤더 추가로 불필요한 새로고침 방지

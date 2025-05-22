@@ -2011,7 +2011,16 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
         } relative mb-4 ${isGrouped ? "mt-1" : "mt-4"}`}
       >
         {/* 사용자 아바타 (왼쪽) */}
-        {!isUser && <ProfileAvatar role="assistant" isGrouped={isGrouped} />}
+        {!isUser && (
+          <div className="flex flex-col items-center">
+            <ProfileAvatar role="assistant" isGrouped={isGrouped} />
+            {!isGrouped && (
+              <span className="message-time text-xs text-gray-400 mt-1">
+                {formatMessageTime(messageTime)}
+              </span>
+            )}
+          </div>
+        )}
         
         {/* 메시지 말풍선 */}
         <div
@@ -2023,15 +2032,6 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
         >
           {/* 메시지 내용 */}
           <div className={`message-content ${showTypeWriter ? "typing" : ""}`}>
-            {/* 메시지 헤더 (시간 표시) */}
-            <div className="message-header">
-              {!isGrouped && (
-                <span className="message-time">
-                  {formatMessageTime(messageTime)}
-                </span>
-              )}
-            </div>
-            
             {/* 메시지 본문 */}
             <div className="message-body">
               {/* 목차 표시 */}
@@ -2083,7 +2083,16 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
         </div>
         
         {/* 사용자 아바타 (오른쪽) */}
-        {isUser && <ProfileAvatar role="user" isGrouped={isGrouped} />}
+        {isUser && (
+          <div className="flex flex-col items-center">
+            <ProfileAvatar role="user" isGrouped={isGrouped} />
+            {!isGrouped && (
+              <span className="message-time text-xs text-gray-400 mt-1">
+                {formatMessageTime(messageTime)}
+              </span>
+            )}
+          </div>
+        )}
       </div>
       
       {/* 출처 미리보기 모달 */}

@@ -362,30 +362,12 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
             {isStreaming && (
               <button
                 type="button"
-                onClick={(e) => {
-                  e.preventDefault(); // 이벤트 기본 동작 방지
-                  e.stopPropagation(); // 이벤트 버블링 방지
-                  console.log("중지 버튼 클릭됨 - 이벤트 발생");
-                  
-                  // 버튼 클릭 시각적 피드백
-                  const button = e.currentTarget;
-                  button.classList.add('scale-95', 'bg-red-100', 'dark:bg-red-900/30');
-                  setTimeout(() => {
-                    button.classList.remove('scale-95', 'bg-red-100', 'dark:bg-red-900/30');
-                  }, 200);
-                  
-                  if (typeof onStopGeneration === 'function') {
-                    console.log("onStopGeneration 함수 호출 시도");
-                    onStopGeneration();
-                    console.log("onStopGeneration 함수 호출 완료");
-                  } else {
-                    console.error("onStopGeneration is not a function:", onStopGeneration);
-                  }
-                }}
-                className="p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
-                aria-label="생성 중지"
+                onClick={onStopGeneration}
+                className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-500 transition-colors"
+                aria-label="응답 생성 중지"
+                disabled={disabled || isEmbedding}
               >
-                <FiStopCircle size={18} />
+                <FiStopCircle className="w-6 h-6" />
               </button>
             )}
             

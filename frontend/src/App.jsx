@@ -1175,8 +1175,34 @@ function App() {
   }, [mode, fetchDashboardStats, fetchRecentQueries, fetchDbSchema]);
 
   const handleSubmit = async (input, selectedCategory) => {
-    // ... existing code ...
-    
+    if (!input.trim()) return;
+
+    // 사용자 메시지 추가
+    const userMessage = {
+      role: "user",
+      content: input,
+      timestamp: new Date().getTime(),
+    };
+
+    // 임시 응답 메시지 추가
+    const tempResponseMessage = {
+      role: "assistant",
+      content: "",
+      timestamp: new Date().getTime(),
+      isStreaming: true, // 스트리밍 중임을 표시
+    };
+
+    // 메시지 목록 업데이트
+    setCurrentMessages((prevMessages) => [...prevMessages, userMessage, tempResponseMessage]);
+
+    // 대화 기록 구성
+    const conversationHistory = currentMessages
+      .filter((msg) => msg.role === "user" || msg.role === "assistant")
+      .map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+      }));
+
     try {
       // 새로운 AbortController 생성
       abortControllerRef.current = new AbortController();
@@ -1184,6 +1210,8 @@ function App() {
 
       // 스트리밍 상태 활성화
       setIsStreaming(true);
+      
+      console.log("App: 요청 시작, AbortController 생성됨");
 
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -1202,30 +1230,35 @@ function App() {
     } catch (error) {
       // 중단 요청에 의한 에러인 경우 특별 처리
       if (error.name === 'AbortError') {
-        console.log('사용자에 의해 응답이 중단되었습니다.');
+        console.log('App: 사용자에 의해 응답이 중단되었습니다.');
         
-        // 중단 메시지 추가
-        const abortMessage = {
-          role: "system",
-          content: "응답이 중단되었습니다.",
-          timestamp: new Date().getTime(),
-        };
-        
-        setCurrentMessages(prevMessages => [...prevMessages, abortMessage]);
+        // 중단 메시지는 handleStopGeneration에서 처리하므로 여기서는 추가 작업 없음
       } else {
-        console.error("응답 처리 중 오류 발생:", error);
+        console.error("App: 응답 처리 중 오류 발생:", error);
         // 기존 에러 처리 로직 유지
         const errorMessage = {
           role: "assistant",
           content: "죄송합니다. 응답 처리 중 오류가 발생했습니다. 다시 시도해주세요.",
           timestamp: new Date().getTime(),
         };
-        setCurrentMessages(prevMessages => [...prevMessages, errorMessage]);
+        setCurrentMessages(prevMessages => {
+          // 마지막 메시지가 빈 어시스턴트 메시지라면 교체, 아니면 추가
+          const lastMsg = prevMessages[prevMessages.length - 1];
+          if (lastMsg && lastMsg.role === "assistant" && !lastMsg.content) {
+            return [...prevMessages.slice(0, -1), errorMessage];
+          } else {
+            return [...prevMessages, errorMessage];
+          }
+        });
       }
     } finally {
-      // 스트리밍 상태 비활성화
-      setIsStreaming(false);
-      abortControllerRef.current = null;
+      // 중단되지 않은 경우에만 스트리밍 상태 비활성화
+      // (중단된 경우는 handleStopGeneration에서 이미 처리됨)
+      if (abortControllerRef.current) {
+        console.log("App: 응답 완료 또는 오류 발생으로 스트리밍 종료");
+        setIsStreaming(false);
+        abortControllerRef.current = null;
+      }
     }
   };
 
@@ -1233,49 +1266,52 @@ function App() {
   const handleStopGeneration = () => {
     console.log("App: 응답 생성 중단 함수 실행");
     
-    try {
-      if (abortControllerRef.current) {
-        console.log("App: AbortController 중단 신호 발생");
+    // 스트리밍 상태 즉시 비활성화 (가장 먼저 실행)
+    setIsStreaming(false);
+    
+    // 디버그 정보 출력
+    console.log("App: 현재 AbortController 상태:", {
+      exists: !!abortControllerRef.current,
+      isStreaming: false // 이미 false로 설정했으므로 false로 표시
+    });
+    
+    if (abortControllerRef.current) {
+      console.log("App: AbortController 중단 신호 발생");
+      
+      try {
+        // 명시적으로 abort 메서드 호출
         abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-        
-        // 중단 메시지 추가 - 마지막 메시지가 어시스턴트 메시지인 경우에만 추가
-        const lastMessage = currentMessages[currentMessages.length - 1];
-        
-        if (lastMessage && lastMessage.role === "assistant") {
-          console.log("App: 응답 중단 메시지 추가");
-          
-          // 기존 메시지에 중단 표시 추가
-          const updatedLastMessage = {
-            ...lastMessage,
-            content: lastMessage.content + " (응답이 중단되었습니다)",
-            isStopped: true // 중단 플래그 추가
-          };
-          
-          // 마지막 메시지를 업데이트된 메시지로 교체
-          setCurrentMessages(prevMessages => [
-            ...prevMessages.slice(0, -1),
-            updatedLastMessage
-          ]);
-        } else {
-          // 마지막 메시지가 어시스턴트가 아닌 경우 별도 시스템 메시지 추가
-          const abortMessage = {
-            role: "system",
-            content: "응답이 중단되었습니다.",
-            timestamp: new Date().getTime(),
-          };
-          
-          setCurrentMessages(prevMessages => [...prevMessages, abortMessage]);
-        }
-        
-        setIsStreaming(false);
-        console.log("App: 응답 중단 처리 완료");
-      } else {
-        console.log("App: 중단할 AbortController가 없음");
+        console.log("App: abort() 메서드 호출 성공");
+      } catch (abortError) {
+        console.error("App: abort() 호출 중 오류:", abortError);
       }
-    } catch (error) {
-      console.error("App: 응답 중단 처리 중 오류 발생", error);
-      setIsStreaming(false);
+      
+      // 즉시 참조 초기화
+      abortControllerRef.current = null;
+      
+      // 마지막 메시지가 어시스턴트 메시지인 경우에만 중단 표시 추가
+      const lastMessage = currentMessages[currentMessages.length - 1];
+      
+      if (lastMessage && lastMessage.role === "assistant") {
+        console.log("App: 응답 중단 메시지 추가");
+        
+        // 기존 메시지에 중단 표시 추가
+        const updatedLastMessage = {
+          ...lastMessage,
+          content: lastMessage.content + " (응답이 중단되었습니다)",
+          isStopped: true // 중단 플래그 추가
+        };
+        
+        // 마지막 메시지를 업데이트된 메시지로 교체
+        setCurrentMessages(prevMessages => [
+          ...prevMessages.slice(0, -1),
+          updatedLastMessage
+        ]);
+      }
+      
+      console.log("App: 응답 중단 처리 완료");
+    } else {
+      console.log("App: 중단할 AbortController가 없음");
     }
   };
 
