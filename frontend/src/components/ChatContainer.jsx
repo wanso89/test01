@@ -303,7 +303,7 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
       const controller = new AbortController(); // 요청 취소 컨트롤러
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
       
-      const response = await fetch('http://172.10.2.70:8000/api/indexed-files', {
+      const response = await fetch('/api/indexed-files', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -353,7 +353,7 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
       setFiles(prev => prev.filter(file => file !== filename));
       
       // 서버에 삭제 요청
-      const response = await fetch(`http://172.10.2.70:8000/api/delete-file?filename=${encodeURIComponent(filename)}`, {
+      const response = await fetch(`/api/delete-file?filename=${encodeURIComponent(filename)}`, {
         method: 'DELETE'
       });
       
@@ -419,7 +419,7 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
 
   const handleFileClick = (prefixedFilename) => {
     // 파일 뷰어 URL 생성
-    const viewerUrl = `http://172.10.2.70:8000/api/file-viewer/${encodeURIComponent(prefixedFilename)}`;
+    const viewerUrl = `/api/file-viewer/${encodeURIComponent(prefixedFilename)}`;
     // 새 탭에서 열기
     window.open(viewerUrl, '_blank');
   };
@@ -435,23 +435,45 @@ const IndexedFilesModal = ({ isOpen, onClose }) => {
       setIsDeleting(true);
       setShowDeleteAllConfirm(false); // 확인 모달 닫기
       
-      // 서버에 전체 삭제 요청
-      const response = await fetch(`http://172.10.2.70:8000/api/delete-all-files`, {
-        method: 'DELETE'
+      console.log("전체 파일 삭제 요청 시작");
+      
+      // 서버에 전체 삭제 요청 - 상대 경로로 변경
+      const response = await fetch(`/api/delete-all-files`, {
+        method: 'DELETE',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
       });
       
-      const data = await response.json();
+      // 응답 데이터 가져오기 (JSON이 아닐 경우 대비)
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('응답 JSON 파싱 오류:', jsonError);
+        throw new Error('서버 응답을 처리할 수 없습니다.');
+      }
+      
+      console.log("전체 파일 삭제 응답:", data);
       
       if (response.ok && data.status === 'success') {
+        console.log("전체 파일 삭제 성공");
         // 전체 파일 목록 비우기
         setFiles([]);
         setSuccessMessage(`모든 파일이 삭제되었습니다.`);
+        
+        // 부모 컴포넌트에 삭제 완료 알림 (필요시)
+        if (onUploadSuccess) {
+          onUploadSuccess([]);
+        }
       } else {
-        throw new Error(data.message || '파일 전체 삭제 중 오류가 발생했습니다.');
+        console.error("전체 파일 삭제 실패:", data);
+        throw new Error(data.detail || data.message || '파일 전체 삭제 중 오류가 발생했습니다.');
       }
     } catch (err) {
       console.error('파일 전체 삭제 오류:', err);
-      setDeleteError('파일 전체 삭제에 실패했습니다. 다시 시도해주세요.');
+      setDeleteError(`파일 전체 삭제에 실패했습니다: ${err.message || '알 수 없는 오류'}`);
       // 실패 시 파일 목록 다시 불러오기
       loadFiles();
     } finally {
@@ -780,7 +802,8 @@ function ChatContainer({
   setMode, // onToggleMode 대신 setMode를 받습니다
   currentMode, // 현재 모드 props 추가
   isStreaming,
-  setIsStreaming
+  setIsStreaming,
+  onStopGeneration // 응답 중단 함수 추가
 }) {
   const containerRef = useRef(null);
   const chatInputRef = useRef(null);
@@ -806,13 +829,24 @@ function ChatContainer({
   
   // 스트리밍 중지 함수
   const stopResponseGeneration = useCallback(() => {
+    console.log("응답 생성 중지 요청");
+    
+    // App 컴포넌트에서 전달받은 중지 함수 호출
+    if (onStopGeneration) {
+      console.log("App 컴포넌트의 onStopGeneration 함수 호출");
+      onStopGeneration();
+    }
+    
+    // 로컬 AbortController가 있다면 함께 중단
     if (abortControllerRef.current) {
-      console.log("응답 생성 중지");
+      console.log("로컬 AbortController 중단");
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
-      setIsStreaming(false);
     }
-  }, [setIsStreaming]);
+    
+    // 스트리밍 상태 비활성화
+    setIsStreaming(false);
+  }, [onStopGeneration, setIsStreaming]);
 
   // 스타일 주입
   useEffect(() => {
@@ -1543,7 +1577,12 @@ function ChatContainer({
   };
 
   return (
-    <div className="flex flex-col h-full relative bg-gray-900" ref={dropZoneRef}>
+    <div
+      id="chat-container"
+      className={`flex flex-col h-full overflow-hidden relative ${
+        sidebarOpen ? "ml-0 md:ml-[var(--sidebar-width)]" : "ml-0"
+      } transition-all duration-300 ease-in-out`}
+    >
       {/* 로딩 인디케이터 추가 */}
       <LoadingIndicator active={loading} />
       
@@ -1640,7 +1679,7 @@ function ChatContainer({
             onUploadSuccess={onUploadSuccess}
             isEmbedding={isEmbedding}
             isStreaming={isStreaming}
-            onStopGeneration={stopResponseGeneration}
+            onStopGeneration={onStopGeneration}
           />
           
           {/* 로딩 상태 표시 */}

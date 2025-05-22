@@ -145,6 +145,8 @@ function App() {
 
   // 응답 스트리밍 상태 추가
   const [isStreaming, setIsStreaming] = useState(false);
+  // 응답 중단을 위한 AbortController 레퍼런스 추가
+  const abortControllerRef = useRef(null);
 
   console.log('===============================================');
   console.log('앱 컴포넌트 초기화');
@@ -360,11 +362,11 @@ function App() {
       setIsEmbedding(false);
       // 임베딩 완료 상태를 설정하고 UI로 표시
       setEmbeddingStatus('완료');
-      // 5초 후 임베딩 상태 초기화
+      // 1초 후 임베딩 상태 초기화 (기존 5초에서 1초로 변경)
       setTimeout(() => {
         setEmbeddingStatus(null);
         setEmbeddedFiles([]);
-      }, 5000);
+      }, 1000); // 5000에서 1000으로 변경
     }, 5000);
   };
 
@@ -372,7 +374,7 @@ function App() {
   const saveUserSettingsToBackend = async (userId, settings) => {
     try {
       const response = await fetch(
-        "http://172.10.2.70:8000/api/settings/save",
+        "/api/settings/save",
         {
           method: "POST",
           headers: {
@@ -414,7 +416,7 @@ function App() {
       const timeoutId = setTimeout(() => controller.abort(), 3000); // 3초 타임아웃
       
       const response = await fetch(
-        "http://172.10.2.70:8000/api/settings/load",
+        "/api/settings/load",
         {
           method: "POST",
           headers: {
@@ -523,7 +525,7 @@ function App() {
       localStorage.removeItem('activeConversationId');
       
       // 백엔드에 요청 (옵션)
-      fetch("http://172.10.2.70:8000/api/conversations/delete-all", {
+      fetch("/api/conversations/delete-all", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -714,7 +716,7 @@ function App() {
       const timeoutId = setTimeout(() => controller.abort(), 3000); // 3초 타임아웃
       
       const response = await fetch(
-        "http://172.10.2.70:8000/api/conversations/save",
+        "/api/conversations/save",
         {
           method: "POST",
           headers: {
@@ -760,7 +762,7 @@ function App() {
       const timeoutId = setTimeout(() => controller.abort(), 3000); // 3초 타임아웃
       
       const response = await fetch(
-        "http://172.10.2.70:8000/api/conversations/load",
+        "/api/conversations/load",
         {
           method: "POST",
           headers: {
@@ -896,7 +898,7 @@ function App() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5초 타임아웃
       
-      const response = await fetch("http://172.10.2.70:8000/api/generate-title", {
+      const response = await fetch("/api/generate-title", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1009,7 +1011,7 @@ function App() {
   // 대시보드 통계 데이터 가져오기
   const fetchDashboardStats = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/dashboard/stats`, {
+      const response = await fetch("/api/dashboard/stats", {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -1069,7 +1071,7 @@ function App() {
   // 최근 SQL 쿼리 가져오기
   const fetchRecentQueries = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/sql/recent-queries`);
+      const response = await fetch("/api/sql/recent-queries");
       
       if (response.ok) {
         const data = await response.json();
@@ -1131,7 +1133,7 @@ function App() {
   // DB 스키마 정보 가져오기
   const fetchDbSchema = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/sql/schema`);
+      const response = await fetch("/api/sql/schema");
       
       if (response.ok) {
         const data = await response.json();
@@ -1171,6 +1173,111 @@ function App() {
       fetchDbSchema();
     }
   }, [mode, fetchDashboardStats, fetchRecentQueries, fetchDbSchema]);
+
+  const handleSubmit = async (input, selectedCategory) => {
+    // ... existing code ...
+    
+    try {
+      // 새로운 AbortController 생성
+      abortControllerRef.current = new AbortController();
+      const { signal } = abortControllerRef.current;
+
+      // 스트리밍 상태 활성화
+      setIsStreaming(true);
+
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question: input,
+          category: selectedCategory,
+          history: conversationHistory,
+        }),
+        signal, // AbortController 시그널 추가
+      });
+
+      // ... existing code ...
+    } catch (error) {
+      // 중단 요청에 의한 에러인 경우 특별 처리
+      if (error.name === 'AbortError') {
+        console.log('사용자에 의해 응답이 중단되었습니다.');
+        
+        // 중단 메시지 추가
+        const abortMessage = {
+          role: "system",
+          content: "응답이 중단되었습니다.",
+          timestamp: new Date().getTime(),
+        };
+        
+        setCurrentMessages(prevMessages => [...prevMessages, abortMessage]);
+      } else {
+        console.error("응답 처리 중 오류 발생:", error);
+        // 기존 에러 처리 로직 유지
+        const errorMessage = {
+          role: "assistant",
+          content: "죄송합니다. 응답 처리 중 오류가 발생했습니다. 다시 시도해주세요.",
+          timestamp: new Date().getTime(),
+        };
+        setCurrentMessages(prevMessages => [...prevMessages, errorMessage]);
+      }
+    } finally {
+      // 스트리밍 상태 비활성화
+      setIsStreaming(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  // 응답 생성 중단 함수
+  const handleStopGeneration = () => {
+    console.log("App: 응답 생성 중단 함수 실행");
+    
+    try {
+      if (abortControllerRef.current) {
+        console.log("App: AbortController 중단 신호 발생");
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+        
+        // 중단 메시지 추가 - 마지막 메시지가 어시스턴트 메시지인 경우에만 추가
+        const lastMessage = currentMessages[currentMessages.length - 1];
+        
+        if (lastMessage && lastMessage.role === "assistant") {
+          console.log("App: 응답 중단 메시지 추가");
+          
+          // 기존 메시지에 중단 표시 추가
+          const updatedLastMessage = {
+            ...lastMessage,
+            content: lastMessage.content + " (응답이 중단되었습니다)",
+            isStopped: true // 중단 플래그 추가
+          };
+          
+          // 마지막 메시지를 업데이트된 메시지로 교체
+          setCurrentMessages(prevMessages => [
+            ...prevMessages.slice(0, -1),
+            updatedLastMessage
+          ]);
+        } else {
+          // 마지막 메시지가 어시스턴트가 아닌 경우 별도 시스템 메시지 추가
+          const abortMessage = {
+            role: "system",
+            content: "응답이 중단되었습니다.",
+            timestamp: new Date().getTime(),
+          };
+          
+          setCurrentMessages(prevMessages => [...prevMessages, abortMessage]);
+        }
+        
+        setIsStreaming(false);
+        console.log("App: 응답 중단 처리 완료");
+      } else {
+        console.log("App: 중단할 AbortController가 없음");
+      }
+    } catch (error) {
+      console.error("App: 응답 중단 처리 중 오류 발생", error);
+      setIsStreaming(false);
+    }
+  };
 
   return (
     <div className="flex flex-col md:flex-row h-screen bg-gray-900 text-gray-100 overflow-hidden relative">
@@ -1261,6 +1368,7 @@ function App() {
               currentMode={mode}
               isStreaming={isStreaming}
               setIsStreaming={setIsStreaming}
+              onStopGeneration={handleStopGeneration}
               key="chat-container-component"
             />
           </div>

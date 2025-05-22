@@ -890,3 +890,180 @@ body {
     @apply max-w-full h-auto rounded-md my-4;
   }
 }
+
+/* 메시지 컨테이너 스타일 */
+.message-container {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+/* 메시지 말풍선 스타일 */
+.message-bubble {
+  border-radius: 1.25rem;
+  padding: 0.75rem 1rem;
+  max-width: 80%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  position: relative;
+}
+
+/* 사용자 메시지 말풍선 */
+.user-message {
+  border-bottom-right-radius: 0.25rem;
+  margin-left: auto;
+}
+
+/* 어시스턴트 메시지 말풍선 */
+.assistant-message {
+  border-bottom-left-radius: 0.25rem;
+  margin-right: auto;
+}
+
+/* 그룹화된 메시지 스타일 */
+.message-container.grouped {
+  margin-top: 0.25rem;
+}
+
+/* 메시지 내용 컨테이너 */
+.message-content {
+  position: relative;
+}
+
+/* 메시지 헤더 */
+.message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.25rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+/* 메시지 시간 */
+.message-time {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+/* 메시지 본문 */
+.message-body {
+  word-break: break-word;
+}
+
+/* 마크다운 내용 스타일 */
+.markdown-content {
+  line-height: 1.6;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
+.markdown-content h1 {
+  font-size: 1.5rem;
+}
+
+.markdown-content h2 {
+  font-size: 1.25rem;
+}
+
+.markdown-content h3 {
+  font-size: 1.125rem;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.markdown-content ul {
+  list-style-type: disc;
+}
+
+.markdown-content ol {
+  list-style-type: decimal;
+}
+
+.markdown-content li {
+  margin-bottom: 0.25rem;
+}
+
+/* 스레드 라인 스타일 */
+.thread-line {
+  position: absolute;
+  left: 1.5rem;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: rgba(99, 102, 241, 0.2);
+}
+
+.thread-start-line {
+  position: absolute;
+  left: 1.5rem;
+  top: 0;
+  height: 1.5rem;
+  width: 2px;
+  background-color: rgba(99, 102, 241, 0.2);
+}
+
+.thread-end-line {
+  position: absolute;
+  left: 1.5rem;
+  bottom: 0;
+  height: 1.5rem;
+  width: 2px;
+  background-color: rgba(99, 102, 241, 0.2);
+}
+
+/* 추천 질문 스타일 */
+.suggested-questions {
+  margin-top: 1rem;
+}
+
+.suggested-questions-title {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+}
+
+.suggested-questions-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.suggested-question-item {
+  font-size: 0.75rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 9999px;
+  background-color: rgba(99, 102, 241, 0.1);
+  color: #4f46e5;
+  transition: all 0.2s;
+}
+
+.suggested-question-item:hover {
+  background-color: rgba(99, 102, 241, 0.2);
+}
+
+/* 다크 모드 */
+@media (prefers-color-scheme: dark) {
+  .suggested-question-item {
+    background-color: rgba(99, 102, 241, 0.2);
+    color: #818cf8;
+  }
+  
+  .suggested-question-item:hover {
+    background-color: rgba(99, 102, 241, 0.3);
+  }
+  
+  .thread-line,
+  .thread-start-line,
+  .thread-end-line {
+    background-color: rgba(99, 102, 241, 0.3);
+  }
+}

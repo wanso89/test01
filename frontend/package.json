@@ -12,6 +12,7 @@
   "dependencies": {
     "@headlessui/react": "^2.2.3",
     "axios": "^1.8.4",
+    "dompurify": "^3.2.6",
     "emoji-picker-react": "^4.5.7",
     "html-react-parser": "^5.2.5",
     "katex": "^0.16.22",

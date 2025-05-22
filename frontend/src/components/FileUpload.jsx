@@ -2,6 +2,40 @@ import { useState, useRef, useEffect } from "react";
 import { FiLoader, FiX, FiPaperclip, FiCheck, FiFolder, FiFile, FiUploadCloud, FiInfo } from 'react-icons/fi';
 import ReactDOM from 'react-dom';
 
+// 임베딩 완료 모달 컴포넌트 추가
+const EmbeddingCompleteModal = ({ isVisible, onClose }) => {
+  useEffect(() => {
+    if (isVisible) {
+      // 1초 후 자동으로 닫히도록 설정
+      const timer = setTimeout(() => {
+        onClose();
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isVisible, onClose]);
+
+  if (!isVisible) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-xl max-w-sm w-full transform transition-all animate-fade-in-up">
+        <div className="flex items-center justify-center mb-4">
+          <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
+            <FiCheck className="text-green-600 dark:text-green-400" size={24} />
+          </div>
+        </div>
+        <h3 className="text-center text-lg font-medium text-gray-900 dark:text-white">
+          임베딩 완료!
+        </h3>
+        <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-2">
+          파일이 성공적으로 임베딩되었습니다.
+        </p>
+      </div>
+    </div>
+  );
+};
+
 function FileUpload({ onClose, categories = ['메뉴얼'], onUploadSuccess, initialCategory = '메뉴얼', initialFiles = [], containerSelector, showCategories = false }) {
   const [files, setFiles] = useState([]);
   const [category, setCategory] = useState(initialCategory || '메뉴얼');
@@ -10,6 +44,8 @@ function FileUpload({ onClose, categories = ['메뉴얼'], onUploadSuccess, init
   const [dragActive, setDragActive] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [fileResults, setFileResults] = useState([]);
+  // 임베딩 완료 모달 상태 추가
+  const [showEmbeddingComplete, setShowEmbeddingComplete] = useState(false);
   
   const fileInputRef = useRef(null);
 
@@ -83,7 +119,7 @@ function FileUpload({ onClose, categories = ['메뉴얼'], onUploadSuccess, init
         });
       }, 800);
       
-      const response = await fetch('http://172.10.2.70:8000/api/upload', {
+      const response = await fetch('http://172.10.2.70:9000/api/upload', {
         method: 'POST',
         body: formData,
         // 캐시 방지 헤더 추가로 불필요한 새로고침 방지
@@ -121,6 +157,9 @@ function FileUpload({ onClose, categories = ['메뉴얼'], onUploadSuccess, init
               data.results[idx] && data.results[idx].status === 'success'
             );
             onUploadSuccess(successFiles, category);
+            
+            // 임베딩 완료 모달 표시
+            setShowEmbeddingComplete(true);
           }
         } else {
           const message = [];
@@ -136,6 +175,9 @@ function FileUpload({ onClose, categories = ['메뉴얼'], onUploadSuccess, init
               data.results[idx] && data.results[idx].status === 'success'
             );
             onUploadSuccess(successFiles, category);
+            
+            // 임베딩 완료 모달 표시
+            setShowEmbeddingComplete(true);
           }
         }
       } else {
@@ -172,6 +214,11 @@ function FileUpload({ onClose, categories = ['메뉴얼'], onUploadSuccess, init
       default:
         return { icon: <FiLoader size={16} className="animate-spin" />, className: 'text-indigo-500 bg-indigo-100 dark:bg-indigo-900/30' };
     }
+  };
+
+  // 임베딩 완료 모달 닫기 핸들러
+  const handleCloseEmbeddingModal = () => {
+    setShowEmbeddingComplete(false);
   };
 
   // 모달 콘텐츠
@@ -384,12 +431,25 @@ function FileUpload({ onClose, categories = ['메뉴얼'], onUploadSuccess, init
           </div>
         </div>
       </div>
+      
+      {/* 임베딩 완료 모달 */}
+      <EmbeddingCompleteModal 
+        isVisible={showEmbeddingComplete} 
+        onClose={handleCloseEmbeddingModal} 
+      />
     </div>
   );
-
-  // ReactDOM.createPortal을 사용하여 모달을 렌더링
-  const container = containerSelector ? document.querySelector(containerSelector) : document.body;
-  return ReactDOM.createPortal(modalContent, container);
+  
+  // 모달이 특정 컨테이너 내부에 렌더링되어야 하는 경우
+  if (containerSelector) {
+    const container = document.querySelector(containerSelector);
+    if (container) {
+      return ReactDOM.createPortal(modalContent, container);
+    }
+  }
+  
+  // 기본적으로 body에 렌더링
+  return ReactDOM.createPortal(modalContent, document.body);
 }
 
 export default FileUpload;

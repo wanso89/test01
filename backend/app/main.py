@@ -1832,80 +1832,82 @@ async def delete_file(filename: str):
 # 파일 전체 삭제 엔드포인트 추가
 @app.delete("/api/delete-all-files")
 async def delete_all_files():
-    """모든 인덱싱된 파일을 Elasticsearch와 디스크에서 삭제합니다."""
-    if not es_client:
-        raise HTTPException(status_code=503, detail="Elasticsearch is not connected")
-    
+    """
+    인덱싱된 모든 파일을 삭제합니다.
+    파일 시스템에서 파일을 삭제하고 Elasticsearch에서 관련 문서를 모두 제거합니다.
+    """
     try:
-        print(f"모든 파일 삭제 요청 수신")
+        es_client = get_elasticsearch_client()
+        if not es_client:
+            raise HTTPException(status_code=500, detail="Elasticsearch 연결 실패")
+            
+        # 업로드 디렉토리 경로
+        uploads_dir = "app/static/uploads"
         
-        # 먼저 인덱싱된 모든 파일 목록 조회
+        # 1. 모든 파일 목록 가져오기
         try:
-            # 모든 문서의 filename 필드를 조회
-            query = {
-                "query": {
-                    "match_all": {}
-                },
-                "_source": ["filename"],
-                "size": 10000  # 최대 파일 수 제한 (필요시 조정)
-            }
+            files = os.listdir(uploads_dir)
+        except Exception as e:
+            logger.error(f"업로드 디렉토리 읽기 실패: {e}")
+            return JSONResponse(
+                status_code=500,
+                content={"status": "error", "message": f"업로드 디렉토리 읽기 실패: {str(e)}"}
+            )
             
-            response = es_client.search(index=ES_INDEX_NAME, body=query)
-            
-            # 조회 결과에서 filename 추출
-            filenames = []
-            for hit in response["hits"]["hits"]:
-                if "filename" in hit["_source"]:
-                    filenames.append(hit["_source"]["filename"])
-            
-            if not filenames:
-                return {"status": "success", "message": "삭제할 파일이 없습니다."}
-                
-            print(f"삭제할 파일 {len(filenames)}개 발견")
-            
-            # 각 파일 삭제 처리
-            success_count = 0
-            failed_files = []
-            
-            for filename in filenames:
+        # 2. 각 파일에 대해 삭제 작업 수행
+        deleted_count = 0
+        failed_count = 0
+        
+        for filename in files:
+            file_path = os.path.join(uploads_dir, filename)
+            if os.path.isfile(file_path):
                 try:
-                    # file_manager.py의 delete_indexed_file 함수 호출
-                    result = delete_indexed_file(
-                        es_client=es_client,
-                        filename=filename,
-                        index_name=ES_INDEX_NAME,
-                        uploads_dir=os.path.join(STATIC_DIR, "uploads")
+                    # Elasticsearch에서 문서 삭제
+                    delete_query = {
+                        "query": {
+                            "term": {
+                                "source": filename
+                            }
+                        }
+                    }
+                    
+                    es_client.delete_by_query(
+                        index=ES_INDEX_NAME, 
+                        body=delete_query,
+                        refresh=True
                     )
                     
-                    if result["status"] == "success":
-                        success_count += 1
-                    else:
-                        failed_files.append(filename)
-                        print(f"개별 파일 삭제 실패: {filename}, 이유: {result['message']}")
-                except Exception as file_error:
-                    failed_files.append(filename)
-                    print(f"개별 파일 삭제 중 오류: {filename}, 오류: {str(file_error)}")
+                    # 파일 시스템에서 삭제
+                    os.remove(file_path)
+                    deleted_count += 1
+                    logger.info(f"파일 삭제 성공: {filename}")
+                except Exception as e:
+                    failed_count += 1
+                    logger.error(f"파일 삭제 실패 ({filename}): {e}")
+        
+        # 3. 결과 반환
+        if failed_count == 0:
+            return JSONResponse(
+                content={
+                    "status": "success", 
+                    "message": f"모든 파일이 성공적으로 삭제되었습니다. (총 {deleted_count}개)"
+                }
+            )
+        else:
+            return JSONResponse(
+                content={
+                    "status": "partial_success",
+                    "message": f"{deleted_count}개 파일 삭제 성공, {failed_count}개 파일 삭제 실패"
+                }
+            )
             
-            # 결과 메시지 구성
-            if success_count == len(filenames):
-                message = f"모든 파일({success_count}개)이 성공적으로 삭제되었습니다."
-                return {"status": "success", "message": message}
-            elif success_count > 0:
-                message = f"{len(filenames)}개 중 {success_count}개 파일이 삭제되었습니다. {len(failed_files)}개 파일 삭제 실패."
-                return {"status": "partial_success", "message": message, "failed_files": failed_files}
-            else:
-                message = "모든 파일 삭제에 실패했습니다."
-                return {"status": "error", "message": message, "failed_files": failed_files}
-                
-        except Exception as search_error:
-            print(f"파일 목록 조회 중 오류 발생: {search_error}")
-            traceback.print_exc()
-            raise HTTPException(status_code=500, detail=f"파일 목록 조회 중 오류가 발생했습니다: {str(search_error)}")
-    
     except Exception as e:
-        print(f"전체 파일 삭제 중 오류 발생: {e}")
+        logger.error(f"전체 파일 삭제 중 오류 발생: {e}")
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"전체 파일 삭제 중 오류가 발생했습니다: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": f"전체 파일 삭제 중 오류 발생: {str(e)}"}
+        )
 
 
 # 파일 업로드 및 인덱싱 엔드포인트

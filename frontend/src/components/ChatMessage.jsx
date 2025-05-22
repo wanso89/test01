@@ -47,6 +47,7 @@ import {
 } from "react-icons/fi";
 import rehypeRaw from 'rehype-raw';  // HTML 태그 처리를 위한 플러그인 추가
 import parse from 'html-react-parser'; // HTML 파싱을 위한 라이브러리 추가
+import DOMPurify from 'dompurify';
 
 // 키워드 하이라이트 애니메이션을 위한 키프레임 스타일 정의
 const keyframesStyle = `
@@ -734,6 +735,75 @@ const SourcePreviewModal = ({ isOpen, onClose, source, content, image, isLoading
   );
 };
 
+// 출처 컴포넌트 개선
+const SourceItem = ({ source, onClick, isFiltered = false }) => {
+  // source 객체가 없는 경우 기본값 설정
+  if (!source) {
+    return (
+      <div className="flex items-center p-2 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300">
+        <div className="w-8 h-8 rounded-lg bg-red-200 dark:bg-red-800/50 flex items-center justify-center text-red-600 dark:text-red-400 mr-3 flex-shrink-0">
+          <FiAlertCircle size={16} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">
+            출처 정보 없음
+          </p>
+        </div>
+      </div>
+    );
+  }
+  
+  // source.path 또는 source.source 중 사용 가능한 것을 선택
+  const sourcePath = source.path || source.source;
+  
+  // 소스 경로가 없는 경우
+  if (!sourcePath) {
+    return (
+      <div className="flex items-center p-2 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300">
+        <div className="w-8 h-8 rounded-lg bg-red-200 dark:bg-red-800/50 flex items-center justify-center text-red-600 dark:text-red-400 mr-3 flex-shrink-0">
+          <FiAlertCircle size={16} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">
+            출처 경로 정보 없음
+          </p>
+        </div>
+      </div>
+    );
+  }
+  
+  // 파일명에서 UUID 접두사 제거
+  const displayName = sourcePath.includes('_') 
+    ? sourcePath.split('_').slice(1).join('_')
+    : sourcePath;
+  
+  return (
+    <div 
+      className={`flex items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors ${
+        isFiltered ? 'opacity-40' : ''
+      }`}
+      onClick={() => onClick(source)}
+    >
+      <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 mr-3 flex-shrink-0">
+        <FiFileText size={16} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+          {displayName}
+        </p>
+        {source.page && (
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            페이지 {source.page}
+          </p>
+        )}
+      </div>
+      <div className="ml-2 text-gray-400 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors">
+        <FiExternalLink size={16} />
+      </div>
+    </div>
+  );
+};
+
 function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, nextMessage, onAskFollowUp }) {
   const isUser = message.role === "user";
   const [copied, setCopied] = useState(false);
@@ -1100,7 +1170,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
         extracted_keywords: extractedKeywords
       });
 
-      const response = await fetch("http://172.10.2.70:8000/api/source-preview", {
+      const response = await fetch("/api/source-preview", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1716,226 +1786,305 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
   const messageContainerRef = useRef(null);
   const contentRef = useRef(null);
   
-  return (
-    <div ref={messageContainerRef} id={messageId}>
-      <div 
-        className={`py-4 px-4 ${
-          isGrouped ? 'pt-1' : ''
-        } relative group transition-colors hover:bg-gray-800/40`}
-      >
-        {/* 메시지 시간 및 컨트롤 영역 */}
-        <div className={`flex items-center justify-${isUser ? 'end' : 'start'} text-xs text-gray-500 mb-1.5 ${isGrouped ? 'opacity-0 group-hover:opacity-100' : ''}`}>
-          <time dateTime={(() => {
-            try {
-              // timestamp가 유효한지 확인
-              const timestamp = message.timestamp ? new Date(message.timestamp) : new Date();
-              // Invalid Date 확인
-              return isNaN(timestamp.getTime()) ? new Date().toISOString() : timestamp.toISOString();
-            } catch (e) {
-              console.error('Invalid timestamp:', message.timestamp);
-              return new Date().toISOString();
-            }
-          })()}>{formatMessageTime(message.timestamp)}</time>
-        </div>
-        
-        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-          {/* 사용자 메시지는 오른쪽 정렬, AI 응답은 왼쪽 정렬 */}
-          <div className={`flex ${isUser ? 'flex-row-reverse' : 'flex-row'} items-start`}>
-            {/* 프로필 아바타 */}
-            <ProfileAvatar role={message.role} isGrouped={isGrouped} />
-            
-            {/* 메시지 컨텐츠 */}
-            <div 
-              className={`relative mx-3 ${isUser ? 'mr-3 ml-12' : 'ml-3 mr-12'} flex-1`}
-              style={{ maxWidth: 'calc(100% - 80px)' }}
-            >
-              {/* 메시지 말풍선 */}
-              <div 
-                className={`rounded-2xl py-3 px-4 ${
-                  isUser 
-                    ? 'bg-blue-600 text-white rounded-tr-md' 
-                    : 'bg-gray-800 text-gray-100 rounded-tl-md'
-                }`}
-              >
-                {/* 메시지 내용 */}
-                <div className="break-words overflow-hidden max-w-full" ref={contentRef}>
-                  {!isUser && showTypeWriter ? (
-                    <TypeWriter 
-                      // 봇 메시지일 경우 message.bot_response 사용, 없으면 message.content (방어 코드)
-                      text={message.bot_response || message.content || ""}
-                      speed={1} 
-                      onComplete={() => {
-                        setIsTypingComplete(true);
-                        setShowTypeWriter(false);
-                      }}
-                    />
-                  ) : (
-                    MarkdownContent
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* 출처 및 피드백 영역 */}
-        {message.role === 'assistant' && (
-          <div className="ml-11 mt-2">
-            {/* 출처 카드 (토글형) */}
-            {message.sources && message.sources.length > 0 && (
-              <div className="mt-1">
-                <button
-                  onClick={toggleSourcesVisible}
-                  className="flex items-center text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-                >
-                  {sourcesVisible ? (
-                    <FiChevronDown size={14} className="mr-1" />
-                  ) : (
-                    <FiChevronRight size={14} className="mr-1" />
-                  )}
-                  {/* 인용된 출처만 표시 */}
-                  <span>
-                    출처 {(message.cited_sources?.length || message.sources.filter(s => s.is_cited)?.length || 0)}개
-                    {sourcesVisible ? " (접기)" : " (펼치기)"}
-                  </span>
-                </button>
-                
-                {sourcesVisible && (
-                  <div className="mt-2 mb-3 space-y-2 text-xs border border-gray-700/50 rounded-lg overflow-hidden">
-                    <div className="bg-gray-800/60 px-3 py-2 text-gray-300 font-medium flex items-center border-b border-gray-700/50">
-                      <FiLink size={12} className="mr-2" />
-                      <span>답변과 관련된 출처</span>
-                    </div>
-                    <div className="px-2 py-1 space-y-2 max-h-48 overflow-y-auto">
-                      {(() => {
-                        // 표시할 출처 목록 결정
-                        const sourcesToShow = message.cited_sources?.length > 0 
-                          ? message.cited_sources 
-                          : (message.sources?.filter(s => s.is_cited) || []);
+  // 출처 표시 관련 로직 개선
+  const filteredSources = useMemo(() => {
+    if (!message.sources || !Array.isArray(message.sources) || message.sources.length === 0) {
+      console.log("유효한 sources 배열이 없습니다:", message.sources);
+      return [];
+    }
 
-                        console.log('표시할 출처 목록:', sourcesToShow.length, '개');
-                          
-                        return sourcesToShow.length > 0 ? (
-                          // 출처가 있는 경우
-                          sourcesToShow.map((source, idx) => (
-                            <div
-                              key={idx}
-                              className="flex items-start hover:bg-gray-700/30 p-2 rounded-md cursor-pointer transition-colors"
-                              onClick={() => handlePreviewSource(source)}
-                            >
-                              <FiFile size={14} className="mt-0.5 mr-2 text-indigo-300 flex-shrink-0" />
-                              <div className="overflow-hidden flex-1">
-                                <div className="font-medium text-gray-200 truncate">
-                                  {source.title || source.display_name || source.path?.split('/').pop().replace(/^[^_]*_/, '') || "출처 문서"}
-                                </div>
-                                <div className="flex items-center mt-1 text-gray-400 text-[10px]">
-                                  {source.page && (
-                                    <span className="flex items-center">
-                                      <FiHash size={10} className="mr-1" /> 
-                                      페이지 {source.page}
-                                    </span>
-                                  )}
-                                  <span className="ml-auto text-indigo-300 flex items-center">
-                                    <FiSearch size={10} className="mr-1" /> 
-                                    내용 보기
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          // 출처가 없는 경우
-                          <div className="text-center py-4 text-gray-400">
-                            <FiInfo size={18} className="mx-auto mb-2" />
-                            <p>답변과 일치하는 출처 정보가 없습니다.</p>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                )}
-              </div>
+    // source 속성이 없는 객체 필터링
+    const validSources = message.sources.filter(source => {
+      if (!source || typeof source !== 'object') {
+        console.log("유효하지 않은 source 객체:", source);
+        return false;
+      }
+      
+      // source.path 또는 source.source 중 하나라도 있으면 유효한 소스로 간주
+      return source.path || source.source;
+    });
+
+    // 중복 제거 (같은 파일 + 같은 페이지)
+    const uniqueSources = validSources.filter((source, index, self) => {
+      const sourcePath = source.path || source.source;
+      return index === self.findIndex(s => 
+        (s.path || s.source) === sourcePath && s.page === source.page
+      );
+    });
+
+    // 필터링
+    if (sourceFilterText) {
+      return uniqueSources.filter(source => {
+        const sourcePath = source.path || source.source;
+        return sourcePath.toLowerCase().includes(sourceFilterText.toLowerCase());
+      });
+    }
+    
+    return uniqueSources;
+  }, [message.sources, sourceFilterText]);
+  
+  // 출처 섹션 렌더링 함수
+  const renderSourcesSection = () => {
+    if (!message.sources || !Array.isArray(message.sources) || message.sources.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between mb-2">
+          <button
+            onClick={() => setSourcesVisible(!sourcesVisible)}
+            className="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
+          >
+            {sourcesVisible ? (
+              <FiChevronDown className="mr-1" size={14} />
+            ) : (
+              <FiChevronRight className="mr-1" size={14} />
             )}
-            
-            {/* 후속 질문 영역 */}
-            {suggestedQuestions.length > 0 && (
-              <div className="mt-4 space-y-2">
-                <p className="text-xs text-gray-400 ml-1">후속 질문 추천:</p>
-                <div className="flex flex-wrap gap-2">
-                  {suggestedQuestions.map((question, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => onAskFollowUp(question)}
-                      className="px-2 py-1 text-xs rounded-full transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600"
-                    >
-                      {question}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {/* 피드백 버튼 영역 */}
-            <div className={`mt-2 flex items-center text-xs gap-3 transition-opacity ${
-              hasInteractedWithButtons ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-            }`}>
-              <button
-                onClick={handleCopy}
-                className="p-1.5 rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 transition-colors"
-                title="복사하기"
-              >
-                {copied ? <FiCheck size={15} /> : <FiCopy size={15} />}
-              </button>
-              
-              {!isUser && (
-                <>
-                  <button
-                    onClick={() => handleFeedback("up")}
-                    className={`p-1.5 rounded-full transition-colors ${
-                      feedback === "up"
-                        ? "text-green-500 bg-green-50 dark:bg-green-900/30"
-                        : "text-gray-500 hover:text-gray-800 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700"
-                    }`}
-                    title="좋아요"
-                  >
-                    <FiThumbsUp size={15} />
-                  </button>
-                  <button
-                    onClick={() => handleFeedback("down")}
-                    className={`p-1.5 rounded-full transition-colors ${
-                      feedback === "down"
-                        ? "text-red-500 bg-red-50 dark:bg-red-900/30"
-                        : "text-gray-500 hover:text-gray-800 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700"
-                    }`}
-                    title="싫어요"
-                  >
-                    <FiThumbsDown size={15} />
-                  </button>
-                </>
+            출처 {filteredSources.length}개
+          </button>
+          
+          {sourcesVisible && filteredSources.length > 3 && (
+            <div className="relative">
+              <input
+                type="text"
+                value={sourceFilterText}
+                onChange={(e) => setSourceFilterText(e.target.value)}
+                placeholder="출처 검색..."
+                className="text-xs py-1 px-2 w-32 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+              {sourceFilterText && (
+                <button
+                  onClick={() => setSourceFilterText('')}
+                  className="absolute right-1 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <FiX size={12} />
+                </button>
               )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
         
-        {/* 콘텐츠 목차 */}
-        {showTableOfContents && (
-          <div className="ml-11 mt-3 max-w-2xl">
-            <TableOfContents 
-              headings={headings} 
-              onClickHeading={scrollToHeading}
-            />
+        {sourcesVisible && (
+          <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
+            {filteredSources.length > 0 ? (
+              filteredSources.map((source, index) => (
+                <SourceItem 
+                  key={`${source.source}-${source.page}-${index}`}
+                  source={source}
+                  onClick={handlePreviewSource}
+                />
+              ))
+            ) : (
+              <p className="text-xs text-gray-500 dark:text-gray-400 py-2 text-center">
+                {sourceFilterText ? '검색 결과가 없습니다.' : '출처 정보가 없습니다.'}
+              </p>
+            )}
           </div>
         )}
       </div>
+    );
+  };
+  
+  // 메시지 내용 렌더링 함수
+  const renderMessageContent = () => {
+    if (showTypeWriter && !isUser) {
+      return (
+        <TypeWriter 
+          text={message.content || ""}
+          speed={1} 
+          onComplete={() => {
+            setIsTypingComplete(true);
+            setShowTypeWriter(false);
+          }}
+        />
+      );
+    }
+
+    // 검색 모드에서 검색어 하이라이트
+    const content = isSearchMode && searchTerm 
+      ? highlightSearchTerm(message.content || "")
+      : message.content || "";
+
+    return (
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex, rehypeHighlight, rehypeRaw]}
+        components={{
+          code({ node, inline, className, children, ...props }) {
+            const match = /language-(\w+)/.exec(className || "");
+            const language = match && match[1] ? match[1] : "";
+            
+            // 인라인 코드
+            if (inline) {
+              return (
+                <code
+                  className="px-1.5 py-0.5 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm font-mono"
+                  {...props}
+                >
+                  {children}
+                </code>
+              );
+            }
+            
+            // 코드 블록
+            return (
+              <div className="relative my-4 rounded-lg overflow-hidden">
+                {language && (
+                  <div className="absolute top-0 right-0 px-2 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-bl">
+                    {language}
+                  </div>
+                )}
+                <SyntaxHighlighter
+                  style={oneDark}
+                  language={language}
+                  PreTag="div"
+                  className="!bg-gray-100 dark:!bg-gray-800 !rounded-lg !p-4 !text-sm"
+                >
+                  {String(children).replace(/\n$/, "")}
+                </SyntaxHighlighter>
+              </div>
+            );
+          },
+          p({ node, children, ...props }) {
+            return (
+              <p className="mb-4 last:mb-0" {...props}>
+                {children}
+              </p>
+            );
+          },
+          a({ node, children, href, ...props }) {
+            // 이미지 URL 처리
+            if (href && /\.(jpg|jpeg|png|gif|webp)$/i.test(href)) {
+              return (
+                <div className="my-4">
+                  <img
+                    src={href}
+                    alt={children}
+                    className="max-w-full h-auto rounded-lg shadow-md"
+                    onClick={() => {
+                      setImageUrl(href);
+                      setShowImagePreview(true);
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  />
+                </div>
+              );
+            }
+            
+            // 일반 링크
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-indigo-500 dark:text-indigo-400 hover:underline"
+                {...props}
+              >
+                {children}
+                <FiExternalLink className="inline-block ml-1 mb-1" size={12} />
+              </a>
+            );
+          }
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    );
+  };
+  
+  return (
+    <div
+      id={messageId}
+      className={`message-container ${isUser ? "user" : "assistant"} ${
+        isGrouped ? "grouped" : ""
+      } ${isSearchMode && searchTerm ? "search-mode" : ""}`}
+    >
+      {/* 스레드 라인 */}
+      {threadStartLine && <div className="thread-start-line"></div>}
+      {showThreadLine && <div className="thread-line"></div>}
+      {threadEndLine && <div className="thread-end-line"></div>}
       
-      {/* 피드백 모달 */}
-      <FeedbackModal
-        isOpen={showFeedbackModal}
-        onClose={() => setShowFeedbackModal(false)}
-        messageContent={message.content}
-        onSubmit={handleSubmitFeedback}
-        feedbackType={currentFeedbackType}
-      />
+      <div
+        className={`flex ${
+          isUser ? "justify-end" : "justify-start"
+        } relative mb-4 ${isGrouped ? "mt-1" : "mt-4"}`}
+      >
+        {/* 사용자 아바타 (왼쪽) */}
+        {!isUser && <ProfileAvatar role="assistant" isGrouped={isGrouped} />}
+        
+        {/* 메시지 말풍선 */}
+        <div
+          className={`message-bubble relative ${
+            isUser
+              ? "user-message bg-indigo-600 text-white"
+              : "assistant-message bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200"
+          } ${isGrouped ? "grouped" : ""}`}
+        >
+          {/* 메시지 내용 */}
+          <div className={`message-content ${showTypeWriter ? "typing" : ""}`}>
+            {/* 메시지 헤더 (시간 표시) */}
+            <div className="message-header">
+              {!isGrouped && (
+                <span className="message-time">
+                  {formatMessageTime(messageTime)}
+                </span>
+              )}
+            </div>
+            
+            {/* 메시지 본문 */}
+            <div className="message-body">
+              {/* 목차 표시 */}
+              {showTableOfContents && (
+                <TableOfContents 
+                  headings={headings} 
+                  onClickHeading={scrollToHeading} 
+                />
+              )}
+              
+              {/* 마크다운 렌더링 */}
+              <div ref={contentRef} className="markdown-content">
+                {renderMessageContent()}
+              </div>
+              
+              {/* 추천 질문 */}
+              {suggestedQuestions && suggestedQuestions.length > 0 && (
+                <div className="suggested-questions">
+                  <p className="suggested-questions-title">
+                    추천 질문:
+                  </p>
+                  <div className="suggested-questions-list">
+                    {suggestedQuestions.map((question, index) => (
+                      <button
+                        key={index}
+                        className="suggested-question-item"
+                        onClick={() => onAskFollowUp(question)}
+                      >
+                        {question}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* 출처 정보 */}
+              {!isUser && renderSourcesSection()}
+            </div>
+            
+            {/* 메시지 푸터 (피드백 버튼) */}
+            {!isUser && (
+              <div className="message-footer">
+                <div className="feedback-buttons">
+                  {/* 피드백 버튼들 */}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {/* 사용자 아바타 (오른쪽) */}
+        {isUser && <ProfileAvatar role="user" isGrouped={isGrouped} />}
+      </div>
       
       {/* 출처 미리보기 모달 */}
       <SourcePreviewModal
@@ -1948,13 +2097,31 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
         keywords={highlightKeywords}
       />
       
+      {/* 피드백 모달 */}
+      <FeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        messageContent={message.content}
+        onSubmit={handleSubmitFeedback}
+        feedbackType={currentFeedbackType}
+      />
+      
       {/* 피드백 토스트 */}
-      <FeedbackToast 
+      <FeedbackToast
         isVisible={toast.visible}
         message={toast.message}
         type={toast.type}
         onClose={handleCloseToast}
       />
+      
+      {/* 이미지 미리보기 모달 */}
+      {showImagePreview && imageUrl && (
+        <ImagePreview
+          src={imageUrl}
+          alt="이미지"
+          onClose={() => setShowImagePreview(false)}
+        />
+      )}
     </div>
   );
 }

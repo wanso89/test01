@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
-import { FiLoader, FiSend, FiPaperclip, FiX, FiCheck, FiImage, FiMessageSquare, FiFile, FiSmile, FiUploadCloud, FiStopCircle } from 'react-icons/fi';
-import EmojiPicker from 'emoji-picker-react';
+import { FiLoader, FiSend, FiPaperclip, FiX, FiCheck, FiImage, FiMessageSquare, FiFile, FiUploadCloud, FiStopCircle, FiClock, FiList } from 'react-icons/fi';
 import FileUpload from './FileUpload';
 
 const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isEmbedding, isStreaming, onStopGeneration }, ref) => {
@@ -8,15 +7,17 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
   const [showFileUploadModal, setShowFileUploadModal] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [files, setFiles] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('메뉴얼'); // 기본 카테고리 (이제 하나만 사용)
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('메뉴얼'); // 기본값을 메뉴얼로 설정
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
   const dropZoneRef = useRef(null);
-  const emojiPickerRef = useRef(null);
   const typingTimerRef = useRef(null);
   const [isFocused, setIsFocused] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  // 이전 대화 기록 관련 상태 추가
+  const [messageHistory, setMessageHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   // 외부에서 드롭된 파일을 처리하는 메서드
   const handleDroppedFiles = useCallback((droppedFiles) => {
@@ -25,39 +26,6 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
       setShowFileUploadModal(true);
     }
   }, []);
-
-  // 이모지 피커 외부 클릭 감지를 위한 이벤트 핸들러
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target) && 
-          !e.target.closest('button[aria-label="이모지"]')) {
-        setShowEmojiPicker(false);
-      }
-    };
-    
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // 이모지 선택 핸들러
-  const onEmojiClick = (emojiObject) => {
-    const emoji = emojiObject.emoji;
-    const cursorPos = textareaRef.current?.selectionStart || message.length;
-    const updatedMessage = message.slice(0, cursorPos) + emoji + message.slice(cursorPos);
-    setMessage(updatedMessage);
-    
-    // 다음 틱에 커서 위치 조정
-    setTimeout(() => {
-      if (textareaRef.current) {
-        const newCursorPos = cursorPos + emoji.length;
-        textareaRef.current.focus();
-        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
-      }
-    }, 0);
-    
-    // 이모지 피커 닫기
-    setShowEmojiPicker(false);
-  };
 
   useImperativeHandle(ref, () => ({
     focus: () => {
@@ -187,36 +155,92 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
     }
   }, [isEmbedding]);
 
+  // 메시지 히스토리 관리
+  useEffect(() => {
+    // 로컬 스토리지에서 메시지 히스토리 불러오기
+    const savedHistory = localStorage.getItem('messageHistory');
+    if (savedHistory) {
+      try {
+        setMessageHistory(JSON.parse(savedHistory));
+      } catch (error) {
+        console.error('메시지 히스토리 파싱 오류:', error);
+        localStorage.removeItem('messageHistory');
+      }
+    }
+  }, []);
+
   const handleKeyDown = (e) => {
+    // Shift + Enter는 줄바꿈, Enter는 전송
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      if (message.trim() && !disabled && !isEmbedding) {
+        handleSend();
+      }
     }
-  };
-
-  const handleSend = () => {
-    if (message.trim() || files.length > 0) {
-      // 선택된 카테고리 전달 (항상 '메뉴얼' 사용)
-      onSend(message, '메뉴얼');
-      setMessage('');
-      setFiles([]);
-      if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto';
+    
+    // 방향키 위/아래로 메시지 히스토리 탐색
+    if (e.key === 'ArrowUp' && message === '' && messageHistory.length > 0) {
+      // 현재 히스토리 인덱스가 -1이면 첫 번째 항목으로 이동
+      if (historyIndex === -1) {
+        setHistoryIndex(messageHistory.length - 1);
+        setMessage(messageHistory[messageHistory.length - 1]);
+      } 
+      // 이미 히스토리 탐색 중이면 이전 항목으로 이동
+      else if (historyIndex > 0) {
+        setHistoryIndex(historyIndex - 1);
+        setMessage(messageHistory[historyIndex - 1]);
+      }
+    } else if (e.key === 'ArrowDown' && historyIndex !== -1) {
+      if (historyIndex < messageHistory.length - 1) {
+        setHistoryIndex(historyIndex + 1);
+        setMessage(messageHistory[historyIndex + 1]);
+      } else {
+        // 마지막 항목에서 더 아래로 가면 입력창을 비움
+        setHistoryIndex(-1);
+        setMessage('');
       }
     }
   };
 
+  const handleSend = () => {
+    if (!message.trim() || disabled || isEmbedding) return;
+    
+    // 히스토리에 현재 메시지 추가 (중복 제거)
+    const trimmedMessage = message.trim();
+    setMessageHistory(prev => {
+      const newHistory = prev.filter(msg => msg !== trimmedMessage);
+      newHistory.push(trimmedMessage);
+      // 최대 50개까지만 저장
+      if (newHistory.length > 50) {
+        newHistory.shift();
+      }
+      localStorage.setItem('messageHistory', JSON.stringify(newHistory));
+      return newHistory;
+    });
+    
+    onSend(trimmedMessage, selectedCategory);
+    setMessage('');
+    setHistoryIndex(-1);
+    
+    // 높이 초기화
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+  };
+
   const handleFileChange = (event) => {
-    const selectedFiles = Array.from(event.target.files);
-    addFiles(selectedFiles);
+    if (event.target.files && event.target.files.length > 0) {
+      addFiles(Array.from(event.target.files));
+    }
   };
 
   const addFiles = (newFiles) => {
-    setFiles(prev => [...prev, ...newFiles]);
+    setFiles(newFiles);
+    setShowFileUploadModal(true);
   };
 
   const removeFile = (index) => {
-    setFiles(prev => prev.filter((_, i) => i !== index));
+    setFiles(files.filter((_, i) => i !== index));
   };
 
   const handleFileButtonClick = () => {
@@ -228,75 +252,75 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
   };
 
   const handleFileUpload = async (uploadedFiles, category) => {
-    try {
-      // 카테고리는 항상 '메뉴얼'로 고정
-      setSelectedCategory('메뉴얼');
-      
-      // 업로드 성공 콜백 호출
-      if (onUploadSuccess) {
-        onUploadSuccess(uploadedFiles);
-      }
-      
-      setIsUploading(false);
-      setShowFileUploadModal(false);
-    } catch (error) {
-      console.error('파일 업로드 오류:', error);
-      alert('파일 업로드 중 오류가 발생했습니다. 다시 시도해주세요.');
-      setIsUploading(false);
+    setShowFileUploadModal(false);
+    setSelectedCategory(category);
+    
+    // 업로드 성공 콜백 호출
+    if (onUploadSuccess) {
+      onUploadSuccess(uploadedFiles);
+    }
+    
+    // 임베딩 완료 메시지 표시 (실제로는 서버에서 임베딩 완료 신호를 받아야 함)
+    console.log(`${uploadedFiles.length}개 파일 업로드 및 임베딩 완료`);
+  };
+
+  // 히스토리 모달 토글
+  const toggleHistoryModal = () => {
+    setShowHistoryModal(!showHistoryModal);
+  };
+
+  // 히스토리 항목 선택
+  const selectHistoryMessage = (msg) => {
+    setMessage(msg);
+    setShowHistoryModal(false);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
     }
   };
 
-  // 컴포넌트 렌더링
+  // 히스토리 모달 컴포넌트
+  const HistoryModal = () => {
+    if (!showHistoryModal) return null;
+    
+    return (
+      <div className="absolute bottom-full left-0 w-full mb-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 max-h-64 overflow-y-auto z-10">
+        <div className="p-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-750 sticky top-0">
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center">
+            <FiClock className="mr-2" size={14} />
+            이전 메시지 기록
+          </h3>
+        </div>
+        {messageHistory.length === 0 ? (
+          <div className="p-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+            이전 메시지 기록이 없습니다.
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100 dark:divide-gray-700">
+            {[...messageHistory].reverse().map((msg, index) => (
+              <div
+                key={index}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer text-sm text-gray-800 dark:text-gray-200 transition-colors truncate"
+                onClick={() => selectHistoryMessage(msg)}
+                title={msg}
+              >
+                {msg}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div ref={dropZoneRef} className={`relative ${isDragging ? 'bg-indigo-900/10 border-2 border-dashed border-indigo-500/50' : ''}`}>
-      {/* 파일 업로드 모달 */}
-      {showFileUploadModal && (
-        <FileUpload
-          files={files}
-          onClose={handleModalClose}
-          onUpload={handleFileUpload}
-          onAddFiles={addFiles}
-          onRemoveFile={removeFile}
-          isLoading={isUploading}
-          isEmbedding={isEmbedding}
-          showCategories={false} // 카테고리 선택 숨김
-          onUploadSuccess={onUploadSuccess}
-          categories={['메뉴얼']} // 카테고리 '메뉴얼'로 고정
-          initialCategory="메뉴얼"
-        />
-      )}
+    <div className="relative" ref={dropZoneRef}>
+      {/* 히스토리 모달 */}
+      <HistoryModal />
       
-      {/* 메인 입력창 영역 리디자인 */}
-      <div className="fixed bottom-0 left-0 right-0 w-full bg-gradient-to-t from-gray-900/90 to-transparent z-20 px-2 py-3 sm:px-4 flex justify-center items-end">
-        <div className="w-full sm:max-w-2xl md:max-w-3xl flex flex-row items-center gap-2 rounded-2xl shadow-2xl bg-gray-800/80 backdrop-blur px-6 py-2.5 relative ml-auto mr-auto justify-center">
-          {/* 이모지 버튼 */}
-          <button className="p-2 rounded-full hover:bg-gray-700 transition focus:outline-none focus:ring-2 focus:ring-indigo-500" title="이모지" tabIndex={0} aria-label="이모지" onClick={() => setShowEmojiPicker(!showEmojiPicker)}>
-            <FiSmile className="text-gray-400" size={20} />
-          </button>
-          
-          {/* 이모지 피커 */}
-          {showEmojiPicker && (
-            <div 
-              ref={emojiPickerRef}
-              className="absolute bottom-full mb-2 left-0 z-50"
-            >
-              <EmojiPicker
-                onEmojiClick={onEmojiClick}
-                searchDisabled={false}
-                width={300}
-                height={400}
-                previewConfig={{ showPreview: false }}
-                skinTonesDisabled
-              />
-            </div>
-          )}
-          
-          {/* 파일 업로드 버튼 */}
-          <button onClick={handleFileButtonClick} type="button" disabled={disabled || isEmbedding} className={`p-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 ${disabled || isEmbedding ? 'text-gray-500 bg-gray-800/40 cursor-not-allowed' : 'text-gray-300 hover:bg-indigo-600/30 hover:text-indigo-300'}`} aria-label="파일 첨부" title="파일 첨부">
-            <FiUploadCloud className="w-5 h-5" />
-          </button>
-          
-          {/* 입력창 */}
+      <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="relative">
+        <div className={`relative flex items-center border rounded-xl bg-white dark:bg-gray-800 shadow-sm transition-all ${
+          isFocused ? 'border-indigo-500 ring-2 ring-indigo-500/20 dark:ring-indigo-500/10' : 'border-gray-300 dark:border-gray-600'
+        } ${isDragging ? 'border-dashed border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30' : ''}`}>
           <textarea
             ref={textareaRef}
             value={message}
@@ -304,58 +328,98 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
             onKeyDown={handleKeyDown}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            placeholder="메시지를 입력하세요... (Shift+Enter 줄바꿈)"
-            className="flex-1 min-h-[40px] max-h-32 resize-none bg-transparent text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-xl px-3 py-2 custom-scrollbar"
+            placeholder="메시지를 입력하세요..."
+            className="w-full px-4 py-3 max-h-[150px] bg-transparent border-0 resize-none focus:ring-0 focus:outline-none text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500"
             disabled={disabled || isEmbedding}
             rows={1}
-            aria-label="메시지 입력"
           />
           
-          {/* 응답 중지 버튼 (스트리밍 중일 때만 표시) */}
-          {isStreaming && (
+          {/* 버튼 영역 */}
+          <div className="absolute right-2 bottom-2 flex items-center space-x-1">
+            {/* 히스토리 버튼 */}
             <button
-              onClick={onStopGeneration}
               type="button"
-              className="p-2 rounded-full bg-red-600 text-white shadow-lg hover:bg-red-700 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500"
-              aria-label="응답 중지"
-              title="응답 중지"
+              onClick={toggleHistoryModal}
+              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+              aria-label="이전 대화 기록"
+              disabled={disabled || messageHistory.length === 0}
             >
-              <FiStopCircle className="w-5 h-5" />
+              <FiList size={18} />
             </button>
-          )}
-          
-          {/* 전송 버튼 */}
-          <button
-            onClick={handleSend}
-            type="button"
-            disabled={disabled || (message.trim() === '' && files.length === 0) || isEmbedding}
-            className={`ml-2 p-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg hover:from-indigo-600 hover:to-purple-600 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${disabled || (message.trim() === '' && files.length === 0) || isEmbedding ? 'opacity-50 cursor-not-allowed' : ''}`}
-            aria-label="메시지 보내기"
-          >
-            {isEmbedding ? (
-              <FiLoader className="w-5 h-5 animate-spin" />
-            ) : (
-              <FiSend className="w-5 h-5" />
+            
+            {/* 파일 버튼 */}
+            <button
+              type="button"
+              onClick={handleFileButtonClick}
+              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+              aria-label="파일 첨부"
+              disabled={disabled || isEmbedding}
+            >
+              <FiPaperclip size={18} />
+            </button>
+            
+            {/* 중지 버튼 - 스트리밍 중일 때만 표시 */}
+            {isStreaming && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault(); // 이벤트 기본 동작 방지
+                  e.stopPropagation(); // 이벤트 버블링 방지
+                  console.log("중지 버튼 클릭됨 - 이벤트 발생");
+                  
+                  // 버튼 클릭 시각적 피드백
+                  const button = e.currentTarget;
+                  button.classList.add('scale-95', 'bg-red-100', 'dark:bg-red-900/30');
+                  setTimeout(() => {
+                    button.classList.remove('scale-95', 'bg-red-100', 'dark:bg-red-900/30');
+                  }, 200);
+                  
+                  if (typeof onStopGeneration === 'function') {
+                    console.log("onStopGeneration 함수 호출 시도");
+                    onStopGeneration();
+                    console.log("onStopGeneration 함수 호출 완료");
+                  } else {
+                    console.error("onStopGeneration is not a function:", onStopGeneration);
+                  }
+                }}
+                className="p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
+                aria-label="생성 중지"
+              >
+                <FiStopCircle size={18} />
+              </button>
             )}
-          </button>
-          {/* 타이핑 인디케이터 (예시) */}
-          {/* <div className="absolute left-2 bottom-14 typing-indicator flex items-center gap-1">
-            <span className="typing-indicator-dot" />
-            <span className="typing-indicator-dot" />
-            <span className="typing-indicator-dot" />
-          </div> */}
-        </div>
-        {/* 드롭 영역 안내 메시지 - 드래그 중일 때만 표시 */}
-        {isDragging && (
-          <div className="absolute inset-0 flex items-center justify-center bg-indigo-900/20 rounded-2xl backdrop-blur-sm z-10">
-            <div className="text-center p-4 bg-gray-800/80 rounded-xl shadow-lg">
-              <FiUploadCloud className="w-10 h-10 mx-auto mb-2 text-indigo-400" />
-              <p className="text-gray-200 font-medium">파일을 여기에 놓으세요</p>
-              <p className="text-gray-400 text-sm">파일을 자동으로 업로드합니다</p>
-            </div>
+            
+            {/* 전송 버튼 */}
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={disabled || (!message.trim() && files.length === 0)}
+              className={`p-2 rounded-full ${
+                message.trim() || files.length > 0
+                  ? 'bg-indigo-500 hover:bg-indigo-600 text-white'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+              } transition-colors`}
+              aria-label="전송"
+            >
+              {disabled ? (
+                <FiLoader className="animate-spin" size={18} />
+              ) : (
+                <FiSend size={18} />
+              )}
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      </form>
+      
+      {/* 파일 업로드 모달 */}
+      {showFileUploadModal && (
+        <FileUpload
+          onClose={handleModalClose}
+          initialFiles={files}
+          onUploadSuccess={handleFileUpload}
+          initialCategory={selectedCategory}
+        />
+      )}
     </div>
   );
 });
