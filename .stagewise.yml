@@ -1,0 +1,11 @@
+task: "FastAPI 기반 REST API 만들기"
+codebase:
+  root: .
+  include:
+    - "**/*.py"
+  exclude:
+    - "venv/**"
+    - "__pycache__/**"
+settings:
+  language: "python"
+  style: "pep8"

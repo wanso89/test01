@@ -621,6 +621,7 @@ class EnhancedLocalReranker:
 
 # LLM 답변 생성 함수
 async def generate_llm_response(
+    request: Request,
     tokenizer_for_template_application: Any,
     question: str,
     top_docs: List[Document],
@@ -915,9 +916,9 @@ async def search_and_combine(
         # LLM으로 답변 생성
         llm_start = time.time()
         answer = await generate_llm_response(
+            request,
             tokenizer,
             query,
-            final_docs,
             0.2,
             conversation_history
         )
@@ -1605,7 +1606,6 @@ async def get_indexed_files():
         }
 
         response = es_client.search(index=ES_INDEX_NAME, body=query)
-
         # Aggregation 결과에서 파일명 추출
         buckets = (
             response.get("aggregations", {})
@@ -2194,6 +2194,7 @@ async def chat(fastapi_request: FastAPIRequest, request: QuestionRequest = Body(
         # 2. LLM에 전달할 최종 프롬프트 생성
         prompt_generation_start_time = time.time()
         prompt_data = await generate_llm_response(
+            request,
             tokenizer,
             request.question,
             top_docs,
@@ -3197,3 +3198,4 @@ def deduplicate_markdown_sections_py(markdown_text: str) -> str:
     # 연속 빈 줄 정리
     result = re.sub(r'\n{3,}', '\n\n', result)
     return result.strip()
+

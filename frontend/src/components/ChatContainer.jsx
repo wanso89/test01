@@ -817,7 +817,7 @@ function ChatContainer({
   const [filesToUpload, setFilesToUpload] = useState([]);
   
   // 응답 스트리밍 중지 컨트롤러
-  const abortControllerRef = useRef(null);
+  const abortControllerRef = useRef(new AbortController());
   
   // 스트리밍 중지 함수
   const stopResponseGeneration = useCallback(() => {
@@ -1551,6 +1551,14 @@ function ChatContainer({
         </div>
       </div>
     );
+  };
+
+  const handleStopResponse = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = new AbortController();
+      setIsStreaming(false);
+    }
   };
 
   return (
