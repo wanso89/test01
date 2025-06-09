@@ -57,7 +57,7 @@ fi
 # 백엔드 시작
 echo "최적화된 백엔드 서버 시작 중..."
 cd backend
-nohup uvicorn app.main:app --host 0.0.0.0 --port 8001 > ../nohup.out 2>&1 &
+nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > ../nohup.out 2>&1 &
 NEW_PID=$!
 cd ..
 echo $NEW_PID > server.pid
@@ -66,4 +66,4 @@ echo "백엔드 서버 PID: $NEW_PID (server.pid에 저장됨)"
 echo "로그 확인: tail -f nohup.out"
 echo "====================================="
 echo "최적화된 서버가 성공적으로 시작되었습니다!"
-echo "성능 확인: http://localhost:8001/api/chat (POST)" 
+echo "성능 확인: http://localhost:8000/api/chat (POST)" 

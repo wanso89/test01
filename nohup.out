@@ -1,29 +1,64 @@
-/home/test_code/test01/rag-chatbot/.venv/lib/python3.10/site-packages/transformers/utils/hub.py:105: FutureWarning: Using `TRANSFORMERS_CACHE` is deprecated and will be removed in v5 of Transformers. Use `HF_HOME` instead.
-  warnings.warn(
-NoneType: None
-2025-05-18 10:00:19,665 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/ [status:200 duration:0.001s]
-2025-05-18 10:00:19,666 - elastic_transport.transport - INFO - HEAD http://172.10.2.70:9200/rag_documents_kure_v1 [status:200 duration:0.000s]
-2025-05-18 10:00:19,671 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: /home/root/kpf-sbert-v1.1
-2025-05-18 10:00:20,582 - accelerate.utils.modeling - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
 Initializing Elasticsearch client...
 Elasticsearch client connected successfully.
 Loading embedding function...
 임베딩 모델 로드 성공: /home/root/kpf-sbert-v1.1
 Loading LLM model and tokenizer...
-Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:01<00:03,  1.26s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:02<00:02,  1.47s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:04<00:01,  1.56s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:05<00:00,  1.41s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:05<00:00,  1.43s/it]
-2025-05-18 10:00:27,445 - accelerate.utils.modeling - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:01<00:04,  1.47s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:03<00:03,  1.58s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:04<00:01,  1.52s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:04<00:00,  1.03it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:04<00:00,  1.18s/it]
 LLM model loaded successfully with Flash Attention.
-GPU 메모리 사용량: 6.14 GB
+GPU 메모리 사용량: 5.59 GB
 Loading reranker model...
 Reranker model loaded successfully.
 SQLCoder 모델 로딩 중...
 SQLCoder 모델 로드 시작: /home/root/llama-3-sqlcoder-8b
-Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:01<00:04,  1.42s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:03<00:03,  1.53s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:04<00:01,  1.53s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:04<00:00,  1.01it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:04<00:00,  1.18s/it]
-/home/test_code/test01/rag-chatbot/.venv/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:631: UserWarning: `do_sample` is set to `False`. However, `temperature` is set to `0` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `temperature`. This was detected when initializing the generation config instance, which means the corresponding file may hold incorrect parameterization and should be fixed.
-  warnings.warn(
-/home/test_code/test01/rag-chatbot/.venv/lib/python3.10/site-packages/transformers/generation/configuration_utils.py:631: UserWarning: `do_sample` is set to `False`. However, `temperature` is set to `0` -- this flag is only used in sample-based generation modes. You should set `do_sample=True` or unset `temperature`.
-  warnings.warn(
-INFO:     Started server process [3805498]
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:01<00:04,  1.38s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:02<00:03,  1.51s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:04<00:01,  1.53s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:04<00:00,  1.01it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:04<00:00,  1.17s/it]
+INFO:     Started server process [2734799]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+GPU 메모리 사용량: 13.02 GB
+SQLCoder 모델 로드 완료
+SQLCoder 모델 로드 성공
+SQLCoder 모듈 초기화 중...
+SQLCoder 모델을 성공적으로 로드했습니다.
+SQLCoder 초기화 성공: SQLCoder 초기화 성공
+INFO:     172.10.2.70:40628 - "POST /api/settings/load HTTP/1.1" 200 OK
+INFO:     172.10.2.70:40642 - "POST /api/settings/load HTTP/1.1" 200 OK
+[2025-06-09 16:51:00,024] [    INFO] main.py:2134 - Received chat request: '보안서약서 제2조', Category: '메뉴얼', History items: 3
+[2025-06-09 16:51:01,755] [    INFO] main.py:2162 - Initial document retrieval completed in 1.5492 seconds. Found 10 docs.
+[2025-06-09 16:51:01,757] [    INFO] main.py:2176 - Search enhancement completed in 0.0016 seconds.
+[2025-06-09 16:51:02,340] [    INFO] main.py:2185 - Document reranking completed in 0.5831 seconds. Reranked to 3 docs.
+[2025-06-09 16:51:02,340] [    INFO] main.py:2192 - Using top 3 docs for LLM context.
+[2025-06-09 16:51:02,348] [    INFO] main.py:2207 - Prompt generation completed in 0.0077 seconds.
+[2025-06-09 16:51:02,351] [    INFO] main.py:2249 - Starting LLM generation with params: temp=0.1, max_tokens=2048
+검색 완료: 10 문서 검색됨
+INFO:     172.10.2.70:43790 - "POST /api/chat HTTP/1.1" 200 OK
+[2025-06-09 16:51:06,261] [    INFO] main.py:2367 - LLM generation stream finished. Total chars: 173. Time: 3.9097s
+[2025-06-09 16:51:06,261] [    INFO] main.py:2371 - 인용된 소스 수: 2/3
+[2025-06-09 16:51:06,262] [    INFO] main.py:2404 - 스트리밍 응답 캐싱 완료: chat:7dd1c7e587bc471b650ad443334ec329
+[2025-06-09 16:51:06,262] [    INFO] main.py:2420 - Total chat request processing time: 6.0651 seconds.
+Redis 서버 연결 성공 (localhost:6379)
+Source preview 요청: path=88b3628b-1e8a-466b-8a68-a489cdfea8d4_IT 보안서약서_2025.pdf, page=1, chunk_id=1
+검색 시도 1번째 성공: 88b3628b-1e8a-466b-8a68-a489cdfea8d4_IT 보안서약서_2025_pdf_1_1
+응답 텍스트 기반 하이라이트 시작 - 응답 길이: 173
+INFO:     172.10.2.70:55794 - "POST /api/source-preview HTTP/1.1" 200 OK
+[2025-06-09 16:51:15,203] [    INFO] main.py:2134 - Received chat request: '보안서약서 제1조', Category: '메뉴얼', History items: 5
+[2025-06-09 16:51:15,271] [    INFO] main.py:2162 - Initial document retrieval completed in 0.0587 seconds. Found 10 docs.
+[2025-06-09 16:51:15,271] [    INFO] main.py:2176 - Search enhancement completed in 0.0006 seconds.
+[2025-06-09 16:51:15,325] [    INFO] main.py:2185 - Document reranking completed in 0.0533 seconds. Reranked to 3 docs.
+[2025-06-09 16:51:15,325] [    INFO] main.py:2192 - Using top 3 docs for LLM context.
+[2025-06-09 16:51:15,325] [    INFO] main.py:2207 - Prompt generation completed in 0.0002 seconds.
+[2025-06-09 16:51:15,327] [    INFO] main.py:2249 - Starting LLM generation with params: temp=0.1, max_tokens=2048
+검색 완료: 10 문서 검색됨
+INFO:     172.10.2.70:55810 - "POST /api/chat HTTP/1.1" 200 OK
+[2025-06-09 16:51:23,696] [    INFO] main.py:2367 - LLM generation stream finished. Total chars: 656. Time: 8.3686s
+[2025-06-09 16:51:23,696] [    INFO] main.py:2371 - 인용된 소스 수: 1/3
+[2025-06-09 16:51:23,696] [    INFO] main.py:2404 - 스트리밍 응답 캐싱 완료: chat:8003325b30ea86bc6d7aa4744a33cf36
+[2025-06-09 16:51:23,696] [    INFO] main.py:2420 - Total chat request processing time: 8.4936 seconds.
+Source preview 요청: path=88b3628b-1e8a-466b-8a68-a489cdfea8d4_IT 보안서약서_2025.pdf, page=1, chunk_id=0
+검색 시도 1번째 성공: 88b3628b-1e8a-466b-8a68-a489cdfea8d4_IT 보안서약서_2025_pdf_1_0
+응답 텍스트 기반 하이라이트 시작 - 응답 길이: 656
+INFO:     172.10.2.70:37018 - "POST /api/source-preview HTTP/1.1" 200 OK
+Indexed file list requested. Found 24 unique files.
+INFO:     172.10.2.70:50700 - "GET /api/indexed-files HTTP/1.1" 200 OK
+Indexed file list requested. Found 24 unique files.
+INFO:     172.10.2.70:50708 - "GET /api/indexed-files HTTP/1.1" 200 OK
