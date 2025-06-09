@@ -62,3 +62,140 @@ Indexed file list requested. Found 24 unique files.
 INFO:     172.10.2.70:50700 - "GET /api/indexed-files HTTP/1.1" 200 OK
 Indexed file list requested. Found 24 unique files.
 INFO:     172.10.2.70:50708 - "GET /api/indexed-files HTTP/1.1" 200 OK
+[2025-06-09 16:53:48,749] [    INFO] main.py:2134 - Received chat request: '로그인이 되지 않을 때 어디로 연락해야해', Category: '메뉴얼', History items: 7
+[2025-06-09 16:53:48,824] [    INFO] main.py:2162 - Initial document retrieval completed in 0.0651 seconds. Found 10 docs.
+[2025-06-09 16:53:48,824] [    INFO] main.py:2176 - Search enhancement completed in 0.0008 seconds.
+[2025-06-09 16:53:48,970] [    INFO] main.py:2185 - Document reranking completed in 0.1452 seconds. Reranked to 3 docs.
+[2025-06-09 16:53:48,970] [    INFO] main.py:2192 - Using top 3 docs for LLM context.
+[2025-06-09 16:53:48,970] [    INFO] main.py:2207 - Prompt generation completed in 0.0002 seconds.
+[2025-06-09 16:53:48,973] [    INFO] main.py:2249 - Starting LLM generation with params: temp=0.1, max_tokens=2048
+검색 완료: 10 문서 검색됨
+INFO:     172.10.2.70:53854 - "POST /api/chat HTTP/1.1" 200 OK
+[2025-06-09 16:53:53,178] [    INFO] main.py:2367 - LLM generation stream finished. Total chars: 382. Time: 4.2042s
+[2025-06-09 16:53:53,178] [    INFO] main.py:2371 - 인용된 소스 수: 0/3
+[2025-06-09 16:53:53,178] [    INFO] main.py:2404 - 스트리밍 응답 캐싱 완료: chat:c1977202a3be9301d1d619e02e4f1b7b
+[2025-06-09 16:53:53,178] [    INFO] main.py:2420 - Total chat request processing time: 4.4292 seconds.
+[2025-06-09 16:54:11,837] [    INFO] main.py:2134 - Received chat request: 'vdi 클라이언트 다운로드 방법', Category: '메뉴얼', History items: 9
+[2025-06-09 16:54:11,947] [    INFO] main.py:2162 - Initial document retrieval completed in 0.1008 seconds. Found 10 docs.
+[2025-06-09 16:54:11,948] [    INFO] main.py:2176 - Search enhancement completed in 0.0008 seconds.
+[2025-06-09 16:54:11,993] [    INFO] main.py:2185 - Document reranking completed in 0.0443 seconds. Reranked to 5 docs.
+[2025-06-09 16:54:11,993] [    INFO] main.py:2192 - Using top 5 docs for LLM context.
+[2025-06-09 16:54:11,993] [    INFO] main.py:2207 - Prompt generation completed in 0.0003 seconds.
+[2025-06-09 16:54:11,996] [    INFO] main.py:2249 - Starting LLM generation with params: temp=0.1, max_tokens=2048
+검색 완료: 10 문서 검색됨
+INFO:     172.10.2.70:47906 - "POST /api/chat HTTP/1.1" 200 OK
+[2025-06-09 16:54:20,138] [    INFO] main.py:2367 - LLM generation stream finished. Total chars: 742. Time: 8.1416s
+[2025-06-09 16:54:20,138] [    INFO] main.py:2371 - 인용된 소스 수: 0/5
+[2025-06-09 16:54:20,138] [    INFO] main.py:2404 - 스트리밍 응답 캐싱 완료: chat:6014e0087acddd66d2b8c8d7f6bd4d30
+[2025-06-09 16:54:20,139] [    INFO] main.py:2420 - Total chat request processing time: 8.3015 seconds.
+[2025-06-09 16:54:41,392] [    INFO] main.py:2134 - Received chat request: '보안서약서 제 1조 내용', Category: '메뉴얼', History items: 10
+[2025-06-09 16:54:41,466] [    INFO] main.py:2162 - Initial document retrieval completed in 0.0637 seconds. Found 10 docs.
+[2025-06-09 16:54:41,467] [    INFO] main.py:2176 - Search enhancement completed in 0.0007 seconds.
+[2025-06-09 16:54:41,520] [    INFO] main.py:2185 - Document reranking completed in 0.0534 seconds. Reranked to 3 docs.
+[2025-06-09 16:54:41,520] [    INFO] main.py:2192 - Using top 3 docs for LLM context.
+[2025-06-09 16:54:41,521] [    INFO] main.py:2207 - Prompt generation completed in 0.0003 seconds.
+[2025-06-09 16:54:41,524] [    INFO] main.py:2249 - Starting LLM generation with params: temp=0.1, max_tokens=2048
+검색 완료: 10 문서 검색됨
+INFO:     172.10.2.70:49164 - "POST /api/chat HTTP/1.1" 200 OK
+[2025-06-09 16:54:50,812] [    INFO] main.py:2367 - LLM generation stream finished. Total chars: 660. Time: 9.2874s
+[2025-06-09 16:54:50,812] [    INFO] main.py:2371 - 인용된 소스 수: 1/3
+[2025-06-09 16:54:50,812] [    INFO] main.py:2404 - 스트리밍 응답 캐싱 완료: chat:ca396b061235aa04ecc7ea80d5acaf5a
+[2025-06-09 16:54:50,812] [    INFO] main.py:2420 - Total chat request processing time: 9.4199 seconds.
+[2025-06-09 16:55:17,738] [    INFO] main.py:2134 - Received chat request: '특별청원휴가 종류 및 휴가일수에 대해 설명해줘', Category: '메뉴얼', History items: 10
+[2025-06-09 16:55:18,131] [    INFO] main.py:2162 - Initial document retrieval completed in 0.3840 seconds. Found 10 docs.
+[2025-06-09 16:55:18,132] [    INFO] main.py:2176 - Search enhancement completed in 0.0008 seconds.
+[2025-06-09 16:55:18,183] [    INFO] main.py:2185 - Document reranking completed in 0.0511 seconds. Reranked to 3 docs.
+[2025-06-09 16:55:18,183] [    INFO] main.py:2192 - Using top 3 docs for LLM context.
+[2025-06-09 16:55:18,184] [    INFO] main.py:2207 - Prompt generation completed in 0.0002 seconds.
+[2025-06-09 16:55:18,188] [    INFO] main.py:2249 - Starting LLM generation with params: temp=0.1, max_tokens=2048
+검색 완료: 10 문서 검색됨
+INFO:     172.10.2.70:45006 - "POST /api/chat HTTP/1.1" 200 OK
+[2025-06-09 16:55:32,505] [    INFO] main.py:2367 - LLM generation stream finished. Total chars: 981. Time: 14.3173s
+[2025-06-09 16:55:32,505] [    INFO] main.py:2371 - 인용된 소스 수: 1/3
+[2025-06-09 16:55:32,506] [    INFO] main.py:2404 - 스트리밍 응답 캐싱 완료: chat:8fe772473cd9023fbc38166d5030415d
+[2025-06-09 16:55:32,506] [    INFO] main.py:2420 - Total chat request processing time: 14.7680 seconds.
+Source preview 요청: path=1758c45e-d16e-4f30-9092-05f9a50b952c_네오오토_B-1001_취업규칙_20230109 (1).pdf, page=38, chunk_id=67
+검색 시도 1번째 성공: 1758c45e-d16e-4f30-9092-05f9a50b952c_네오오토_B-1001_취업규칙_20230109 (1)_pdf_38_67
+응답 텍스트 기반 하이라이트 시작 - 응답 길이: 981
+INFO:     172.10.2.70:40266 - "POST /api/source-preview HTTP/1.1" 200 OK
+[2025-06-09 16:55:41,192] [    INFO] main.py:2134 - Received chat request: '금품청산 관련해서 설명해줘', Category: '메뉴얼', History items: 10
+[2025-06-09 16:55:41,311] [    INFO] main.py:2162 - Initial document retrieval completed in 0.1093 seconds. Found 10 docs.
+[2025-06-09 16:55:41,311] [    INFO] main.py:2176 - Search enhancement completed in 0.0006 seconds.
+[2025-06-09 16:55:41,356] [    INFO] main.py:2185 - Document reranking completed in 0.0441 seconds. Reranked to 3 docs.
+[2025-06-09 16:55:41,356] [    INFO] main.py:2192 - Using top 3 docs for LLM context.
+[2025-06-09 16:55:41,356] [    INFO] main.py:2207 - Prompt generation completed in 0.0002 seconds.
+[2025-06-09 16:55:41,360] [    INFO] main.py:2249 - Starting LLM generation with params: temp=0.1, max_tokens=2048
+검색 완료: 10 문서 검색됨
+INFO:     172.10.2.70:49362 - "POST /api/chat HTTP/1.1" 200 OK
+[2025-06-09 16:55:53,279] [    INFO] main.py:2367 - LLM generation stream finished. Total chars: 909. Time: 11.9184s
+[2025-06-09 16:55:53,279] [    INFO] main.py:2371 - 인용된 소스 수: 0/3
+[2025-06-09 16:55:53,279] [    INFO] main.py:2404 - 스트리밍 응답 캐싱 완료: chat:27a9ced4cbc031fed098ad67e5f220c5
+[2025-06-09 16:55:53,280] [    INFO] main.py:2420 - Total chat request processing time: 12.0874 seconds.
+Indexed file list requested. Found 24 unique files.
+INFO:     172.10.2.70:46294 - "GET /api/indexed-files HTTP/1.1" 200 OK
+Indexed file list requested. Found 24 unique files.
+INFO:     172.10.2.70:46302 - "GET /api/indexed-files HTTP/1.1" 200 OK
+File view request for: 5c85f1e3-c23d-4d15-a54b-a8e7264775ff_20241203_장애결과보고_FB_중소기업유통센터.pdf, Path: app/static/uploads/5c85f1e3-c23d-4d15-a54b-a8e7264775ff_20241203_장애결과보고_FB_중소기업유통센터.pdf
+INFO:     172.10.2.70:41966 - "GET /api/file-viewer/5c85f1e3-c23d-4d15-a54b-a8e7264775ff_20241203_%EC%9E%A5%EC%95%A0%EA%B2%B0%EA%B3%BC%EB%B3%B4%EA%B3%A0_FB_%EC%A4%91%EC%86%8C%EA%B8%B0%EC%97%85%EC%9C%A0%ED%86%B5%EC%84%BC%ED%84%B0.pdf HTTP/1.1" 200 OK
+[2025-06-09 16:56:13,706] [    INFO] main.py:2134 - Received chat request: '중소기업유통센터 자료전송 장애 대응 프로세스 설명해줘', Category: '메뉴얼', History items: 10
+[2025-06-09 16:56:14,096] [    INFO] main.py:2162 - Initial document retrieval completed in 0.3803 seconds. Found 10 docs.
+[2025-06-09 16:56:14,096] [    INFO] main.py:2176 - Search enhancement completed in 0.0007 seconds.
+[2025-06-09 16:56:14,137] [    INFO] main.py:2185 - Document reranking completed in 0.0407 seconds. Reranked to 3 docs.
+[2025-06-09 16:56:14,137] [    INFO] main.py:2192 - Using top 3 docs for LLM context.
+[2025-06-09 16:56:14,137] [    INFO] main.py:2207 - Prompt generation completed in 0.0002 seconds.
+[2025-06-09 16:56:14,142] [    INFO] main.py:2249 - Starting LLM generation with params: temp=0.1, max_tokens=2048
+검색 완료: 10 문서 검색됨
+INFO:     172.10.2.70:36856 - "POST /api/chat HTTP/1.1" 200 OK
+[2025-06-09 16:56:23,583] [    INFO] main.py:2367 - LLM generation stream finished. Total chars: 850. Time: 9.4409s
+[2025-06-09 16:56:23,584] [    INFO] main.py:2371 - 인용된 소스 수: 0/3
+[2025-06-09 16:56:23,584] [    INFO] main.py:2404 - 스트리밍 응답 캐싱 완료: chat:733986a131c1e11ed223b9ed374a5d53
+[2025-06-09 16:56:23,584] [    INFO] main.py:2420 - Total chat request processing time: 9.8783 seconds.
+[2025-06-09 16:56:33,113] [    INFO] main.py:2134 - Received chat request: '중소기업유통센터 자료전송 장애대응에 대해서 설명해줘 시간별로', Category: '메뉴얼', History items: 10
+[2025-06-09 16:56:33,155] [    INFO] main.py:2162 - Initial document retrieval completed in 0.0307 seconds. Found 10 docs.
+[2025-06-09 16:56:33,155] [    INFO] main.py:2176 - Search enhancement completed in 0.0006 seconds.
+[2025-06-09 16:56:33,196] [    INFO] main.py:2185 - Document reranking completed in 0.0402 seconds. Reranked to 3 docs.
+[2025-06-09 16:56:33,196] [    INFO] main.py:2192 - Using top 3 docs for LLM context.
+[2025-06-09 16:56:33,196] [    INFO] main.py:2207 - Prompt generation completed in 0.0002 seconds.
+[2025-06-09 16:56:33,201] [    INFO] main.py:2249 - Starting LLM generation with params: temp=0.1, max_tokens=2048
+검색 완료: 10 문서 검색됨
+INFO:     172.10.2.70:56108 - "POST /api/chat HTTP/1.1" 200 OK
+[2025-06-09 16:56:41,653] [    INFO] main.py:2367 - LLM generation stream finished. Total chars: 670. Time: 8.4524s
+[2025-06-09 16:56:41,653] [    INFO] main.py:2371 - 인용된 소스 수: 0/3
+[2025-06-09 16:56:41,654] [    INFO] main.py:2404 - 스트리밍 응답 캐싱 완료: chat:d94b80d3b39033f641cb8dd676253b0d
+[2025-06-09 16:56:41,654] [    INFO] main.py:2420 - Total chat request processing time: 8.5401 seconds.
+[2025-06-09 16:57:02,268] [    INFO] main.py:2134 - Received chat request: '금품청산 관련해서 설명해줘', Category: '메뉴얼', History items: 10
+[2025-06-09 16:57:02,342] [    INFO] main.py:2162 - Initial document retrieval completed in 0.0644 seconds. Found 10 docs.
+[2025-06-09 16:57:02,342] [    INFO] main.py:2176 - Search enhancement completed in 0.0004 seconds.
+[2025-06-09 16:57:02,385] [    INFO] main.py:2185 - Document reranking completed in 0.0428 seconds. Reranked to 3 docs.
+[2025-06-09 16:57:02,385] [    INFO] main.py:2192 - Using top 3 docs for LLM context.
+[2025-06-09 16:57:02,385] [    INFO] main.py:2207 - Prompt generation completed in 0.0002 seconds.
+[2025-06-09 16:57:02,390] [    INFO] main.py:2249 - Starting LLM generation with params: temp=0.1, max_tokens=2048
+검색 완료: 10 문서 검색됨
+INFO:     172.10.2.70:55056 - "POST /api/chat HTTP/1.1" 200 OK
+[2025-06-09 16:57:09,556] [ WARNING] main.py:2417 - LLM generation thread did not terminate gracefully.
+[2025-06-09 16:57:09,556] [    INFO] main.py:2420 - Total chat request processing time: 7.2879 seconds.
+MariaDB 연결 테스트 - 호스트: localhost, 사용자: root, DB: his
+INFO:     172.10.2.70:55058 - "GET /api/db-schema HTTP/1.1" 200 OK
+INFO:     172.10.2.70:55068 - "GET /api/sql/recent-queries HTTP/1.1" 404 Not Found
+INFO:     172.10.2.70:55078 - "GET /api/sql/schema HTTP/1.1" 404 Not Found
+INFO:     172.10.2.100:47316 - "OPTIONS /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     172.10.2.100:54344 - "OPTIONS /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     172.10.2.100:54346 - "OPTIONS /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     172.10.2.100:47829 - "GET /api/datasources/stats HTTP/1.1" 200 OK
+INFO:     172.10.2.100:54348 - "GET /api/system/status HTTP/1.1" 200 OK
+INFO:     172.10.2.100:47573 - "OPTIONS /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     172.10.2.70:44580 - "POST /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     172.10.2.100:54344 - "POST /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     172.10.2.100:47316 - "POST /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     172.10.2.100:54346 - "POST /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     172.10.2.100:47829 - "GET /api/datasources/stats HTTP/1.1" 200 OK
+INFO:     172.10.2.70:44582 - "GET /api/sql/schema HTTP/1.1" 404 Not Found
+INFO:     172.10.2.100:47573 - "POST /api/dashboard/stats HTTP/1.1" 200 OK
+INFO:     172.10.2.100:54348 - "GET /api/system/status HTTP/1.1" 200 OK
+INFO:     172.10.2.70:44592 - "GET /api/sql/recent-queries HTTP/1.1" 404 Not Found
+MariaDB 연결 테스트 - 호스트: localhost, 사용자: root, DB: his
+INFO:     172.10.2.70:44604 - "GET /api/db-schema HTTP/1.1" 200 OK
+MariaDB 연결 테스트 - 호스트: localhost, 사용자: root, DB: his
+INFO:     172.10.2.70:44614 - "GET /api/db-schema HTTP/1.1" 200 OK
+MariaDB 연결 테스트 - 호스트: localhost, 사용자: root, DB: his
+INFO:     172.10.2.70:44620 - "GET /api/db-schema HTTP/1.1" 200 OK
