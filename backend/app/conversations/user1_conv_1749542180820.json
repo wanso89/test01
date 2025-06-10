@@ -1,0 +1,22 @@
+{
+  "userId": "user1",
+  "conversationId": "conv_1749542180820",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 10조 내용이라고 있어?",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "네, 보안서약서에는 10조가 있습니다. 제1조는 정보보호 및 보안규정 준수에 관한 내용을 담고 있으며, 제2조부터 제4조까지는 모니터링 및 동의, 보안 교육 및 점검 협조, 책임 및 ",
+      "sources": []
+    }
+  ],
+  "timestamp": "2025-06-10T16:56:30.202508"
+}

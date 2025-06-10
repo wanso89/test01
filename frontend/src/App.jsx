@@ -518,7 +518,15 @@ function App() {
       // 로컬 상태 초기화
       setConversations([]);
       setActiveConversationId(null);
-      setCurrentMessages([]);
+      setCurrentMessages([
+        // 시스템 시작 메시지 추가하여 챗봇이 먼저 인사하도록 함
+        {
+          role: "assistant",
+          content: "안녕하세요! 무엇을 도와드릴까요?",
+          sources: [],
+          timestamp: Date.now(),
+        }
+      ]);
       
       // 로컬 스토리지 데이터 삭제
       localStorage.removeItem('conversations');
@@ -539,8 +547,8 @@ function App() {
       // 성공 메시지 표시
       showModeChangeToast("모든 대화가 삭제되었습니다");
       
-      // 새 대화 시작 - 항상 '대화 1'로 시작
-      handleNewConversation(null, defaultCategory, true);
+      // 새 대화 시작 - 새 대화 생성 안함 (이미 초기 메시지 설정됨)
+      // handleNewConversation(null, defaultCategory, true);
     } catch (err) {
       console.error("대화 전체 삭제 중 오류 발생:", err);
     }
