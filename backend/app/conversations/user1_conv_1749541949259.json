@@ -1,0 +1,47 @@
+{
+  "userId": "user1",
+  "conversationId": "conv_1749541949259",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 2조 냉뇽",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "문서 1의 제2조에 따르면, 본인은 회사가 보안 관리를 위해 다음의 모니터링 활동을 수행할 수 있으며, 이에 동의합니다:\n\n- 전자결재, 이메일, 인터넷 사용, 출력 기록, 시스템 로그 등 업무 관련 행위에 대한 모니터링\n- 보안사고 발생 시 위의 기록이 법적 증거자료로 활용될 수 있음에 대한 동의",
+      "sources": [
+        {
+          "path": "88b3628b-1e8a-466b-8a68-a489cdfea8d4_IT 보안서약서_2025.pdf",
+          "display_name": "IT 보안서약서_2025.pdf",
+          "page": 1,
+          "chunk_id": "1",
+          "score": 72.69887761087998,
+          "is_cited": true
+        },
+        {
+          "path": "88b3628b-1e8a-466b-8a68-a489cdfea8d4_IT 보안서약서_2025.pdf",
+          "display_name": "IT 보안서약서_2025.pdf",
+          "page": 1,
+          "chunk_id": "0",
+          "score": 78.60648908307627,
+          "is_cited": true
+        },
+        {
+          "path": "1758c45e-d16e-4f30-9092-05f9a50b952c_네오오토_B-1001_취업규칙_20230109 (1).pdf",
+          "display_name": "네오오토_B-1001_취업규칙_20230109 (1).pdf",
+          "page": 4,
+          "chunk_id": "4",
+          "score": 68.25746457932438,
+          "is_cited": false
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-06-10T16:52:40.925700"
+}

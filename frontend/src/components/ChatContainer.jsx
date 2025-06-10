@@ -797,6 +797,14 @@ function ChatContainer({
   setIsStreaming,
   onStopGeneration // 응답 중단 함수 추가
 }) {
+  const [showSettings, setShowSettings] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState(null);
+  const [fileDeleteLoading, setFileDeleteLoading] = useState(false);
+  const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [files, setFiles] = useState([]);
+  const [filesLoading, setFilesLoading] = useState(false);
   const containerRef = useRef(null);
   const chatInputRef = useRef(null);
   const messagesEndRef = useRef(null); // 메시지 끝 참조 추가
@@ -818,6 +826,37 @@ function ChatContainer({
   
   // 응답 스트리밍 중지 컨트롤러
   const abortControllerRef = useRef(new AbortController());
+  
+  // 스크롤 관련 함수들 - 최상단에 정의
+  // 스크롤을 하단으로 이동시키는 함수
+  const scrollToBottom = useCallback(() => {
+    if (!containerRef.current || scrollLocked) return;
+
+    // 스크롤을 최하단으로 이동하기 위한 다양한 방법 조합
+    
+    // 1. 컨테이너의 scrollTop 직접 조작
+    if (containerRef.current) {
+      const scrollHeight = containerRef.current.scrollHeight;
+      containerRef.current.scrollTop = scrollHeight;
+    }
+    
+    // 2. messagesEndRef를 이용한 scrollIntoView
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+    }
+    
+    // 3. 약간의 지연 후 한번 더 스크롤 시도
+    setTimeout(() => {
+      if (containerRef.current) {
+        const scrollHeight = containerRef.current.scrollHeight;
+        containerRef.current.scrollTop = scrollHeight;
+      }
+      
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+      }
+    }, 100);
+  }, [scrollLocked]);
   
   // 스트리밍 중지 함수
   const stopResponseGeneration = useCallback(() => {
@@ -849,246 +888,373 @@ function ChatContainer({
     }, 800);
   }, []);
   
+  // 메시지 변경 시 스크롤 이벤트
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
+  
   // 메시지 배열 변경 시 스크롤 강제 이동
   useEffect(() => {
     // 메시지가 변경되면 (새 메시지 추가, 메시지 로드 등) 스크롤 강제 이동
     if (!messages.length) return;
     
-    // 스크롤 함수
-    const scrollToBottomForced = () => {
-      // 컨테이너 직접 스크롤
-      if (containerRef.current) {
-        const scrollHeight = containerRef.current.scrollHeight;
-        containerRef.current.scrollTop = scrollHeight;
-      }
-      
-      // messagesEndRef 스크롤
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: "auto" });
-      }
-    };
-    
     // 즉시 실행
-    scrollToBottomForced();
+    scrollToBottom();
     
-    // 약간의 지연 후 다시 실행 (렌더링 완료 보장)
-    setTimeout(scrollToBottomForced, 100);
-    setTimeout(scrollToBottomForced, 500);
-    setTimeout(scrollToBottomForced, 1000);
-    
-  }, [messages]); // messages 배열이 변경될 때마다 실행
-
-  // 채팅 스크롤 이벤트 리스너 추가 - 대화창 전환 시 스크롤 자동 이동
-  useEffect(() => {
-    const handleChatScroll = () => {
-      // 스크롤을 최신 메시지로 강제 이동 - 여러 방법 조합
-      
-      // 1. 컨테이너의 scrollTop 직접 조작 (가장 강력한 방법)
-      if (containerRef.current) {
-        const scrollHeight = containerRef.current.scrollHeight;
-        containerRef.current.scrollTop = scrollHeight;
-      }
-      
-      // 2. messagesEndRef를 이용한 scrollIntoView
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: "auto" });
-      }
-      
-      // 3. 시간차를 두고 여러 번 스크롤 시도 (지연시간 다르게)
-      const scrollAttempts = [10, 50, 100, 300, 500, 800];
-      
-      scrollAttempts.forEach(delay => {
-        setTimeout(() => {
-          // 컨테이너 직접 스크롤
-          if (containerRef.current) {
-            const scrollHeight = containerRef.current.scrollHeight;
-            containerRef.current.scrollTop = scrollHeight;
-          }
-          
-          // messagesEndRef 스크롤
-          if (messagesEndRef.current) {
-            messagesEndRef.current.scrollIntoView({ behavior: "auto" });
-          }
-        }, delay);
-      });
-    };
-    
-    // chatScrollToBottom 이벤트 리스너 등록
-    window.addEventListener('chatScrollToBottom', handleChatScroll);
-    
-    // 컴포넌트 마운트 시 자동 스크롤
-    handleChatScroll();
-    
-    return () => {
-      window.removeEventListener('chatScrollToBottom', handleChatScroll);
-    };
-  }, [messages.length]); // messages.length가 변경될 때마다 실행되도록 의존성 배열 설정
+  }, [messages, scrollToBottom]);
 
   // activeConversationId가 변경될 때마다 자동 스크롤
   useEffect(() => {
     if (!activeConversationId) return;
     
-    // 대화 ID가 변경되면 강제 스크롤 실행
-    const forceScrollToBottom = () => {
-      // 컨테이너 직접 스크롤
-      if (containerRef.current) {
-        const scrollHeight = containerRef.current.scrollHeight;
-        containerRef.current.scrollTop = scrollHeight;
-      }
-      
-      // messagesEndRef 스크롤
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: "auto" });
-      }
-    };
-    
     // 즉시 실행
-    forceScrollToBottom();
-    
-    // 타이핑 애니메이션이 끝날 때까지 지속적으로 스크롤 이벤트 트리거 (약 10초간)
-    // 초기 1초 동안은 짧은 간격으로 스크롤
-    for (let i = 1; i <= 10; i++) {
-      setTimeout(forceScrollToBottom, i * 100); // 100ms 간격으로 1초간 실행
-    }
-    
-    // 그 후 10초까지 긴 간격으로 스크롤 지속
-    const longDelays = [1500, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000];
-    longDelays.forEach(delay => {
-      setTimeout(forceScrollToBottom, delay);
-    });
-    
-  }, [activeConversationId]);
-
-  // 임베딩 완료 후 파일 목록 자동 새로고침
-  useEffect(() => {
-    if (!isEmbedding) {
-      // 임베딩이 끝나면 파일 목록 갱신 (isEmbedding이 true에서 false로 변경될 때)
-      const refreshTimeout = setTimeout(() => {
-        if (fileManagerOpen) {
-          // 이미 열려있으면 목록만 새로고침 (모달 내부의 loadFiles 함수 호출)
-          const refreshEvent = new CustomEvent('forceRefreshFiles');
-          window.dispatchEvent(refreshEvent);
-        }
-      }, 1000); // 서버에서 인덱싱 완료 후 약간의 지연시간을 두고 새로고침
-      
-      return () => clearTimeout(refreshTimeout);
-    }
-  }, [isEmbedding, fileManagerOpen]);
-
-  // 드래그 앤 드롭 이벤트 핸들러 설정
-  useEffect(() => {
-    const dropZone = dropZoneRef.current;
-    if (!dropZone) return;
-
-    const handleDragOver = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(true);
-    };
-    
-    const handleDragEnter = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(true);
-    };
-    
-    const handleDragLeave = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
-      
-      // 부모 요소 밖으로 나갔을 때만 드래그 상태 해제
-      const rect = dropZoneRef.current.getBoundingClientRect();
-      if (
-        e.clientX <= rect.left ||
-        e.clientX >= rect.right ||
-        e.clientY <= rect.top ||
-        e.clientY >= rect.bottom
-      ) {
-        setIsDragging(false);
-      }
-    };
-    
-    const handleDrop = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
-      
-      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        // 파일 업로드 모달 열기
-        const droppedFiles = Array.from(e.dataTransfer.files);
-        
-        // ChatInput 컴포넌트 참조를 통해 메서드 호출
-        if (chatInputRef.current && typeof chatInputRef.current.handleDroppedFiles === 'function') {
-          chatInputRef.current.handleDroppedFiles(droppedFiles);
-        } else {
-          console.error('chatInputRef.current.handleDroppedFiles is not a function or chatInputRef is null');
-        }
-      }
-    };
-    
-    dropZone.addEventListener('dragover', handleDragOver);
-    dropZone.addEventListener('dragenter', handleDragEnter);
-    dropZone.addEventListener('dragleave', handleDragLeave);
-    dropZone.addEventListener('drop', handleDrop);
-    
-    return () => {
-      dropZone.removeEventListener('dragover', handleDragOver);
-      dropZone.removeEventListener('dragenter', handleDragEnter);
-      dropZone.removeEventListener('dragleave', handleDragLeave);
-      dropZone.removeEventListener('drop', handleDrop);
-    };
-  }, [chatInputRef]);
-
-  const scrollToBottom = useCallback(() => {
-    if (!containerRef.current || scrollLocked) return;
-
-    // 스크롤을 최하단으로 이동하기 위한 다양한 방법 조합
-    
-    // 1. 컨테이너의 scrollTop 직접 조작
     if (containerRef.current) {
       const scrollHeight = containerRef.current.scrollHeight;
       containerRef.current.scrollTop = scrollHeight;
     }
     
-    // 2. messagesEndRef를 이용한 scrollIntoView
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "auto" });
     }
     
-    // 3. 약간의 지연 후 한번 더 스크롤 시도
+    // 타이핑 애니메이션이 끝날 때까지 지속적으로 스크롤 이벤트 트리거 (약 10초간)
+    // 초기 1초 동안은 짧은 간격으로 스크롤
+    for (let i = 1; i <= 10; i++) {
+      setTimeout(() => {
+        if (containerRef.current) {
+          const scrollHeight = containerRef.current.scrollHeight;
+          containerRef.current.scrollTop = scrollHeight;
+        }
+        
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+        }
+      }, i * 100); // 100ms 간격으로 1초간 실행
+    }
+    
+    // 그 후 10초까지 긴 간격으로 스크롤 지속
+    const longDelays = [1500, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000];
+    longDelays.forEach(delay => {
+      setTimeout(() => {
+        if (containerRef.current) {
+          const scrollHeight = containerRef.current.scrollHeight;
+          containerRef.current.scrollTop = scrollHeight;
+        }
+        
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+        }
+      }, delay);
+    });
+    
+  }, [activeConversationId]);
+
+  // 스크롤을 맨 위로 이동하는 함수 추가
+  const scrollToTop = () => { 
+    if (containerRef.current) {
+      containerRef.current.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+    }
+  };
+  
+  // 빈 채팅 화면 워터마크 컴포넌트
+  const EmptyChatWatermark = () => {
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+        <div className="flex flex-col items-center justify-center max-w-2xl px-6 py-8 text-center">
+          {/* 물결 애니메이션 배경 효과 */}
+          <div className="absolute inset-0 overflow-hidden opacity-10">
+            <div className="absolute inset-x-0 top-1/4 w-full h-64 bg-gradient-to-r from-indigo-600/30 to-purple-600/30 rounded-full filter blur-3xl transform -translate-y-20 scale-150 animate-pulse" style={{ animationDuration: '8s' }}></div>
+            <div className="absolute inset-x-0 top-1/3 w-full h-64 bg-gradient-to-r from-blue-600/30 to-cyan-600/30 rounded-full filter blur-3xl transform translate-y-16 scale-125 animate-pulse" style={{ animationDuration: '10s', animationDelay: '1s' }}></div>
+          </div>
+          
+          {/* 아이콘 컨테이너 - 문서 아이콘으로 변경 */}
+          <div className="relative mb-8">
+            <div className="absolute -inset-0 rounded-full bg-gradient-to-r from-blue-500/20 to-indigo-600/20 animate-ping opacity-30" style={{ animationDuration: '3s' }}></div>
+            <div className="absolute -inset-4 rounded-full bg-gradient-to-r from-blue-500/10 to-indigo-600/10 animate-ping opacity-20" style={{ animationDuration: '3.5s' }}></div>
+            <div className="absolute -inset-8 rounded-full bg-gradient-to-r from-blue-500/5 to-indigo-600/5 animate-ping opacity-10" style={{ animationDuration: '4s' }}></div>
+            
+            <div className="relative w-24 h-24 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500/30 to-indigo-600/30 rounded-full flex items-center justify-center">
+                <div className="w-16 h-16 bg-gray-900/80 rounded-full flex items-center justify-center ring-2 ring-blue-500/30">
+                  <FiFileText className="text-blue-400 animate-pulse" style={{ animationDuration: '2s' }} size={30} />
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* 텍스트 영역 - 부드러운 페이드인 애니메이션 */}
+          <div className="space-y-4 animate-fade-in-up">
+            <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-200 to-indigo-300 mb-2">
+              문서 기반 질의응답 챗봇
+            </h2>
+            <p className="text-base text-gray-400 mb-6 max-w-lg leading-relaxed">
+              업로드한 문서에 관련된 질문을 해보세요. <br />정확한 정보와 함께 답변해 드립니다.
+            </p>
+          </div>
+          
+          {/* 기능 설명 카드 영역 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-md text-left mt-4 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
+            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-blue-500/30 transition-all duration-300 transform hover:-translate-y-1">
+              <div className="flex-shrink-0 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 p-2 rounded-md mr-3">
+                <FiSearch className="text-blue-400" size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-200">정보 검색</h3>
+                <p className="text-xs text-gray-500 mt-1">문서 내 관련 정보를 검색해 답변합니다</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-blue-500/30 transition-all duration-300 transform hover:-translate-y-1">
+              <div className="flex-shrink-0 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 p-2 rounded-md mr-3">
+                <FiFileText className="text-blue-400" size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-200">문서 요약</h3>
+                <p className="text-xs text-gray-500 mt-1">주요 내용을 간결하게 요약해 드립니다</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-blue-500/30 transition-all duration-300 transform hover:-translate-y-1">
+              <div className="flex-shrink-0 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 p-2 rounded-md mr-3">
+                <FiMessageCircle className="text-blue-400" size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-200">질의응답</h3>
+                <p className="text-xs text-gray-500 mt-1">문서 기반 질문에 정확히 답변합니다</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-blue-500/30 transition-all duration-300 transform hover:-translate-y-1">
+              <div className="flex-shrink-0 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 p-2 rounded-md mr-3">
+                <FiBookmark className="text-blue-400" size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-200">출처 제공</h3>
+                <p className="text-xs text-gray-500 mt-1">답변의 정확한 출처를 함께 제공합니다</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* 시작 도움말 - 하단 안내 문구 */}
+          <div className="mt-10 flex items-center text-gray-500 text-sm animate-fade-in-up" style={{ animationDelay: '400ms' }}>
+            <FiCornerDownRight className="mr-2 text-blue-400" size={16} />
+            <span>입력창에 질문을 입력하면 워터마크가 사라지고 대화가 시작됩니다</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // 메시지 렌더링 함수 추가
+  const renderMessages = () => {
+    // 필터된 메시지 또는 전체 메시지를 기준으로 렌더링
+    const messagesToRender = searchTerm ? filteredMessages : messages;
+    
+    // 메시지 목록과 워터마크를 함께 표시하는 방식으로 변경
+    // 사용자 메시지가 없는 경우에만 워터마크 표시
+    const hasUserMessage = messages.some(msg => msg.role === 'user');
+    
+    // 메시지가 없거나, 유일한 메시지가 "안녕하세요! 무엇을 도와드릴까요?"인 경우 워터마크 표시
+    const showWatermark = !hasUserMessage;
+    
+    return (
+      <>
+        {/* 메시지 목록 출력 */}
+        {messagesToRender.map((message, index) => {
+          const prevMessage = index > 0 ? messagesToRender[index - 1] : null;
+          const nextMessage = index < messagesToRender.length - 1 ? messagesToRender[index + 1] : null;
+          
+          // 고유한 key 생성 (timestamp + index 조합)
+          const messageKey = `${message.timestamp || Date.now()}-${index}`;
+          
+          return (
+            <ChatMessage
+              key={messageKey}
+              message={message}
+              searchTerm={searchTerm}
+              isSearchMode={!!searchTerm}
+              prevMessage={prevMessage}
+              nextMessage={nextMessage}
+              onAskFollowUp={handleAskFollowUp}
+            />
+          );
+        })}
+        
+        {/* 사용자 메시지가 없을 때만 워터마크 표시 */}
+        {showWatermark && <EmptyChatWatermark />}
+      </>
+    );
+  };
+  
+  // 파일 관리 버튼 클릭 핸들러
+  const handleFileManager = () => {
+    if (setFileManagerOpen) {
+      setFileManagerOpen(true);
+    }
+  };
+  
+  // 후속 질문 핸들러
+  const handleAskFollowUp = (question) => {
+    if (!question || !chatInputRef.current) return;
+    
+    // 채팅 입력창에 질문 설정 후 자동 포커스
+    chatInputRef.current.clear();
     setTimeout(() => {
-      if (containerRef.current) {
-        const scrollHeight = containerRef.current.scrollHeight;
-        containerRef.current.scrollTop = scrollHeight;
+      if (chatInputRef.current) {
+        chatInputRef.current.setMessage(question);
+        chatInputRef.current.focus();
       }
+    }, 50);
+  };
+  
+  // 새 대화 시작 핸들러 - 모달 없이 바로 새 대화 생성으로 수정
+  const handleStartNewChat = () => {
+    if (onNewConversation) {
+      // 모달 대신 바로 기본 제목("새 대화" 또는 "대화 N")으로 대화 생성
+      onNewConversation(null, "메뉴얼");
       
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: "auto" });
-      }
-    }, 100);
-  }, [scrollLocked]);
+      // 새 대화 생성 후 입력 필드에 포커스 (추가 지연 적용)
+      console.log('ChatContainer: 새 대화 시작 후 포커스 이벤트 발생');
+      setTimeout(() => {
+        if (chatInputRef.current) {
+          chatInputRef.current.focus();
+        }
+        window.dispatchEvent(new CustomEvent('chatInputFocus'));
+      }, 800);
+    }
+  };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const handleScroll = () => {
-      if (container.scrollTop < -200) {
-        setShowScrollToTop(true);
-      } else {
-        setShowScrollToTop(false);
+  // 모드 전환 토글 컴포넌트 추가
+  const ModeToggleSwitch = () => {
+    // 사용자 상호작용 시 토글 상태 변경
+    const handleToggleMode = (newMode) => (e) => {
+      // 이벤트 버블링 방지
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // 같은 모드를 다시 클릭한 경우 무시
+      if (currentMode === newMode) return;
+      
+      try {
+        // 해당 모드로 전환
+        if (typeof setMode === 'function') {
+          setMode(newMode);
+        
+          // 버튼 효과
+          const button = e.currentTarget;
+          button.classList.add('scale-95');
+          setTimeout(() => {
+            button.classList.remove('scale-95');
+          }, 200);
+          
+          // 클릭 효과음 (향후 추가 가능)
+          // const audio = new Audio('/sounds/switch-click.mp3');
+          // audio.volume = 0.2;
+          // audio.play().catch(e => console.log('오디오 재생 실패:', e));
+        } else {
+          console.error('setMode가 함수가 아닙니다:', setMode);
+        }
+      } catch (err) {
+        console.error('모드 전환 중 오류 발생:', err);
       }
     };
 
-    container.addEventListener("scroll", handleScroll);
-    return () => container.removeEventListener("scroll", handleScroll);
-  }, []);
+    // props로 전달받은 현재 모드 사용 (fallback으로 window.currentAppMode도 확인)
+    const mode = currentMode || (typeof window !== 'undefined' && window.currentAppMode) || 'chat';
 
+    return (
+      <div className="fixed right-6 top-1/2 transform -translate-y-1/2 z-20">
+        <div className="bg-gray-800/90 backdrop-blur-md rounded-full p-2 shadow-lg border border-gray-700/50 flex flex-col gap-3">
+          {/* 배경 효과 - 활성화된 모드에 따라 움직임 */}
+          <div className="absolute inset-x-1.5 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500/20 to-indigo-600/20 filter blur-sm transition-all duration-300 ease-in-out pointer-events-none" 
+               style={{ 
+                 top: mode === 'chat' ? '0.4rem' : mode === 'sql' ? '2.9rem' : '5.4rem',
+                 opacity: 0.7
+               }}>
+          </div>
+          
+          {/* 챗봇 모드 버튼 */}
+          <button 
+            onClick={handleToggleMode('chat')}
+            className={`relative transition-all duration-300 w-8 h-8 rounded-full flex items-center justify-center ${
+              mode === 'chat' 
+                ? 'bg-gradient-to-br from-blue-500/80 to-indigo-600/80 text-white shadow-md shadow-blue-500/20' 
+                : 'bg-gray-800/80 text-gray-400 hover:text-gray-200 hover:bg-gray-700/60'
+            }`}
+            title="챗봇 모드로 전환"
+            data-testid="chat-mode-toggle"
+          >
+            {/* 활성화 효과 - 고리 애니메이션 */}
+            {mode === 'chat' && (
+              <>
+                <div className="absolute inset-0 rounded-full border border-blue-400/30 animate-ping opacity-30"></div>
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-blue-500/5 to-indigo-600/5 animate-pulse"></div>
+              </>
+            )}
+            
+            <FiMessageCircle size={14} className="transition-all duration-300" />
+          </button>
+          
+          {/* SQL 모드 버튼 */}
+          <button 
+            onClick={handleToggleMode('sql')}
+            className={`relative transition-all duration-300 w-8 h-8 rounded-full flex items-center justify-center ${
+              mode === 'sql' 
+                ? 'bg-gradient-to-br from-indigo-500/80 to-purple-600/80 text-white shadow-md shadow-indigo-500/20' 
+                : 'bg-gray-800/80 text-gray-400 hover:text-gray-200 hover:bg-gray-700/60'
+            }`}
+            title="SQL 질의 모드로 전환"
+            data-testid="sql-mode-toggle"
+          >
+            {/* 활성화 효과 - 고리 애니메이션 */}
+            {mode === 'sql' && (
+              <>
+                <div className="absolute inset-0 rounded-full border border-indigo-400/30 animate-ping opacity-30"></div>
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-500/5 to-purple-600/5 animate-pulse"></div>
+              </>
+            )}
+            
+            <FiDatabase size={14} className="transition-all duration-300" />
+          </button>
+          
+          {/* 대시보드 모드 버튼 */}
+          <button 
+            onClick={handleToggleMode('dashboard')}
+            className={`relative transition-all duration-300 w-8 h-8 rounded-full flex items-center justify-center ${
+              mode === 'dashboard' 
+                ? 'bg-gradient-to-br from-emerald-500/80 to-teal-600/80 text-white shadow-md shadow-emerald-500/20' 
+                : 'bg-gray-800/80 text-gray-400 hover:text-gray-200 hover:bg-gray-700/60'
+            }`}
+            title="대시보드 모드로 전환"
+            data-testid="dashboard-mode-toggle"
+          >
+            {/* 활성화 효과 - 고리 애니메이션 */}
+            {mode === 'dashboard' && (
+              <>
+                <div className="absolute inset-0 rounded-full border border-emerald-400/30 animate-ping opacity-30"></div>
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-emerald-500/5 to-teal-600/5 animate-pulse"></div>
+              </>
+            )}
+            
+            <FiBarChart2 size={14} className="transition-all duration-300" />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const handleStopResponse = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = new AbortController();
+      setIsStreaming(false);
+    }
+  };
+
+  // 메시지 전송 핸들러 추가
   const handleSubmit = async (input, selectedCategory) => {
     if (!input.trim()) return;
 
@@ -1268,6 +1434,11 @@ function ChatContainer({
       
       onUpdateMessages([...updatedMessages, finalBotMessage]);
       
+      // 스트리밍 완료 후 포커스 설정
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('chatInputFocus'));
+      }, 100);
+      
     } catch (error) {
       // AbortError는 사용자가 의도적으로 중단한 경우이므로 일반 오류로 처리하지 않음
       if (error.name === 'AbortError') {
@@ -1284,307 +1455,11 @@ function ChatContainer({
       // setIsStreaming(false); // App.jsx에서 관리하므로 주석 처리 또는 삭제
       // abortControllerRef.current = null; // App.jsx에서 관리하므로 주석 처리 또는 삭제
       console.log("ChatContainer: handleSubmit finally - 로딩 상태 비활성화");
-    }
-  };
-
-  const scrollToTop = () => { 
-    containerRef.current?.scrollTo({
-      top: 0,
-      behavior: "smooth"
-    });
-  };
-
-  // 빈 채팅 화면 워터마크 컴포넌트
-  const EmptyChatWatermark = () => {
-    return (
-      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-        <div className="flex flex-col items-center justify-center max-w-2xl px-6 py-8 text-center">
-          {/* 물결 애니메이션 배경 효과 */}
-          <div className="absolute inset-0 overflow-hidden opacity-10">
-            <div className="absolute inset-x-0 top-1/4 w-full h-64 bg-gradient-to-r from-indigo-600/30 to-purple-600/30 rounded-full filter blur-3xl transform -translate-y-20 scale-150 animate-pulse" style={{ animationDuration: '8s' }}></div>
-            <div className="absolute inset-x-0 top-1/3 w-full h-64 bg-gradient-to-r from-blue-600/30 to-cyan-600/30 rounded-full filter blur-3xl transform translate-y-16 scale-125 animate-pulse" style={{ animationDuration: '10s', animationDelay: '1s' }}></div>
-          </div>
-          
-          {/* 아이콘 컨테이너 - 문서 아이콘으로 변경 */}
-          <div className="relative mb-8">
-            <div className="absolute -inset-0 rounded-full bg-gradient-to-r from-blue-500/20 to-indigo-600/20 animate-ping opacity-30" style={{ animationDuration: '3s' }}></div>
-            <div className="absolute -inset-4 rounded-full bg-gradient-to-r from-blue-500/10 to-indigo-600/10 animate-ping opacity-20" style={{ animationDuration: '3.5s' }}></div>
-            <div className="absolute -inset-8 rounded-full bg-gradient-to-r from-blue-500/5 to-indigo-600/5 animate-ping opacity-10" style={{ animationDuration: '4s' }}></div>
-            
-            <div className="relative w-24 h-24 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 rounded-full flex items-center justify-center backdrop-blur-sm">
-              <div className="w-20 h-20 bg-gradient-to-br from-blue-500/30 to-indigo-600/30 rounded-full flex items-center justify-center">
-                <div className="w-16 h-16 bg-gray-900/80 rounded-full flex items-center justify-center ring-2 ring-blue-500/30">
-                  <FiFileText className="text-blue-400 animate-pulse" style={{ animationDuration: '2s' }} size={30} />
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* 텍스트 영역 - 부드러운 페이드인 애니메이션 */}
-          <div className="space-y-4 animate-fade-in-up">
-            <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-200 to-indigo-300 mb-2">
-              문서 기반 질의응답 챗봇
-            </h2>
-            <p className="text-base text-gray-400 mb-6 max-w-lg leading-relaxed">
-              업로드한 문서에 관련된 질문을 해보세요. <br />정확한 정보와 함께 답변해 드립니다.
-            </p>
-          </div>
-          
-          {/* 기능 설명 카드 영역 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-md text-left mt-4 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
-            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-blue-500/30 transition-all duration-300 transform hover:-translate-y-1">
-              <div className="flex-shrink-0 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 p-2 rounded-md mr-3">
-                <FiSearch className="text-blue-400" size={18} />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-200">정보 검색</h3>
-                <p className="text-xs text-gray-500 mt-1">문서 내 관련 정보를 검색해 답변합니다</p>
-              </div>
-            </div>
-            
-            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-blue-500/30 transition-all duration-300 transform hover:-translate-y-1">
-              <div className="flex-shrink-0 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 p-2 rounded-md mr-3">
-                <FiFileText className="text-blue-400" size={18} />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-200">문서 요약</h3>
-                <p className="text-xs text-gray-500 mt-1">주요 내용을 간결하게 요약해 드립니다</p>
-              </div>
-            </div>
-            
-            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-blue-500/30 transition-all duration-300 transform hover:-translate-y-1">
-              <div className="flex-shrink-0 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 p-2 rounded-md mr-3">
-                <FiMessageCircle className="text-blue-400" size={18} />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-200">질의응답</h3>
-                <p className="text-xs text-gray-500 mt-1">문서 기반 질문에 정확히 답변합니다</p>
-              </div>
-            </div>
-            
-            <div className="flex items-start p-3 rounded-lg bg-gray-800/40 border border-gray-700/50 backdrop-blur-sm hover:bg-gray-800/60 hover:border-blue-500/30 transition-all duration-300 transform hover:-translate-y-1">
-              <div className="flex-shrink-0 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 p-2 rounded-md mr-3">
-                <FiBookmark className="text-blue-400" size={18} />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-200">출처 제공</h3>
-                <p className="text-xs text-gray-500 mt-1">답변의 정확한 출처를 함께 제공합니다</p>
-              </div>
-            </div>
-          </div>
-          
-          {/* 시작 도움말 - 하단 안내 문구 */}
-          <div className="mt-10 flex items-center text-gray-500 text-sm animate-fade-in-up" style={{ animationDelay: '400ms' }}>
-            <FiCornerDownRight className="mr-2 text-blue-400" size={16} />
-            <span>입력창에 질문을 입력하면 워터마크가 사라지고 대화가 시작됩니다</span>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderMessages = () => {
-    // 필터된 메시지 또는 전체 메시지를 기준으로 렌더링
-    const messagesToRender = searchTerm ? filteredMessages : messages;
-    
-    // 메시지 목록과 워터마크를 함께 표시하는 방식으로 변경
-    // 사용자 메시지가 없는 경우에만 워터마크 표시
-    const hasUserMessage = messages.some(msg => msg.role === 'user');
-    
-    // 메시지가 없거나, 유일한 메시지가 "안녕하세요! 무엇을 도와드릴까요?"인 경우 워터마크 표시
-    const showWatermark = !hasUserMessage;
-    
-    return (
-      <>
-        {/* 메시지 목록 출력 */}
-        {messagesToRender.map((message, index) => {
-      const prevMessage = index > 0 ? messagesToRender[index - 1] : null;
-      const nextMessage = index < messagesToRender.length - 1 ? messagesToRender[index + 1] : null;
       
-      // 고유한 key 생성 (timestamp + index 조합)
-      const messageKey = `${message.timestamp || Date.now()}-${index}`;
-      
-      return (
-        <ChatMessage
-          key={messageKey}
-          message={message}
-          searchTerm={searchTerm}
-          isSearchMode={!!searchTerm}
-          prevMessage={prevMessage}
-          nextMessage={nextMessage}
-          onAskFollowUp={handleAskFollowUp}
-        />
-      );
-        })}
-        
-        {/* 사용자 메시지가 없을 때만 워터마크 표시 */}
-        {showWatermark && <EmptyChatWatermark />}
-      </>
-    );
-  };
-
-  // 파일 관리 버튼 클릭 핸들러
-  const handleFileManager = () => {
-    if (setFileManagerOpen) {
-      setFileManagerOpen(true);
-    }
-  };
-
-  // 후속 질문 핸들러
-  const handleAskFollowUp = (question) => {
-    if (!question || !chatInputRef.current) return;
-    
-    // 채팅 입력창에 질문 설정 후 자동 포커스
-    chatInputRef.current.clear();
-    setTimeout(() => {
-      if (chatInputRef.current) {
-        chatInputRef.current.setMessage(question);
-        chatInputRef.current.focus();
-      }
-    }, 50);
-  };
-  
-  // 새 대화 시작 핸들러 - 모달 없이 바로 새 대화 생성으로 수정
-  const handleStartNewChat = () => {
-    if (onNewConversation) {
-      // 모달 대신 바로 기본 제목("새 대화" 또는 "대화 N")으로 대화 생성
-      onNewConversation(null, "메뉴얼");
-      
-      // 새 대화 생성 후 입력 필드에 포커스 (추가 지연 적용)
-      console.log('ChatContainer: 새 대화 시작 후 포커스 이벤트 발생');
+      // 응답 완료 후 포커스 설정
       setTimeout(() => {
-        if (chatInputRef.current) {
-          chatInputRef.current.focus();
-        }
         window.dispatchEvent(new CustomEvent('chatInputFocus'));
-      }, 800);
-    }
-  };
-
-  // 모드 전환 토글 컴포넌트 추가
-  const ModeToggleSwitch = () => {
-    // 사용자 상호작용 시 토글 상태 변경
-    const handleToggleMode = (newMode) => (e) => {
-      // 이벤트 버블링 방지
-      e.preventDefault();
-      e.stopPropagation();
-      
-      // 같은 모드를 다시 클릭한 경우 무시
-      if (currentMode === newMode) return;
-      
-      try {
-        // 해당 모드로 전환
-        if (typeof setMode === 'function') {
-          setMode(newMode);
-        
-          // 버튼 효과
-          const button = e.currentTarget;
-          button.classList.add('scale-95');
-          setTimeout(() => {
-            button.classList.remove('scale-95');
-          }, 200);
-          
-          // 클릭 효과음 (향후 추가 가능)
-          // const audio = new Audio('/sounds/switch-click.mp3');
-          // audio.volume = 0.2;
-          // audio.play().catch(e => console.log('오디오 재생 실패:', e));
-        } else {
-          console.error('setMode가 함수가 아닙니다:', setMode);
-        }
-      } catch (err) {
-        console.error('모드 전환 중 오류 발생:', err);
-      }
-    };
-
-    // props로 전달받은 현재 모드 사용 (fallback으로 window.currentAppMode도 확인)
-    const mode = currentMode || (typeof window !== 'undefined' && window.currentAppMode) || 'chat';
-
-    return (
-      <div className="fixed right-6 top-1/2 transform -translate-y-1/2 z-20">
-        <div className="bg-gray-800/90 backdrop-blur-md rounded-full p-2 shadow-lg border border-gray-700/50 flex flex-col gap-3">
-          {/* 배경 효과 - 활성화된 모드에 따라 움직임 */}
-          <div className="absolute inset-x-1.5 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500/20 to-indigo-600/20 filter blur-sm transition-all duration-300 ease-in-out pointer-events-none" 
-               style={{ 
-                 top: mode === 'chat' ? '0.4rem' : mode === 'sql' ? '2.9rem' : '5.4rem',
-                 opacity: 0.7
-               }}>
-          </div>
-          
-          {/* 챗봇 모드 버튼 */}
-          <button 
-            onClick={handleToggleMode('chat')}
-            className={`relative transition-all duration-300 w-8 h-8 rounded-full flex items-center justify-center ${
-              mode === 'chat' 
-                ? 'bg-gradient-to-br from-blue-500/80 to-indigo-600/80 text-white shadow-md shadow-blue-500/20' 
-                : 'bg-gray-800/80 text-gray-400 hover:text-gray-200 hover:bg-gray-700/60'
-            }`}
-            title="챗봇 모드로 전환"
-            data-testid="chat-mode-toggle"
-          >
-            {/* 활성화 효과 - 고리 애니메이션 */}
-            {mode === 'chat' && (
-              <>
-                <div className="absolute inset-0 rounded-full border border-blue-400/30 animate-ping opacity-30"></div>
-                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-blue-500/5 to-indigo-600/5 animate-pulse"></div>
-              </>
-            )}
-            
-            <FiMessageCircle size={14} className="transition-all duration-300" />
-          </button>
-          
-          {/* SQL 모드 버튼 */}
-          <button 
-            onClick={handleToggleMode('sql')}
-            className={`relative transition-all duration-300 w-8 h-8 rounded-full flex items-center justify-center ${
-              mode === 'sql' 
-                ? 'bg-gradient-to-br from-indigo-500/80 to-purple-600/80 text-white shadow-md shadow-indigo-500/20' 
-                : 'bg-gray-800/80 text-gray-400 hover:text-gray-200 hover:bg-gray-700/60'
-            }`}
-            title="SQL 질의 모드로 전환"
-            data-testid="sql-mode-toggle"
-          >
-            {/* 활성화 효과 - 고리 애니메이션 */}
-            {mode === 'sql' && (
-              <>
-                <div className="absolute inset-0 rounded-full border border-indigo-400/30 animate-ping opacity-30"></div>
-                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-500/5 to-purple-600/5 animate-pulse"></div>
-              </>
-            )}
-            
-            <FiDatabase size={14} className="transition-all duration-300" />
-          </button>
-          
-          {/* 대시보드 모드 버튼 */}
-          <button 
-            onClick={handleToggleMode('dashboard')}
-            className={`relative transition-all duration-300 w-8 h-8 rounded-full flex items-center justify-center ${
-              mode === 'dashboard' 
-                ? 'bg-gradient-to-br from-emerald-500/80 to-teal-600/80 text-white shadow-md shadow-emerald-500/20' 
-                : 'bg-gray-800/80 text-gray-400 hover:text-gray-200 hover:bg-gray-700/60'
-            }`}
-            title="대시보드 모드로 전환"
-            data-testid="dashboard-mode-toggle"
-          >
-            {/* 활성화 효과 - 고리 애니메이션 */}
-            {mode === 'dashboard' && (
-              <>
-                <div className="absolute inset-0 rounded-full border border-emerald-400/30 animate-ping opacity-30"></div>
-                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-emerald-500/5 to-teal-600/5 animate-pulse"></div>
-              </>
-            )}
-            
-            <FiBarChart2 size={14} className="transition-all duration-300" />
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  const handleStopResponse = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = new AbortController();
-      setIsStreaming(false);
+      }, 100);
     }
   };
 
