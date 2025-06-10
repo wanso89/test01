@@ -835,9 +835,18 @@ function ChatContainer({
     }
   }, [onStopGeneration]);
 
-  // 스타일 주입
+  // 스타일 주입 및 초기 포커스 설정
   useEffect(() => {
     injectGlobalStyles();
+    
+    // 컴포넌트 마운트 시 입력 필드에 포커스
+    console.log('ChatContainer: 컴포넌트 마운트 시 포커스 이벤트 발생');
+    setTimeout(() => {
+      if (chatInputRef.current) {
+        chatInputRef.current.focus();
+      }
+      window.dispatchEvent(new CustomEvent('chatInputFocus'));
+    }, 800);
   }, []);
   
   // 메시지 배열 변경 시 스크롤 강제 이동
@@ -1440,6 +1449,15 @@ function ChatContainer({
     if (onNewConversation) {
       // 모달 대신 바로 기본 제목("새 대화" 또는 "대화 N")으로 대화 생성
       onNewConversation(null, "메뉴얼");
+      
+      // 새 대화 생성 후 입력 필드에 포커스 (추가 지연 적용)
+      console.log('ChatContainer: 새 대화 시작 후 포커스 이벤트 발생');
+      setTimeout(() => {
+        if (chatInputRef.current) {
+          chatInputRef.current.focus();
+        }
+        window.dispatchEvent(new CustomEvent('chatInputFocus'));
+      }, 800);
     }
   };
 

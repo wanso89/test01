@@ -2001,7 +2001,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
       >
         {/* 사용자 아바타 (왼쪽) */}
         {!isUser && (
-          <div className="flex flex-col items-center">
+          <div className="flex flex-col items-center mr-3">
             {!isGrouped && (
               <span className="message-time text-xs text-gray-400 mb-1">
                 {formatMessageTime(messageTime)}
@@ -2073,7 +2073,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
         
         {/* 사용자 아바타 (오른쪽) */}
         {isUser && (
-          <div className="flex flex-col items-center">
+          <div className="flex flex-col items-center ml-3">
             {!isGrouped && (
               <span className="message-time text-xs text-gray-400 mb-1">
                 {formatMessageTime(messageTime)}

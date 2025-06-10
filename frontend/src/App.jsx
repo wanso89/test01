@@ -262,8 +262,14 @@ function App() {
       initialConvs = [newConv];
       setConversations(initialConvs);
       setActiveConversationId(newConv.id);
+      
+      // 신규 대화 생성 시 localStorage에 즉시 저장
       localStorage.setItem("conversations", JSON.stringify(initialConvs));
       localStorage.setItem("activeConversationId", JSON.stringify(newConv.id));
+      
+      // 백엔드 저장 시도 (비동기로 실행)
+      saveConversationToBackend(userId, newConv.id, newConv.messages)
+        .catch(err => console.warn("백엔드 저장 실패, 로컬에만 저장됨:", err));
     } else {
       setConversations(initialConvs);
       let initialActiveId = null;
@@ -280,7 +286,15 @@ function App() {
         initialActiveId = initialConvs[initialConvs.length - 1].id;
       }
       setActiveConversationId(initialActiveId);
+      
+      // activeConversationId 설정 시 localStorage에 즉시 저장
+      localStorage.setItem("activeConversationId", JSON.stringify(initialActiveId));
     }
+    
+    // 컴포넌트 마운트 시 입력 필드에 포커스
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('chatInputFocus'));
+    }, 800);
   }, []);
 
   // 초기 설정 로드 (로컬 스토리지 또는 백엔드) 수정
@@ -544,13 +558,13 @@ function App() {
       const newId = `conv_${Date.now()}`;
       
       // 새 대화 객체 생성 (구조 개선 - 메타데이터 추가)
-    const newConversation = {
+      const newConversation = {
         id: newId,
         title: initialTitle,
-      messages: [
+        messages: [
           // 시스템 시작 메시지 추가하여 챗봇이 먼저 인사하도록 함
-        {
-          role: "assistant",
+          {
+            role: "assistant",
             content: "안녕하세요! 무엇을 도와드릴까요?",
             sources: [],
             timestamp: Date.now(),
@@ -558,7 +572,7 @@ function App() {
         ],
         timestamp: Date.now(),
         category: category || defaultCategory,
-      pinned: false,
+        pinned: false,
         metadata: {
           messageCount: 1,
           firstMessageTimestamp: Date.now(),
@@ -566,19 +580,17 @@ function App() {
         }
       };
     
+      let updatedConversations;
+      
       // 새 대화 추가 (맨 앞 또는 맨 뒤)
       if (forceFirst) {
         // 가장 최근 대화로 추가 (맨 앞)
-        setConversations(prevConversations => [
-          newConversation,
-          ...prevConversations
-        ]);
+        updatedConversations = [newConversation, ...conversations];
+        setConversations(updatedConversations);
       } else {
         // 새 대화 추가 (맨 뒤)
-        setConversations(prevConversations => [
-          ...prevConversations,
-          newConversation
-        ]);
+        updatedConversations = [...conversations, newConversation];
+        setConversations(updatedConversations);
       }
       
       // 새 대화를 현재 활성 대화로 설정
@@ -602,6 +614,41 @@ function App() {
       if (window.innerWidth < 768) {
         setSidebarOpen(false);
       }
+      
+      // 새 대화 생성 즉시 localStorage에 저장
+      try {
+        // 직렬화 전에 DOM 요소 참조를 제거하기 위해 순수 객체만 추출
+        const cleanConversations = updatedConversations.map(conv => ({
+          id: conv.id,
+          title: conv.title,
+          timestamp: conv.timestamp,
+          pinned: !!conv.pinned,
+          messages: conv.messages.map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            timestamp: msg.timestamp || Date.now(),
+            sources: Array.isArray(msg.sources) ? msg.sources : []
+          }))
+        }));
+        
+        localStorage.setItem("conversations", JSON.stringify(cleanConversations));
+        localStorage.setItem("activeConversationId", JSON.stringify(newId));
+        console.log("새 대화 생성 후 로컬 스토리지에 즉시 저장 완료");
+        
+        // 백엔드 저장 시도 (비동기로 실행)
+        if (newConversation.messages.length > 0) {
+          saveConversationToBackend(userId, newId, newConversation.messages)
+            .catch(err => console.warn("백엔드 저장 실패, 로컬에만 저장됨:", err));
+        }
+      } catch (error) {
+        console.error("대화 저장 중 오류 발생:", error);
+      }
+      
+      // 새 대화 생성 후 입력 필드에 포커스
+      console.log('App: 새 대화 생성 후 포커스 이벤트 발생');
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('chatInputFocus'));
+      }, 500);
       
       return newId;
     } catch (error) {
@@ -639,6 +686,12 @@ function App() {
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent('chatScrollToBottom'));
     }, 800);
+    
+    // 대화 선택 후 입력 필드에 포커스
+    console.log('App: 대화 선택 후 포커스 이벤트 발생');
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('chatInputFocus'));
+    }, 1000);
   };
 
   // 대화 삭제
@@ -676,9 +729,42 @@ function App() {
 
   // 대화 제목 변경
   const handleRenameConversation = (id, newTitle) => {
-    setConversations((prev) =>
-      prev.map((conv) => (conv.id === id ? { ...conv, title: newTitle } : conv))
-    );
+    let updatedConversations;
+    setConversations((prev) => {
+      const updated = prev.map((conv) => (conv.id === id ? { ...conv, title: newTitle } : conv));
+      updatedConversations = updated;
+      return updated;
+    });
+    
+    // 제목 변경 즉시 localStorage에 저장
+    try {
+      if (updatedConversations) {
+        const cleanConversations = updatedConversations.map(conv => ({
+          id: conv.id,
+          title: conv.title,
+          timestamp: conv.timestamp,
+          pinned: !!conv.pinned,
+          messages: conv.messages.map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            timestamp: msg.timestamp || Date.now(),
+            sources: Array.isArray(msg.sources) ? msg.sources : []
+          }))
+        }));
+        
+        localStorage.setItem("conversations", JSON.stringify(cleanConversations));
+        console.log("제목 변경 후 로컬 스토리지에 즉시 저장 완료");
+        
+        // 백엔드 저장 시도 (비동기로 실행)
+        const conversation = updatedConversations.find(c => c.id === id);
+        if (conversation && conversation.messages.length > 0) {
+          saveConversationToBackend(userId, id, conversation.messages)
+            .catch(err => console.warn("백엔드 저장 실패, 로컬에만 저장됨:", err));
+        }
+      }
+    } catch (error) {
+      console.error("대화 저장 중 오류 발생:", error);
+    }
   };
 
   // 대화 즐겨찾기 토글
@@ -849,6 +935,7 @@ function App() {
     if (!activeConversationId) return;
     
     // 대화 업데이트
+    let updatedConversations;
     setConversations((prev) => {
       const updated = prev.map((conv) => {
         if (conv.id === activeConversationId) {
@@ -857,9 +944,36 @@ function App() {
         }
         return conv;
       });
+      updatedConversations = updated;
       return updated;
     });
     setCurrentMessages(updatedMessages);
+    
+    // 메시지 업데이트 즉시 localStorage에 저장
+    try {
+      // 직렬화 전에 DOM 요소 참조를 제거하기 위해 순수 객체만 추출
+      // 상태 업데이트가 비동기적이므로 방금 업데이트한 conversations를 사용할 수 없음
+      // 직접 업데이트된 대화 목록을 생성하여 저장
+      if (updatedConversations) {
+        const cleanConversations = updatedConversations.map(conv => ({
+          id: conv.id,
+          title: conv.title,
+          timestamp: conv.timestamp,
+          pinned: !!conv.pinned,
+          messages: conv.messages.map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            timestamp: msg.timestamp || Date.now(),
+            sources: Array.isArray(msg.sources) ? msg.sources : []
+          }))
+        }));
+        
+        localStorage.setItem("conversations", JSON.stringify(cleanConversations));
+        console.log("메시지 업데이트 후 로컬 스토리지에 즉시 저장 완료");
+      }
+    } catch (error) {
+      console.error("대화 저장 중 오류 발생:", error);
+    }
     
     // 자동 제목 생성 로직: 사용자 메시지가 있을 때 모든 제목에 대해 동작
     const userMessages = updatedMessages.filter(msg => msg.role === "user");
@@ -1269,6 +1383,11 @@ function App() {
           }
           return prevMessages;
         });
+        
+        // 응답 완료 후 입력 필드에 포커스
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('chatInputFocus'));
+        }, 100);
       }
     } catch (error) {
       // 중단 요청에 의한 에러인 경우 특별 처리
@@ -1292,6 +1411,11 @@ function App() {
             return [...prevMessages, errorMessage];
           }
         });
+        
+        // 오류 발생 후에도 입력 필드에 포커스
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('chatInputFocus'));
+        }, 100);
       }
     } finally {
       // 스트리밍 상태 비활성화 및 AbortController 참조 해제
@@ -1357,6 +1481,11 @@ function App() {
           ...prevMessages.slice(0, -1),
           updatedLastMessage
         ]);
+        
+        // 응답 중단 후 입력 필드에 포커스
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('chatInputFocus'));
+        }, 100);
       }
       
       console.log("App: 응답 중단 처리 완료");

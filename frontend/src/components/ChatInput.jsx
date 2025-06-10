@@ -167,6 +167,39 @@ const ChatInput = forwardRef(({ onSend, disabled, onTyping, onUploadSuccess, isE
         localStorage.removeItem('messageHistory');
       }
     }
+    
+    // 응답 완료 후 입력 필드 포커스 이벤트 리스너 추가
+    const handleChatInputFocus = () => {
+      console.log('ChatInput: 포커스 이벤트 수신됨');
+      if (textareaRef.current) {
+        // 즉시 포커스 시도
+        textareaRef.current.focus();
+        
+        // 약간의 지연 후 다시 포커스 시도 (DOM 업데이트 후)
+        setTimeout(() => {
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+            console.log('ChatInput: 지연 포커스 시도 (100ms)');
+          }
+        }, 100);
+        
+        // 더 긴 지연 후 다시 시도 (모든 렌더링 완료 후)
+        setTimeout(() => {
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+            console.log('ChatInput: 지연 포커스 시도 (300ms)');
+          }
+        }, 300);
+      }
+    };
+    
+    // 이벤트 리스너 등록
+    window.addEventListener('chatInputFocus', handleChatInputFocus);
+    
+    // 컴포넌트 언마운트 시 이벤트 리스너 제거
+    return () => {
+      window.removeEventListener('chatInputFocus', handleChatInputFocus);
+    };
   }, []);
 
   const handleKeyDown = (e) => {
