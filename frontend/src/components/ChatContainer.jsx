@@ -907,7 +907,7 @@ function ChatContainer({
   useEffect(() => {
     if (!activeConversationId) return;
     
-    // 즉시 실행
+    // 초기 로딩 시에만 스크롤 자동 이동 - 한 번만 실행
     if (containerRef.current) {
       const scrollHeight = containerRef.current.scrollHeight;
       containerRef.current.scrollTop = scrollHeight;
@@ -917,38 +917,141 @@ function ChatContainer({
       messagesEndRef.current.scrollIntoView({ behavior: "auto" });
     }
     
-    // 타이핑 애니메이션이 끝날 때까지 지속적으로 스크롤 이벤트 트리거 (약 10초간)
-    // 초기 1초 동안은 짧은 간격으로 스크롤
-    for (let i = 1; i <= 10; i++) {
-      setTimeout(() => {
-        if (containerRef.current) {
-          const scrollHeight = containerRef.current.scrollHeight;
-          containerRef.current.scrollTop = scrollHeight;
-        }
+    // 사용자 스크롤 감지 변수 추가
+    let userHasScrolled = false;
+    
+    // 스크롤 이벤트 리스너 추가
+    const handleScroll = () => {
+      if (containerRef.current) {
+        // 스크롤이 맨 아래가 아니면 사용자가 스크롤한 것으로 간주
+        const isAtBottom = 
+          containerRef.current.scrollHeight - containerRef.current.scrollTop <= 
+          containerRef.current.clientHeight + 100; // 100px 여유 추가
         
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+        if (!isAtBottom) {
+          userHasScrolled = true;
         }
-      }, i * 100); // 100ms 간격으로 1초간 실행
+      }
+    };
+    
+    // 스크롤 이벤트 리스너 등록
+    if (containerRef.current) {
+      containerRef.current.addEventListener('scroll', handleScroll);
     }
     
-    // 그 후 10초까지 긴 간격으로 스크롤 지속
-    const longDelays = [1500, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000];
-    longDelays.forEach(delay => {
+    // 초기 타이밍에만 스크롤 자동 이동 (첫 500ms 동안만)
+    const initialScrollTimers = [100, 300, 500];
+    initialScrollTimers.forEach(delay => {
       setTimeout(() => {
-        if (containerRef.current) {
+        // 사용자가 스크롤하지 않은 경우에만 자동 스크롤 수행
+        if (!userHasScrolled && containerRef.current) {
           const scrollHeight = containerRef.current.scrollHeight;
           containerRef.current.scrollTop = scrollHeight;
-        }
-        
-        if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+          
+          if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+          }
         }
       }, delay);
     });
     
+    // 이벤트 리스너 정리
+    return () => {
+      if (containerRef.current) {
+        containerRef.current.removeEventListener('scroll', handleScroll);
+      }
+    };
   }, [activeConversationId]);
 
+  // 스크롤 이벤트 감지 및 자동 스크롤 제어
+  useEffect(() => {
+    let userHasScrolled = false;
+    let scrollTimer = null;
+    
+    // 스크롤 이벤트 핸들러
+    const handleScroll = () => {
+      if (containerRef.current) {
+        // 스크롤이 맨 아래가 아니면 사용자가 스크롤한 것으로 간주
+        const isAtBottom = 
+          containerRef.current.scrollHeight - containerRef.current.scrollTop <= 
+          containerRef.current.clientHeight + 100; // 100px 여유 추가
+        
+        if (!isAtBottom) {
+          userHasScrolled = true;
+          
+          // 스크롤 버튼 표시 로직
+          if (containerRef.current.scrollTop < containerRef.current.scrollHeight - containerRef.current.clientHeight - 200) {
+            setShowScrollToTop(true);
+          } else {
+            setShowScrollToTop(false);
+          }
+        } else {
+          // 맨 아래에 도달한 경우에만 스크롤 상태 초기화
+          setShowScrollToTop(false);
+          
+          // 맨 아래에 도달해도 사용자 스크롤 상태는 유지 (강제 스크롤 방지)
+          // userHasScrolled = false; - 이 부분 제거
+        }
+      }
+    };
+    
+    // 커스텀 스크롤 이벤트 핸들러
+    const handleChatScrollToBottom = (e) => {
+      // 대화 전환 시에만 스크롤 이동 허용 (이벤트에 forceSroll 필드가 있는 경우)
+      if (e && e.detail && e.detail.forceScroll) {
+        scrollToBottom();
+        return;
+      }
+      
+      // 사용자가 수동으로 스크롤 중이면 자동 스크롤 방지
+      if (userHasScrolled) {
+        console.log('사용자가 스크롤 중이므로 자동 스크롤 방지');
+        return;
+      }
+      
+      scrollToBottom();
+    };
+    
+    // 사용자 스크롤 감지를 위한 추가 이벤트 리스너
+    const handleUserScroll = () => {
+      userHasScrolled = true;
+      
+      // 디바운스로 로그 출력 (디버깅용)
+      if (scrollTimer) clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => {
+        console.log('사용자 스크롤 감지됨');
+      }, 100);
+    };
+    
+    // 이벤트 리스너 등록
+    if (containerRef.current) {
+      containerRef.current.addEventListener('scroll', handleScroll);
+      containerRef.current.addEventListener('wheel', handleUserScroll);
+      containerRef.current.addEventListener('touchmove', handleUserScroll);
+    }
+    
+    window.addEventListener('chatScrollToBottom', handleChatScrollToBottom);
+    
+    // 스크롤 상태 리셋 함수 (대화 전환 시 사용)
+    const resetScrollState = () => {
+      userHasScrolled = false;
+    };
+    
+    // 대화 ID 변경 시 스크롤 상태 리셋
+    resetScrollState();
+    
+    // 이벤트 리스너 정리
+    return () => {
+      if (containerRef.current) {
+        containerRef.current.removeEventListener('scroll', handleScroll);
+        containerRef.current.removeEventListener('wheel', handleUserScroll);
+        containerRef.current.removeEventListener('touchmove', handleUserScroll);
+      }
+      window.removeEventListener('chatScrollToBottom', handleChatScrollToBottom);
+      if (scrollTimer) clearTimeout(scrollTimer);
+    };
+  }, [scrollToBottom, activeConversationId]);
+  
   // 스크롤을 맨 위로 이동하는 함수 추가
   const scrollToTop = () => { 
     if (containerRef.current) {
@@ -1138,28 +1241,6 @@ function ChatContainer({
       // 같은 모드를 다시 클릭한 경우 무시
       if (currentMode === newMode) return;
       
-      try {
-        // 해당 모드로 전환
-        if (typeof setMode === 'function') {
-          setMode(newMode);
-        
-          // 버튼 효과
-          const button = e.currentTarget;
-          button.classList.add('scale-95');
-          setTimeout(() => {
-            button.classList.remove('scale-95');
-          }, 200);
-          
-          // 클릭 효과음 (향후 추가 가능)
-          // const audio = new Audio('/sounds/switch-click.mp3');
-          // audio.volume = 0.2;
-          // audio.play().catch(e => console.log('오디오 재생 실패:', e));
-        } else {
-          console.error('setMode가 함수가 아닙니다:', setMode);
-        }
-      } catch (err) {
-        console.error('모드 전환 중 오류 발생:', err);
-      }
     };
 
     // props로 전달받은 현재 모드 사용 (fallback으로 window.currentAppMode도 확인)

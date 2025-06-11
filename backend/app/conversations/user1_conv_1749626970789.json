@@ -1,0 +1,22 @@
+{
+  "userId": "user1",
+  "conversationId": "conv_1749626970789",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제2조 내용",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "문서 1의 제2조 내용은 다음과 같습니다:\n\n본인은 회사가 보안 관리를 위해 다음의 모니터링 활동을 수행할 수 있으며, 이에 ",
+      "sources": []
+    }
+  ],
+  "timestamp": "2025-06-11T16:29:39.903082"
+}

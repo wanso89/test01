@@ -1,0 +1,47 @@
+{
+  "userId": "user1",
+  "conversationId": "conv_1749627014442",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "gdgddgd",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "죄송합니다만, 제공된 문서에는 \"gdgddgd\"라는 정보가 포함되어 있지 않습니다. 이는 문서에 존재하지 않는 내용입니다. 다른 질문이나 요청이 있으시다면 도와드리겠습니다.",
+      "sources": [
+        {
+          "path": "40f7926e-cc46-490a-996e-a8664ffc648e_주요정보통신기반시설_기술적_취약점_분석_평가_방법_상세가이드.pdf",
+          "display_name": "주요정보통신기반시설_기술적_취약점_분석_평가_방법_상세가이드.pdf",
+          "page": 81,
+          "chunk_id": "196",
+          "score": 3.145197599936835,
+          "is_cited": false
+        },
+        {
+          "path": "40f7926e-cc46-490a-996e-a8664ffc648e_주요정보통신기반시설_기술적_취약점_분석_평가_방법_상세가이드.pdf",
+          "display_name": "주요정보통신기반시설_기술적_취약점_분석_평가_방법_상세가이드.pdf",
+          "page": 57,
+          "chunk_id": "140",
+          "score": 3.145748350591952,
+          "is_cited": false
+        },
+        {
+          "path": "40f7926e-cc46-490a-996e-a8664ffc648e_주요정보통신기반시설_기술적_취약점_분석_평가_방법_상세가이드.pdf",
+          "display_name": "주요정보통신기반시설_기술적_취약점_분석_평가_방법_상세가이드.pdf",
+          "page": 58,
+          "chunk_id": "143",
+          "score": 3.2431925434551534,
+          "is_cited": false
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-06-11T16:30:19.053450"
+}

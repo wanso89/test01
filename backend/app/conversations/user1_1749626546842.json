@@ -1,0 +1,12 @@
+{
+  "userId": "user1",
+  "conversationId": "1749626546842",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    }
+  ],
+  "timestamp": "2025-06-11T16:22:27.555994"
+}

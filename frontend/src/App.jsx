@@ -225,70 +225,155 @@ function App() {
 
   // 초기 대화 목록 로드 (로컬 스토리지 또는 백엔드)
   useEffect(() => {
+    console.log("초기 대화 목록 로드 시작...");
+    
     const savedConversations = localStorage.getItem("conversations");
     const savedActiveId = localStorage.getItem("activeConversationId");
+    
+    console.log("로컬 스토리지 데이터:", { 
+      savedConversations: savedConversations ? "있음" : "없음", 
+      savedActiveId: savedActiveId ? savedActiveId : "없음" 
+    });
+    
     let initialConvs = [];
+    
     if (savedConversations) {
       try {
+        // 저장된 대화 파싱 시도
         initialConvs = JSON.parse(savedConversations);
-        initialConvs = initialConvs.map((conv) => ({
-          ...conv,
-          messages: conv.messages.map((msg) => ({
-            ...msg,
-            sources: msg.sources || [],
-          })),
-        }));
+        
+        // 데이터 구조 유효성 검증 및 보완
+        if (Array.isArray(initialConvs)) {
+          console.log(`로컬 스토리지에서 ${initialConvs.length}개의 대화 불러옴`);
+          
+          // 각 대화 객체 구조 보강
+          initialConvs = initialConvs.map((conv) => {
+            // 메시지가 없거나 빈 배열인 경우 초기 메시지 추가
+            const messages = Array.isArray(conv.messages) && conv.messages.length > 0 
+              ? conv.messages.map(msg => ({
+                  role: msg.role || "assistant",
+                  content: msg.content || "",
+                  timestamp: msg.timestamp || Date.now(),
+                  sources: Array.isArray(msg.sources) ? msg.sources : [],
+                }))
+              : [{
+                  role: "assistant",
+                  content: "안녕하세요! 무엇을 도와드릴까요?",
+                  sources: [],
+                  timestamp: Date.now(),
+                }];
+            
+            // 대화 객체 구조 보강
+            return {
+              id: conv.id || Date.now().toString(),
+              title: conv.title || "제목 없음",
+              timestamp: conv.timestamp || Date.now(),
+              messages: messages,
+              pinned: !!conv.pinned,
+              category: conv.category || defaultCategory,
+              metadata: conv.metadata || {
+                messageCount: messages.length,
+                firstMessageTimestamp: Date.now(),
+                lastActivity: Date.now()
+              }
+            };
+          });
+        } else {
+          console.warn("로컬 스토리지의 대화 데이터가 배열이 아님:", typeof initialConvs);
+          initialConvs = [];
+        }
       } catch (e) {
-        console.error("Error parsing conversations from localStorage:", e);
+        console.error("로컬 스토리지에서 대화 파싱 중 오류 발생:", e);
+        initialConvs = [];
+        // 손상된 데이터 제거
         localStorage.removeItem("conversations");
       }
+    } else {
+      console.log("로컬 스토리지에 저장된 대화 없음");
     }
+    
     // conversations가 0개면 새 대화 생성
     if (initialConvs.length === 0) {
+      console.log("초기 대화가 없어 새 대화 생성");
       const now = new Date();
       const newConv = {
         id: Date.now().toString(),
         title: `대화 1`,
-        timestamp: now.toLocaleString(),
+        timestamp: now.getTime(),
         messages: [
           {
             role: "assistant",
             content: "안녕하세요! 무엇을 도와드릴까요?",
             sources: [],
+            timestamp: Date.now(),
           },
         ],
         pinned: false,
+        category: defaultCategory,
+        metadata: {
+          messageCount: 1,
+          firstMessageTimestamp: Date.now(),
+          lastActivity: Date.now()
+        }
       };
       initialConvs = [newConv];
+      
+      // 상태 업데이트
       setConversations(initialConvs);
       setActiveConversationId(newConv.id);
+      setCurrentMessages(newConv.messages);
       
-      // 신규 대화 생성 시 localStorage에 즉시 저장
+      // 신규 대화 생성 시 localStorage에 즉시 저장 (문자열 따옴표 없이 저장)
       localStorage.setItem("conversations", JSON.stringify(initialConvs));
-      localStorage.setItem("activeConversationId", JSON.stringify(newConv.id));
+      localStorage.setItem("activeConversationId", newConv.id);
+      
+      console.log("새 대화가 생성되고 로컬 스토리지에 저장됨:", newConv.id);
       
       // 백엔드 저장 시도 (비동기로 실행)
       saveConversationToBackend(userId, newConv.id, newConv.messages)
         .catch(err => console.warn("백엔드 저장 실패, 로컬에만 저장됨:", err));
     } else {
+      // 기존 대화 목록 있는 경우 - 상태 업데이트
       setConversations(initialConvs);
+      
+      // 활성 대화 ID 결정
       let initialActiveId = null;
+      
+      // 저장된 활성 ID가 있는지 확인
       if (savedActiveId) {
         try {
-          initialActiveId = JSON.parse(savedActiveId);
+          // JSON 형식으로 저장되어 있을 수 있으므로 파싱 시도
+          initialActiveId = savedActiveId.startsWith('"') 
+            ? JSON.parse(savedActiveId) 
+            : savedActiveId;
+          
+          // 활성 ID가 실제 존재하는 대화인지 확인
           if (!initialConvs.some((conv) => conv.id === initialActiveId)) {
+            console.log("저장된 활성 대화 ID가 존재하지 않아 마지막 대화로 설정");
             initialActiveId = initialConvs[initialConvs.length - 1].id;
           }
         } catch (e) {
+          console.warn("활성 대화 ID 파싱 중 오류, 마지막 대화로 설정:", e);
           initialActiveId = initialConvs[initialConvs.length - 1].id;
         }
       } else {
+        console.log("저장된 활성 대화 ID가 없어 마지막 대화로 설정");
         initialActiveId = initialConvs[initialConvs.length - 1].id;
       }
+      
+      // 활성 대화 ID 설정
       setActiveConversationId(initialActiveId);
       
-      // activeConversationId 설정 시 localStorage에 즉시 저장
-      localStorage.setItem("activeConversationId", JSON.stringify(initialActiveId));
+      // 활성 대화의 메시지 설정
+      const activeConv = initialConvs.find(c => c.id === initialActiveId);
+      if (activeConv && activeConv.messages) {
+        setCurrentMessages(activeConv.messages);
+      }
+      
+      // localStorage에 활성 ID 저장 (문자열 따옴표 없이 저장)
+      localStorage.setItem("activeConversationId", initialActiveId);
+      
+      console.log("기존 대화 목록 로드 완료, 활성 대화 ID:", initialActiveId);
     }
     
     // 컴포넌트 마운트 시 입력 필드에 포커스
@@ -467,10 +552,9 @@ function App() {
   // activeConversationId 변경 시 localStorage에 저장
   useEffect(() => {
     if (activeConversationId) {
-      localStorage.setItem(
-        "activeConversationId",
-        JSON.stringify(activeConversationId)
-      );
+      // 문자열 직접 저장 - JSON.stringify 사용하지 않음
+      localStorage.setItem("activeConversationId", activeConversationId);
+      console.log("활성 대화 ID 저장:", activeConversationId);
     }
   }, [activeConversationId]);
 
@@ -483,18 +567,30 @@ function App() {
         const cleanConversations = conversations.map(conv => ({
           id: conv.id,
           title: conv.title,
-          timestamp: conv.timestamp,
+          timestamp: conv.timestamp || Date.now(),
           pinned: !!conv.pinned,
-          messages: conv.messages.map(msg => ({
-            role: msg.role,
-            content: msg.content,
+          category: conv.category || defaultCategory,
+          messages: Array.isArray(conv.messages) ? conv.messages.map(msg => ({
+            role: msg.role || "assistant",
+            content: msg.content || "",
             timestamp: msg.timestamp || Date.now(),
             sources: Array.isArray(msg.sources) ? msg.sources : []
-          }))
+          })) : [],
+          metadata: conv.metadata || {
+            messageCount: Array.isArray(conv.messages) ? conv.messages.length : 0,
+            firstMessageTimestamp: Date.now(),
+            lastActivity: Date.now()
+          }
         }));
         
-        localStorage.setItem("conversations", JSON.stringify(cleanConversations));
-        console.log("로컬 스토리지에 대화 저장 완료");
+        // 유효성 검사 후 저장
+        if (Array.isArray(cleanConversations) && cleanConversations.every(conv => conv.id)) {
+          localStorage.setItem("conversations", JSON.stringify(cleanConversations));
+          console.log("로컬 스토리지에 대화 저장 완료 - 대화 수:", cleanConversations.length);
+        } else {
+          console.error("저장 시도 중 유효하지 않은 대화 데이터 발견:", 
+            cleanConversations.filter(conv => !conv.id).length);
+        }
       } catch (error) {
         console.error("대화 저장 중 오류 발생:", error);
       }
@@ -504,13 +600,13 @@ function App() {
         const activeConv = conversations.find(
           (c) => c.id === activeConversationId
         );
-        if (activeConv && activeConv.messages.length > 0) {
+        if (activeConv && activeConv.messages && activeConv.messages.length > 0) {
           // 백엔드 저장 비활성화 (422 오류 문제 해결을 위함)
           // saveConversationToBackend(userId, activeConversationId, activeConv.messages);
         }
       }
     }
-  }, [conversations, activeConversationId, userId]);
+  }, [conversations, activeConversationId, userId, defaultCategory]);
 
   // 전체 대화 삭제 기능 추가
   const deleteAllConversations = () => {
@@ -667,39 +763,66 @@ function App() {
 
   // 대화 선택
   const handleSelectConversation = (id) => {
+    console.log(`대화 선택: ${id} - 메시지 로딩 시작`);
+    
+    // 먼저 activeConversationId 업데이트
     setActiveConversationId(id);
-    // 백엔드에서 대화 불러오기 (필요 시)
+    
+    // 로컬 스토리지에서 최신 대화 데이터 직접 불러오기
+    try {
+      const savedConversations = localStorage.getItem("conversations");
+      if (savedConversations) {
+        const parsedConversations = JSON.parse(savedConversations);
+        const freshConversation = parsedConversations.find(conv => conv.id === id);
+        
+        if (freshConversation && freshConversation.messages && freshConversation.messages.length > 0) {
+          console.log(`로컬 스토리지에서 대화 로드 - ID: ${id}, 메시지 수: ${freshConversation.messages.length}`);
+          
+          // 완전한 대화 데이터 발견시 현재 메시지 상태 업데이트
+          setCurrentMessages(freshConversation.messages);
+          
+          // conversations 상태도 업데이트
+          setConversations(prev => {
+            // 이미 존재하는 대화만 업데이트
+            return prev.map(conv => 
+              conv.id === id ? {...conv, messages: freshConversation.messages} : conv
+            );
+          });
+        }
+      }
+    } catch (error) {
+      console.error("로컬 스토리지에서 대화 로드 중 오류:", error);
+    }
+    
+    // 메모리(React 상태)에서 현재 선택된 대화 찾기
+    const selectedConv = conversations.find(conv => conv.id === id);
+    
+    // 메모리에서 찾은 대화가 있고, 로컬 스토리지에서 로딩하지 않았다면 메모리 데이터 사용
+    if (selectedConv && selectedConv.messages && selectedConv.messages.length > 0) {
+      console.log(`메모리에서 대화 데이터 로드 - 메시지 수: ${selectedConv.messages.length}`);
+      setCurrentMessages(selectedConv.messages);
+    }
+    
+    // 백엔드에서도 최신 데이터 불러오기 (항상 실행하여 가장 최신 데이터 확보)
     loadConversationFromBackend(userId, id);
+    
     // 모바일에서 대화 선택 시 사이드바 닫기
     if (window.innerWidth < 768) {
       setSidebarOpen(false);
     }
     
-    // 대화창 전환 시 스크롤을 최신 메시지로 강력하게 이동시키기 위한 다중 이벤트 발생
-    
-    // 1. 즉시 이벤트 발생
-    window.dispatchEvent(new CustomEvent('chatScrollToBottom'));
-    
-    // 2. 약간의 지연 후 이벤트 발생 (DOM 업데이트 기다림)
+    // 대화창 전환 시 스크롤을 최신 메시지로 이동 (forceScroll 플래그 추가)
     setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('chatScrollToBottom'));
-    }, 50);
-    
-    // 3. 대화 내용 로드 완료 후 이벤트 발생 (비동기 작업 완료 대기)
-    setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('chatScrollToBottom'));
+      window.dispatchEvent(new CustomEvent('chatScrollToBottom', { 
+        detail: { forceScroll: true }
+      }));
     }, 300);
-    
-    // 4. 렌더링 완료 보장을 위한 추가 이벤트
-    setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('chatScrollToBottom'));
-    }, 800);
     
     // 대화 선택 후 입력 필드에 포커스
     console.log('App: 대화 선택 후 포커스 이벤트 발생');
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent('chatInputFocus'));
-    }, 1000);
+    }, 500);
   };
 
   // 대화 삭제
@@ -837,6 +960,12 @@ function App() {
   // 백엔드에서 대화 불러오기
   const loadConversationFromBackend = async (userId, conversationId) => {
     try {
+      // 현재 메모리에 있는 대화 데이터 찾기 (비교용)
+      const currentConversation = conversations.find(c => c.id === conversationId);
+      const currentMessageCount = currentConversation?.messages?.length || 0;
+      
+      console.log(`백엔드 대화 로드 시작 - ID: ${conversationId}, 현재 메시지 수: ${currentMessageCount}`);
+      
       // 백엔드 요청 시도 (타임아웃 설정)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000); // 3초 타임아웃
@@ -865,14 +994,56 @@ function App() {
       
       const data = await response.json();
       if (data.status === "success" && data.conversation) {
-        setConversations((prev) =>
-          prev.map((conv) =>
-            conv.id === conversationId
-              ? { ...conv, messages: data.conversation.messages }
-              : conv
-          )
-        );
-        console.log("대화가 백엔드에서 불러와졌습니다.");
+        // 백엔드에서 받은 메시지가 있고 유효한지 확인
+        if (data.conversation.messages && Array.isArray(data.conversation.messages)) {
+          const backendMessageCount = data.conversation.messages.length;
+          console.log(`백엔드 응답 성공 - 메시지 수: ${backendMessageCount}`);
+          
+          // 백엔드 데이터가 더 많은 메시지를 가지고 있거나 현재 데이터가 없는 경우에만 업데이트
+          if (backendMessageCount > currentMessageCount || currentMessageCount === 0) {
+            console.log(`백엔드 데이터가 더 많은 메시지를 포함하여 업데이트 진행`);
+            
+            // conversations 상태 업데이트
+            setConversations((prev) =>
+              prev.map((conv) =>
+                conv.id === conversationId
+                  ? { ...conv, messages: data.conversation.messages }
+                  : conv
+              )
+            );
+            
+            // 현재 활성 대화의 메시지 상태도 즉시 업데이트
+            if (activeConversationId === conversationId) {
+              setCurrentMessages(data.conversation.messages);
+              
+              // 로컬 스토리지에도 즉시 업데이트 (다음 로드 시 최신 상태 유지)
+              try {
+                // 전체 conversations 가져와서 특정 대화만 업데이트
+                const savedConversations = localStorage.getItem("conversations");
+                if (savedConversations) {
+                  let parsedConversations = JSON.parse(savedConversations);
+                  parsedConversations = parsedConversations.map(conv => 
+                    conv.id === conversationId 
+                      ? {...conv, messages: data.conversation.messages}
+                      : conv
+                  );
+                  localStorage.setItem("conversations", JSON.stringify(parsedConversations));
+                  console.log("백엔드 데이터로 로컬 스토리지 업데이트 완료");
+                }
+              } catch (err) {
+                console.warn("로컬 스토리지 업데이트 중 오류:", err);
+              }
+            }
+            
+            console.log("대화가 백엔드에서 불러와져 업데이트 되었습니다.");
+          } else {
+            console.log("백엔드 데이터가 현재 데이터보다 적거나 동일하여 업데이트 생략");
+          }
+        } else {
+          console.warn("백엔드에서 받은 메시지가 비어있거나 유효하지 않습니다.");
+        }
+      } else {
+        console.log("백엔드에서 대화를 찾을 수 없거나 응답 형식이 잘못되었습니다.");
       }
     } catch (err) {
       console.warn("대화 불러오기 중 오류 발생:", err.message);
@@ -887,7 +1058,15 @@ function App() {
         (conv) => conv.id === activeConversationId
       );
       if (activeConv) {
+        console.log("대화 선택: 메시지 개수", activeConv.messages.length);
         setCurrentMessages(activeConv.messages);
+        
+        // 메시지가 있는지 확인하고 백엔드에서 다시 로드
+        // 만약 messages가 비어있거나 첫 메시지만 있다면 백엔드에서 다시 로드
+        if (!activeConv.messages || activeConv.messages.length <= 1) {
+          console.log("불완전한 메시지 감지: 백엔드에서 전체 대화 다시 로드");
+          loadConversationFromBackend(userId, activeConversationId);
+        }
       }
     } else {
       setCurrentMessages([
@@ -898,7 +1077,7 @@ function App() {
         },
       ]);
     }
-  }, [conversations, activeConversationId]);
+  }, [conversations, activeConversationId, userId]);
 
   // 반응형: 화면 크기 변경 시 사이드바 상태 업데이트
   useEffect(() => {
