@@ -834,13 +834,24 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
   const [threadEndLine, setThreadEndLine] = useState(false);
   const [showTableOfContents, setShowTableOfContents] = useState(false);
   
+  // 참조 추가
+  const messageContainerRef = useRef(null);
+  const contentRef = useRef(null);
+  
+  // 메시지 ID 생성
+  const messageId = useMemo(() => `message-${message.timestamp || Date.now()}-${Math.random().toString(36).substr(2, 9)}`, [message.timestamp]);
+  
+  // 메시지 내용 준비 - 모든 관련 함수보다 먼저 실행
+  // 봇 메시지인 경우 bot_response 사용, 사용자 메시지는 content 사용
+  const messageContent = useMemo(() => {
+    const content = message.role === 'user' ? message.content : (message.bot_response || message.content || "");
+    return content || "";
+  }, [message.role, message.content, message.bot_response]);
+
   // 추천 질문 관련 상태
   const suggestedQuestions = useMemo(() => {
     return message.suggestedQuestions || [];
   }, [message.suggestedQuestions]);
-  
-  // 메시지 ID 생성
-  const messageId = useMemo(() => `message-${message.timestamp || Date.now()}-${Math.random().toString(36).substr(2, 9)}`, [message.timestamp]);
   
   // 키워드 하이라이트 스타일 주입
   useEffect(() => {
@@ -1676,16 +1687,8 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
       return abnormalPatterns.some(pattern => pattern.test(text));
     };
     
-    // 콘텐츠 전처리
-    // 봇 메시지인 경우 bot_response 사용, 사용자 메시지인 경우 content 사용
-    let rawContent = message.role === 'user' ? message.content : message.bot_response;
-    
-    // bot_response가 없을 경우를 대비한 방어 코드 (예: 이전 대화 로딩 시, 또는 bot_response가 없는 assistant 메시지)
-    if (message.role === 'assistant' && !rawContent && message.content) {
-      rawContent = message.content; // fallback으로 content 사용
-    }
-    
-    let processedContent = rawContent || ""; // null 또는 undefined 방지
+    // 콘텐츠 전처리 - 외부에서 정의된 messageContent 사용
+    let processedContent = messageContent || "";
     
     // 비정상 패턴이 있는 경우에만 escapeHtmlTags 함수 적용 (성능 최적화)
     if (hasAbnormalPatterns(processedContent)) {
@@ -1707,7 +1710,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
         </ReactMarkdown>
       </div>
     );
-  }, [message.content, message.bot_response, message.role, copied]); // 의존성 배열 수정
+  }, [messageContent, escapeHtmlTags]); // messageContent 의존성으로 변경
 
   // 메시지 그룹핑 로직
   const isLastInGroup = !nextMessage || nextMessage.role !== message.role;
@@ -1719,14 +1722,11 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     return match ? match[1] : null;
   };
   
-  // 봇 메시지인 경우 bot_response에서, 사용자 메시지는 content에서 imageUrl 추출
-  const contentForImageExtraction = message.role === 'user' ? message.content : (message.bot_response || message.content || "");
-  const imageUrl = extractImageUrl(contentForImageExtraction);
+  // 이미지 URL 추출 - 외부에서 정의된 messageContent 사용
+  const imageUrl = extractImageUrl(messageContent);
   
   // 메시지 내용에서 이미지 마크다운 제거
-  // 봇 메시지인 경우 bot_response에서, 사용자 메시지는 content에서 이미지 제거
-  const contentForCleaning = message.role === 'user' ? message.content : (message.bot_response || message.content || "");
-  const cleanContent = (contentForCleaning || "").replace(/!\[.*?\]\(.*?\)/g, '').trim();
+  const cleanContent = messageContent.replace(/!\[.*?\]\(.*?\)/g, '').trim();
   
   // 검색어 하이라이트 처리
   const highlightSearchTerm = (text) => {
@@ -1751,10 +1751,6 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
       });
     }
   }, [message, sourcesVisible, isLastInGroup]);
-  
-  // 참조 추가
-  const messageContainerRef = useRef(null);
-  const contentRef = useRef(null);
   
   // 출처 표시 관련 로직 개선
   const filteredSources = useMemo(() => {
@@ -1880,7 +1876,7 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
     if (showTypeWriter && !isUser) {
       return (
         <TypeWriter 
-          text={message.content || ""}
+          text={messageContent || ""}
           speed={1} 
           onComplete={() => {
             setIsTypingComplete(true);
@@ -1892,8 +1888,8 @@ function ChatMessage({ message, searchTerm = "", isSearchMode, prevMessage, next
 
     // 검색 모드에서 검색어 하이라이트
     const content = isSearchMode && searchTerm 
-      ? highlightSearchTerm(message.content || "")
-      : message.content || "";
+      ? highlightSearchTerm(messageContent || "")
+      : messageContent || "";
 
     return (
       <ReactMarkdown

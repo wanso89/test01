@@ -1,0 +1,22 @@
+{
+  "userId": "user1",
+  "conversationId": "conv_1749544788413",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "1+! 답은",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "문서 1과 문서 2에는 숫자만 나열되어 있으며, 의미 있는 정보가 없습니다. 따라서 이 두 문서에서 1+!의 답을 찾을 수 없습니다.\n\n문서 3에서는 네트워크 보안과 관련된 내용이 설명되어 있지만, 1+!와 관련된 정보는 없습니다.\n\n",
+      "sources": []
+    }
+  ],
+  "timestamp": "2025-06-10T17:39:53.054172"
+}

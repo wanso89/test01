@@ -1,0 +1,22 @@
+{
+  "userId": "user1",
+  "conversationId": "conv_1749545898135",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 제1조 내용 뭐야? 간단하게 3줄 요약",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "보안서약서 제1조는 네오오토의 임직원이 정보보호의 중요성을 인식하고, IT 보안 관련 규정을 준수하며, 회사 정보의 누설이나 유출, 시스템의 무단 접근 및 훼손, 불법 소프트웨어 사용 등을 금지하는 내용을 ",
+      "sources": []
+    }
+  ],
+  "timestamp": "2025-06-10T17:58:29.548592"
+}

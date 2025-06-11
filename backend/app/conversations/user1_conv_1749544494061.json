@@ -1,0 +1,47 @@
+{
+  "userId": "user1",
+  "conversationId": "conv_1749544494061",
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "안녕하세요! 무엇을 도와드릴까요?",
+      "sources": []
+    },
+    {
+      "role": "user",
+      "content": "보안서약서 10조라는 내용이 있어?",
+      "sources": []
+    },
+    {
+      "role": "assistant",
+      "content": "네, 문서 1에는 \"IT 보안 서약서\"의 내용이 제시되어 있으며, 이 서약서에는 10조가 포함되어 있습니다. 서약서의 제1조에서는 임직원이 회사의 정보보호와 관련된 규정을 준수하고, 제2조에서는 회사가 보안 관리를 위해 수행할 수 있는 모니터링 활동에 대한 동의를 요구합니다.",
+      "sources": [
+        {
+          "path": "88b3628b-1e8a-466b-8a68-a489cdfea8d4_IT 보안서약서_2025.pdf",
+          "display_name": "IT 보안서약서_2025.pdf",
+          "page": 1,
+          "chunk_id": "0",
+          "score": 70.70753448602905,
+          "is_cited": false
+        },
+        {
+          "path": "39cae61f-2456-4125-baf5-766dcd853e79_원격업무지원시스템 관련 FAQ(v1.4).pdf",
+          "display_name": "원격업무지원시스템 관련 FAQ(v1.4).pdf",
+          "page": 1,
+          "chunk_id": "0",
+          "score": 72.63066547911674,
+          "is_cited": false
+        },
+        {
+          "path": "40f7926e-cc46-490a-996e-a8664ffc648e_주요정보통신기반시설_기술적_취약점_분석_평가_방법_상세가이드.pdf",
+          "display_name": "주요정보통신기반시설_기술적_취약점_분석_평가_방법_상세가이드.pdf",
+          "page": 187,
+          "chunk_id": "426",
+          "score": 49.20252758554421,
+          "is_cited": false
+        }
+      ]
+    }
+  ],
+  "timestamp": "2025-06-10T17:35:06.308597"
+}

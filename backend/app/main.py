@@ -3198,4 +3198,3 @@ def deduplicate_markdown_sections_py(markdown_text: str) -> str:
     # 연속 빈 줄 정리
     result = re.sub(r'\n{3,}', '\n\n', result)
     return result.strip()
-
